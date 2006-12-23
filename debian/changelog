@@ -1,3 +1,11 @@
+rt61 (1.1.0.dfsg.1+cvs20061223-2) UNRELEASED; urgency=low
+
+  * NOT RELEASED YET.
+  * only recommend rt61-firmware.
+  * fix section for rt61-modules-* to contrib/net.
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 17:45:19 +0100
+
 rt61 (1.1.0.dfsg.1+cvs20061223-1) unstable; urgency=low
 
   * New CVS Snapshot.
