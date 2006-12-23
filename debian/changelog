@@ -4,10 +4,11 @@ rt61 (1.1.0.dfsg.1+cvs20061223-2) UNRELEASED; urgency=low
   * only recommend rt61-firmware.
   * fix section for rt61-modules-* to contrib/net.
   * add initial rt61-fwcutter functionality.
-  * add Module/README, rt61sta.dat, STA_iwpriv_ATE_usage.txt and 
+  * add Module/README, rt61sta.dat, STA_iwpriv_ATE_usage.txt and
     iwpriv_usage.txt to rt61-fwcutter.
+  * add manpage for rt61-fwcutter, inspired by bcm43xx-fwcutter.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 19:03:58 +0100
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 19:37:14 +0100
 
 rt61 (1.1.0.dfsg.1+cvs20061223-1) unstable; urgency=low
 

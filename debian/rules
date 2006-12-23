@@ -29,6 +29,12 @@ install/rt61-source::
 	tar jcf debian/rt61-source/usr/src/rt61.tar.bz2 \
 		-C debian/tmp modules
 
+install/rt61-fwcutter::
+	install -m 0755	debian/rt61-fwcutter.sh \
+			debian/rt61-fwcutter/usr/bin/rt61-fwcutter
+	install -m 0755	debian/install_rt61_firmware.sh \
+			debian/rt61-fwcutter/usr/share/rt61-fwcutter/
+
 get-orig-source:
 	rm $(CURDIR)/* || true
 	rm -rf source Module CVS $(DEB_SOURCE_PACKAGE)-*

@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -18,13 +17,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../templates:1001
+#: ../rt61-fwcutter.templates:1001
 msgid "Fetch and extract firmware?"
 msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../templates:1001
+#: ../rt61-fwcutter.templates:1001
 msgid ""
 "The rt61 driver needs extracted firmware - which cannot be shipped - to be "
 "working. This firmware can be automatically fetched and extracted as part of "
