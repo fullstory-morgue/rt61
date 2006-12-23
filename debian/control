@@ -1,0 +1,15 @@
+Source: rt61
+Section: contrib/net
+Priority: optional
+Maintainer: Kel Modderman <kelrin@tpg.com.au>
+Uploaders: Stefan Lippers-Hollmann <s.l-h@gmx.de>
+Build-Depends: cdbs, debhelper (>= 5.0.37), bzip2
+Standards-Version: 3.7.2
+
+Package: rt61-source
+Architecture: all
+Depends: module-assistant, debhelper (>= 5.0.37), bzip2
+Description: source for the rt61 driver
+ This package provides the source code for the rt61 kernel module.
+ The rt61 package is also required in order to make use of these
+ module. Kernel source or headers are required to compile these modules.

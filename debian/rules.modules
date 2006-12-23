@@ -1,0 +1,48 @@
+#!/usr/bin/make -f
+
+PACKAGE := rt61-modules
+MA_DIR ?= /usr/share/modass
+-include $(MA_DIR)/include/generic.make
+-include $(MA_DIR)/include/common-rules.make
+
+PATCHLEVEL := $(shell echo $(KVERS) | cut -d. -f2)
+
+# kernel module filename extension
+ifeq ($(PATCHLEVEL),6)
+	modextension := .ko
+else
+	modextension := .o
+endif
+
+.PHONY: kdist_config
+kdist_config: prep-deb-files
+
+.PHONY: binary_modules binary-modules
+binary-modules: binary_modules
+binary-modules: kdist_config
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	
+	$(MAKE) -C $(CURDIR) KERNDIR=$(KSRC) PATCHLEVEL=$(PATCHLEVEL)
+
+	dh_installdirs				lib/modules/$(KVERS)/kernel/drivers/net/wireless
+	dh_install rt61$(modextension)		lib/modules/$(KVERS)/kernel/drivers/net/wireless
+
+	dh_installdocs
+	dh_installchangelogs
+	dh_compress
+	dh_fixperms
+	dh_installmodules
+	dh_installdeb
+	dh_gencontrol -- -v$(VERSION)
+	dh_md5sums
+	dh_builddeb --destdir=$(DEB_DESTDIR)
+
+.PHONY: kdist_clean
+kdist_clean: modules-clean
+modules-clean:
+	dh_testdir
+	dh_testroot
+	dh_clean
+	$(MAKE) -C $(CURDIR) clean

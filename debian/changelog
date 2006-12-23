@@ -1,0 +1,47 @@
+rt61 (1.1.0.dfsg.1+cvs20061223-1) unstable; urgency=low
+
+  * New CVS Snapshot.
+  * add myself to uploaders.
+  * remove not dfsg free parts (the binary firmware).
+  * add get-orig-source target to debian/rules, concentrate on cvs checkouts.
+  * move package to contrib.
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 17:01:43 +0100
+
+rt61 (1.1.0+20061210-0.1) unstable; urgency=low
+
+  * Non-maintainer upload.
+  * New upstream release:
+    - Fix WPA problems
+    - Add support for kernels >= 2.6.19.
+    - Add TFMONTx support
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sun, 10 Dec 2006 19:41:28 +0100
+
+rt61 (1.1.0+20060910-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Kel Modderman <kelrin@tpg.com.au>  Sun, 10 Sep 2006 21:19:39 +1000
+
+rt61 (1.1.0+20060814-1) unstable; urgency=low
+
+  * New upstream release
+  * Fix build-deps
+  * Versioned depends on debhelp 5.0.37 for dh_installmodules
+
+ -- Kel Modderman <kelrin@tpg.com.au>  Mon, 14 Aug 2006 21:07:09 +1000
+
+rt61 (0.0.0+20060721-1) unstable; urgency=low
+
+  * New upstream release
+    - fixes module crash due to stupid hardcoding of firmware location
+
+ -- Kel Modderman <kelrin@tpg.com.au>  Fri, 21 Jul 2006 17:02:51 +1000
+
+rt61 (0.0.0+20060618-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Kel Modderman <kelrin@tpg.com.au>  Sun, 18 Jun 2006 10:48:27 +1000
+

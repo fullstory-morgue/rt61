@@ -1,0 +1,21 @@
+Source: rt61
+Section: non-free/net
+Priority: optional
+Maintainer: Kel Modderman <kelrin@tpg.com.au>
+Build-Depends: debhelper (>= 5.0.37), bzip2
+Standards-Version: 3.7.2
+
+Package: rt61-modules-_KVERS_
+Architecture: any
+Depends: linux-image-_KVERS_, rt61-firmware
+Provides: rt61-modules
+Description: rt61 modules for Linux (kernel _KVERS_)
+ This package contains the set of loadable kernel module for the
+ rt61 driver for Ralink wireless pci chipsets.
+ .
+ This package contains the compiled kernel modules for _KVERS_
+ .
+ If you have compiled your own kernel, you will most likely need to build
+ your own rt61-modules. The rt61-source package has been
+ provided for use with the Debian's module-assistant or kernel-package
+ utilities to produce a version of rt61-module for your kernel.

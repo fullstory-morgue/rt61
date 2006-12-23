@@ -1,0 +1,41 @@
+This package was debianized by Kel Modderman <kelrin@tpg.com.au> on
+Sun, 18 Jun 2006 10:48:27 +1000.
+
+It was downloaded from http://rt2x00.serialmonkey.com/wiki/index.php/Downloads
+
+Copyright:
+ Ivo van Doorn - IvDoorn@gmail.com
+ Flavio Stanchina - flavio@stanchina.net
+ Luis Correia - lfcorreia@users.sf.net
+ Mark Wallis - mwallis@serialmonkey.com
+
+License:
+
+The contents of rt61 is entirely GPL, apart from the binary firmware images:
+	
+	Module/rt2561.bin
+	Module/rt2561s.bin
+	Module/rt2661.bin
+
+These files are distributed as is, and without modification.
+
+   This package is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or
+   (at your option) any later version.
+
+   This package is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this package; if not, write to the Free Software Foundation,
+   Inc. 51 Franklin St, Fifth Floor, Boston, MA  02110-1301,  USA.
+
+On Debian systems, the complete text of the GNU General
+Public License can be found in `/usr/share/common-licenses/GPL'.
+
+The Debian packaging is (C) 2006, Kel Modderman <kelrin@tpg.com.au> and
+is licensed under the GPL, see `/usr/share/common-licenses/GPL'.
+
