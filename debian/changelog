@@ -1,3 +1,9 @@
+rt61 (1.1.0.dfsg.1+cvs20061223-4) UNRELEASED; urgency=low
+
+  * NOT RELEASED YET
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 21:50:26 +0100
+
 rt61 (1.1.0.dfsg.1+cvs20061223-3) unstable; urgency=low
 
   * remove empty /etc/Wireless/ on purge.
