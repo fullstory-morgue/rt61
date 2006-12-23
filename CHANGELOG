@@ -1,0 +1,41 @@
+/*************************************************************************** 
+ * RT2x00 SourceForge Project - http://rt2x00.sourceforge.net              * 
+ *                                                                         * 
+ *   This program is free software; you can redistribute it and/or modify  * 
+ *   it under the terms of the GNU General Public License as published by  * 
+ *   the Free Software Foundation; either version 2 of the License, or     * 
+ *   (at your option) any later version.                                   * 
+ *                                                                         * 
+ *   This program is distributed in the hope that it will be useful,       * 
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        * 
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         * 
+ *   GNU General Public License for more details.                          * 
+ *                                                                         * 
+ *   You should have received a copy of the GNU General Public License     * 
+ *   along with this program; if not, write to the                         * 
+ *   Free Software Foundation, Inc.,                                       * 
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             * 
+ *                                                                         * 
+ *   Licensed under the GNU GPL                                            * 
+ *   Original code supplied under license from RaLink Inc, 2003.           * 
+ ***************************************************************************/
+ 
+ Changelog for 802.11g rt61 driver
+
+ Version: CVS
+ 	* Fix oops upon loading module without proper firmware file installed
+	  (bug 1518488).
+	* Fix resetting of WEP keys while reading them.
+	* Add 2.4.x kernel compatibility code.
+	* Fix WPA problems
+	* Add support for kernels >= 2.6.19.
+	* Add RFMONTx support
+	* Import 64-bit fixes from new Ralink (1.1.0.0) driver.
+	* Fix essid truncation on kernels >= 2.6.19.
+
+ Version: 1.1.0-beta1 
+	* Initial baseline code from Ralink (1.0.3.0)
+	* Applied assorted fixes from the rt2500 driver tree
+	* Replaced Ralink queuing mechanism with proper skb_queue mechanism
+	* Updated to new baseline code version (1.0.4.0) from Ralink
+	* Added RFMON support

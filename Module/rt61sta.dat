@@ -1,0 +1,47 @@
+# Copy this file to /etc/Wireless/RT61STA/rt61sta.dat
+# This file is a binary file and will be read on loading rt2500.o module.
+
+[Default]
+CountryRegion=0
+CountryRegionABand=7
+WirelessMode=0
+TxBurst=0
+PktAggregate=0
+TurboRate=0
+WmmCapable=0
+AckPolicy1=0
+AckPolicy2=0
+AckPolicy3=0
+AckPolicy4=0
+BGProtection=0
+IEEE80211H=0
+TxRate=0
+RoamThreshold=75
+PSMode=CAM
+TxPreamble=0
+FastRoaming=0
+
+# All parameters below can be set by iwconfig in the if-pre scripts
+# if required or enabled here if you wish
+# Anything enabled here will be used when EVEN the net interface is brought up
+# this will undo any iwconfig pre-up settings.
+
+#SSID=OFFICEWAPG
+#NetworkType=Infra
+#Channel=1
+AuthMode=SHARED
+EncrypType=WEP
+#DefaultKeyID=1
+#Key1Type=0
+#Key1Str=
+#Key2Type=0
+#Key2Str=
+#Key3Type=0
+#Key3Str=
+#Key4Type=0
+#Key4Str=
+#WPAPSK=abcdefghijklmnopqrstuvwxyz
+#RTSThreshold=2312
+#FragThreshold=2312
+PSMode=CAM
+#RFMON=0

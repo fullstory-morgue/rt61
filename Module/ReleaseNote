@@ -1,0 +1,72 @@
+*******************************************************************
+*               RALINK TECHNOLOGY, CORP.                  
+*              RALINK RT61 Wireless Card          
+*             SOFTWARE DRIVER RELEASE NOTE
+*
+*******************************************************************
+
+[V 1.1.0.0]
+1.) Support x64 platform
+*******************************************************************
+
+[V 1.0.4.0]
+1.) Support WMM
+2.) Support WPA Supplicant
+3.) Support Fast Roaming
+4.) Support Long Slot Time in Ad hoc mode
+5.) Enhance setting channel in Adhoc mode in the profile
+6.) Enhance error handling when interface down
+7.) Support B/G band Country Region 7 (Channel 5 to Channel 13)
+*******************************************************************
+
+[V 1.0.3.0]
+1. Bug Fixed: WPANONE, TKIP/AES in Adhoc security system
+2. Bug Fixed: Results of channel scanning are out of range or incorrect
+3. Bug Fixed: Roaming can not work smoothly
+4. Error handling on func. of LoadParametersFromFile(), NICLoadFirmware() and RTMPAllocDMAMemory()
+5. Support WPAPSK - Both
+6. Move 2.Xx/Makefile to Makefile.X	, where X is 4 or 6 (kernel series)
+7. Rename rt61sta.dat, rt2561.bin, rt2561s.bin and rt2661.bin
+8. Update firmware to ver 0.8
+9. Correct Noise and signal level that get from the command "iwconfig"
+10. Invalid value checks on configured parameters 
+11. Replace strtok with rstrtok, beacuse strtok is obsolote in linux kernel 2.6
+12. Enable TX rate auto fallback from OFDM to CCK 1M, 2M on(B/BG/ABG)
+13. Modify scan timing.
+14. Modify setting Any SSID
+15. Verify OID/UI process
+*******************************************************************
+
+[V 1.0.2.0]
+1. Bug Fixed: Beacon lost issue
+2. Bug Fixed: AES shared group key problem
+*******************************************************************
+
+[V 1.0.1.0]
+1. Bug Fixed: Crash in antenna diversity
+2. Bug Fixed: Performance/throughput in frame aggregation
+3. Support non-copy rx
+4. Support WPA2PSK
+*******************************************************************
+
+[V 1.0.0.0]
+1. Bug Fixed: Adhoc mode
+2. Bug Fixed: "iwpriv" causes segmentation fault in Fedora Core
+3. Support Big-Endian. (Makefile.RTL865x)
+4. Support Aggregation
+5. Support
+    RT2561S (DeviceID=0x0301) : high throughput version
+    RT2561 (DeviceID=0x0302)  : cost down version
+    RT2661 (DeviceID=0x0401)  : smart antenna version
+    Firmware version : 0.6
+*******************************************************************
+
+[V 0.0.0.1]
+1. This source code package can be use in Linux kernel 2.4 series.
+2. Not ready in this driver
+   - Adhoc mode
+   - Aggregation
+   - BigEndian
+   - RALINK_ATE
+   - WMM
+
