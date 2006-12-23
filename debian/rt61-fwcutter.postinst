@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e
+
+. /usr/share/debconf/confmodule
+
+db_get rt61-fwcutter/cut_firmware
+if [ "$RET" = "true" ]; then
+	if [ ! -e /lib/firmware/rt2561.bin ] || [ ! -e /lib/firmware/rt2561s.bin ] || [ ! -e /lib/firmware/rt2661.bin ]; then
+		/usr/share/rt61-fwcutter/install_rt61_firmware.sh
+	fi
+fi
+
+#DEBHELPER#
+

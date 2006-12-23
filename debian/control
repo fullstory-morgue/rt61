@@ -13,3 +13,12 @@ Description: source for the rt61 driver
  This package provides the source code for the rt61 kernel module.
  The rt61 package is also required in order to make use of these
  module. Kernel source or headers are required to compile these modules.
+
+Package: rt61-fwcutter
+Architecture: all
+Provides: rt61-firmware
+Depends: udev, wget | curl
+Description: Utility for extracting Ralink rt61 firmware
+ rt61-fwcutter is a tool which can extract firmware from Ralink rt61 or 
+ rt2x00 rt61 source files. It's written for Ralink rt61 driver files.
+

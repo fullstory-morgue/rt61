@@ -1,0 +1,44 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
+#    Developers do not need to manually edit POT or PO files.
+# Erik Schanze <mail@erikschanze.de>, 2004.
+#
+# strings taken from Rene Engelhard's <rene@debian.org> 
+# bcm43xx-fwcutter package.
+msgid ""
+msgstr ""
+"Project-Id-Version: rt61-fwcutter 20061223\n"
+"Report-Msgid-Bugs-To: kelrin@tpg.com.au\n"
+"POT-Creation-Date: 2006-12-23 18:58+0100\n"
+"PO-Revision-Date: 2006-12-23 18:21+0100\n"
+"Last-Translator: Stefan Lippers-Hollmann <s.l-h@gmx.de>\n"
+"Language-Team: Stefan Lippers-Hollmann <s.l-h@gmx.de>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms:  nplurals=2; plural=(n != 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../templates:1001
+msgid "Fetch and extract firmware?"
+msgstr "Firmware holen und extrahieren?"
+
+#. Type: boolean
+#. Description
+#: ../templates:1001
+msgid ""
+"The rt61 driver needs extracted firmware - which cannot be shipped - to be "
+"working. This firmware can be automatically fetched and extracted as part of "
+"installing this package."
+msgstr ""
+"Der rt61-Treiber benötigt extrahierte Firmware - welche nicht mitgeliefert "
+"werden kann - um zu funktionieren. Diese Firmware kann während der "
+"Paketinstallation automatisch geholt und extrahiert werden."
