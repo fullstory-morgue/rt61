@@ -1,8 +1,11 @@
-rt61 (1.1.0.dfsg.1+cvs20061223-3) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.1+cvs20061223-3) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * remove empty /etc/Wireless/ on purge.
+  * fix install install_rt61_firmware.sh.
+  * fix rt61-fwcutter.sh.
+  * fix --purge handling.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 19:45:35 +0100
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 21:48:21 +0100
 
 rt61 (1.1.0.dfsg.1+cvs20061223-2) unstable; urgency=low
 

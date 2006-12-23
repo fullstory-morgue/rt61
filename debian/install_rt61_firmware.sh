@@ -11,14 +11,14 @@ bailout()
 	exit "$1"
 }
 
-TMP="$(mktemp -dp /tmp/ rt61-firmware.XXXXXX)" || bailout 1 "can't create temporary directory."
+TMP="$(mktemp -dp /tmp/ rt61-fwcutter.XXXXXX)" || bailout 1 "can't create temporary directory."
 [ -x /usr/bin/wget ] && DL=wget
-[ -x /usr/bin/curl ] && DL="curl -o $dname"
+[ -x /usr/bin/curl ] && DL="curl -o $DRIVER"
 
 cd "$TMP"
 $DL "$URL"
 
-rt61-fwcutter "$dname"
+rt61-fwcutter "${TMP}/${DRIVER}"
 
 mkdir -p /lib/firmware
 for i in *.bin; do
