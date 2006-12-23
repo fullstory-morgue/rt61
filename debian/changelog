@@ -1,3 +1,9 @@
+rt61 (1.1.0.dfsg.1+cvs20061223-3) UNRELEASED; urgency=low
+
+  * NOT RELEASED YET
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Dec 2006 19:45:35 +0100
+
 rt61 (1.1.0.dfsg.1+cvs20061223-2) unstable; urgency=low
 
   * only recommend rt61-firmware.
