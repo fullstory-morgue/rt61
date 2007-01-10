@@ -4,8 +4,8 @@ Installation instructions for the rt61 Module
 Build Instructions:
 ===================
 For 2.4 or 2.6 series kernel:
-a. $tar -xvzf rt2500-x.x.x.tar.gz
-    go to "./rt2500-x.x.x/Module" directory.
+a. $tar -xvzf rt61-x.x.x.tar.gz
+    go to "./rt61-x.x.x/Module" directory.
 
 b. $make                # compile driver source code
 
@@ -38,13 +38,11 @@ The mapping of the firmware files is as follows:
 Configuration:
 ==============
 RT61 driver can be configured via following interfaces, 
-i.e. (i)"iwconfig" command, (ii)"iwpriv" command, (iii) configuration file,
-     (iv)RaConfig61
+i.e. (i)"iwconfig" command, (ii)"iwpriv" command, (iii) configuration file
 
 i)  iwconfig comes with kernel.  
 ii) iwpriv usage, please refer to file "iwpriv_usage.txt" for details.
 iii)copy configuration file "rt61sta.dat" to /etc/Wireless/RT61STA/rt61sta.dat.
-iv) RaConfig61 is utility for rt61.
            
 Configuration File : rt61sta.dat
 ---------------------------------------

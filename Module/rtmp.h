@@ -36,6 +36,7 @@
  *      Ivo (rt2400)    28th Jan 06     Debug level switching
  *      MarkW (rt2500)  19th Feb 06     Promisc mode support
  *      RobinC (rt2500) 30th May 06     RFMON support
+ *      RomainB         31st Dec 06     RFMON getter
  ***************************************************************************/
 
 #ifndef __RTMP_H__
@@ -2576,7 +2577,9 @@ VOID RTMPIoctlE2PROM(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq);
 
 VOID RTMPIoctlStatistics(IN PRTMP_ADAPTER pAd, IN struct iwreq *wrq);
 
-INT RTMPIoctlRFMONTX(IN PRTMP_ADAPTER pAd, IN struct iwreq *wrq);
+INT RTMPIoctlSetRFMONTX(IN PRTMP_ADAPTER pAd, IN struct iwreq *wrq);
+
+INT RTMPIoctlGetRFMONTX(IN PRTMP_ADAPTER pAd, OUT struct iwreq *wrq);
 
 CHAR *GetEncryptType(CHAR enc);
 

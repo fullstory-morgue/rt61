@@ -29,6 +29,7 @@
  *      Who             When            What
  *      --------        -----------     -----------------------------
  *      GertjanW        21st Jan 06     Baseline code
+ *      RomainB         31st Dec 06     RFMON getter, update of ioctl values
  ***************************************************************************/
 
 #ifndef _OID_H_
@@ -44,7 +45,7 @@
 #define SIOCIWFIRSTPRIV								SIOCDEVPRIVATE
 #endif
 
-#define RT_PRIV_IOCTL								(SIOCIWFIRSTPRIV + 0x0E)
+#define RT_PRIV_IOCTL								(SIOCIWFIRSTPRIV + 0x01)
 #define RTPRIV_IOCTL_SET							(SIOCIWFIRSTPRIV + 0x02)
 
 #ifdef RT61_DBG
@@ -55,7 +56,8 @@
 #endif
 #endif
 #define RTPRIV_IOCTL_STATISTICS                     (SIOCIWFIRSTPRIV + 0x09)
-#define RTPRIV_IOCTL_RFMONTX                        (SIOCIWFIRSTPRIV + 0x0B)
+#define RTPRIV_IOCTL_SET_RFMONTX                    (SIOCIWFIRSTPRIV + 0x0A)
+#define RTPRIV_IOCTL_GET_RFMONTX                    (SIOCIWFIRSTPRIV + 0x0B)
 #define RTPRIV_IOCTL_GSITESURVEY                    (SIOCIWFIRSTPRIV + 0x0D)
 #define RTPRIV_IOCTL_GETRAAPCFG                     (SIOCIWFIRSTPRIV + 0x0F)
 
