@@ -42,6 +42,7 @@
  *      MarkW (rt2500)  16th Feb 06     Quality reporting in scan for current
  *      GertjanW        19th Feb 06     Promisc mode support
  *      MarkW (rt2500)  3rd  Jun 06     Monitor mode through iwconfig
+ *      RomainB         31st Dec 06     RFMON getter
  ***************************************************************************/
 
 #include	"rt_config.h"
@@ -120,9 +121,12 @@ struct iw_priv_args privtab[] = {
 	{RTPRIV_IOCTL_STATISTICS,
 	 IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024,
 	 "stat"},
-	{RTPRIV_IOCTL_RFMONTX,
+	{RTPRIV_IOCTL_SET_RFMONTX,
 	 IW_PRIV_TYPE_INT | 2, 0,
 	 "rfmontx"},
+	{RTPRIV_IOCTL_GET_RFMONTX,
+	 0, IW_PRIV_TYPE_INT | IW_PRIV_SIZE_FIXED | 1,
+	 "get_rfmontx"},
 	{RTPRIV_IOCTL_GSITESURVEY,
 	 IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024,
 	 "get_site_survey"},
@@ -3485,8 +3489,11 @@ INT RT61_ioctl(IN struct net_device * net_dev,
 		break;
 #endif				// RALINK_ATE
 #endif
-	case RTPRIV_IOCTL_RFMONTX:
-		RTMPIoctlRFMONTX(pAd, wrq);
+	case RTPRIV_IOCTL_SET_RFMONTX:
+		RTMPIoctlSetRFMONTX(pAd, wrq);
+		break;
+	case RTPRIV_IOCTL_GET_RFMONTX:
+		RTMPIoctlGetRFMONTX(pAd, wrq);
 		break;
 	case RTPRIV_IOCTL_GETRAAPCFG:
 		RTMPIoctlGetRaAPCfg(pAd, wrq);
@@ -5921,7 +5928,7 @@ VOID RTMPIoctlStatistics(IN PRTMP_ADAPTER pAd, IN struct iwreq *wrq)
 	DBGPRINT(RT_DEBUG_TRACE, "<==RTMPIoctlStatistics\n");
 }
 
-INT RTMPIoctlRFMONTX(IN PRTMP_ADAPTER pAd, IN OUT struct iwreq *wrq)
+INT RTMPIoctlSetRFMONTX(IN PRTMP_ADAPTER pAd, IN struct iwreq *wrq)
 {
 	char *pvalue;
 	char value;
@@ -5944,13 +5951,15 @@ INT RTMPIoctlRFMONTX(IN PRTMP_ADAPTER pAd, IN OUT struct iwreq *wrq)
 			return -EINVAL;
 	}
 
-	value = (pAd->PortCfg.RFMONTX == TRUE) ? '1' : '0';
-	wrq->u.data.length = sizeof(char);
-
-	if (copy_to_user(wrq->u.data.pointer, &value, wrq->u.data.length))
-		return -EFAULT;
-
 	return 0;
+}
+
+
+INT RTMPIoctlGetRFMONTX(IN PRTMP_ADAPTER pAd, OUT struct iwreq *wrq)
+{
+    *(int *) wrq->u.name = pAd->PortCfg.RFMONTX == TRUE ? 1 : 0;
+
+    return 0;
 }
 
 /* 

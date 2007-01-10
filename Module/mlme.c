@@ -5170,9 +5170,9 @@ VOID AsicAddSharedKeyEntry(IN PRTMP_ADAPTER pAd,
 		 CipherName[CipherAlg], BssIndex * 4 + KeyIdx);
 	DBGPRINT_RAW(RT_DEBUG_TRACE, "     Key =");
 	for (i = 0; i < 16; i++) {
-		printk("%02x:", pKey[i]);
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "%02x:", pKey[i]);
 	}
-	printk("\n");
+	DBGPRINT_RAW(RT_DEBUG_TRACE, "\n");
 	if (pRxMic) {
 		DBGPRINT_RAW(RT_DEBUG_TRACE, "     Rx MIC Key = ");
 		for (i = 0; i < 8; i++) {

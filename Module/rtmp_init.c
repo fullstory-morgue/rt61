@@ -6255,7 +6255,7 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 			RxD = *pDestRxD;
 			pRxD = &RxD;
 			RTMPDescriptorEndianChange((PUCHAR) pRxD, TYPE_RXD);
-#endif	/*  */
+#endif
 			pRxD->Owner = DESC_OWN_NIC;
 #ifdef BIG_ENDIAN
 			RTMPDescriptorEndianChange((PUCHAR) pRxD, TYPE_RXD);
