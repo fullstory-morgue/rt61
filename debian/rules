@@ -6,7 +6,7 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 DEB_INSTALL_CHANGELOGS_ALL := CHANGELOG
 
 # upstream major version
-UPVERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: \(.*\)\.dfsg.*/\1/p')
+UPVERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: \(\w\+\.\w\+\.\w\+\).*/\1/p')
 # upstream CVS version
 DATE := $(shell date +%Y%m%d)
 # dfsg version
