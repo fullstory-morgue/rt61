@@ -68,6 +68,7 @@ static dma_addr_t dma_adapter;
 
 extern const struct iw_handler_def rt61_iw_handler_def;
 
+#ifdef RT2X00DEBUGFS
 /*
  * Register layout information.
  */
@@ -75,69 +76,90 @@ extern const struct iw_handler_def rt61_iw_handler_def;
 #define CSR_REG_SIZE			0x04b0
 #define EEPROM_BASE			0x0000
 #define EEPROM_SIZE			0x0100
+#define BBP_SIZE			0x0080
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0)
-static void
-rt2x00_get_drvinfo(struct net_device *net_dev, struct ethtool_drvinfo *drvinfo)
+static void rt61pci_read_csr(void *dev, const unsigned long word,
+		void *data)
 {
-	PRTMP_ADAPTER pAd = net_dev->priv;
+	RTMP_ADAPTER *pAd = dev;
 
-	strcpy(drvinfo->driver, NIC_DEVICE_NAME);
-	strcpy(drvinfo->version, DRIVER_VERSION);
-	strcpy(drvinfo->bus_info, pci_name(pAd->pPci_Dev));
+	RTMP_IO_READ32(pAd, CSR_REG_BASE + (word * sizeof(u32)), (u32*)data);
 }
 
-static int rt2x00_get_regs_len(struct net_device *net_dev)
+static void rt61pci_write_csr(void *dev, const unsigned long word,
+	void *data)
 {
-	return CSR_REG_SIZE;
+	RTMP_ADAPTER *pAd = dev;
+
+	RTMP_IO_WRITE32(pAd, word, *((u32*)data));
 }
 
-static void
-rt2x00_get_regs(struct net_device *net_dev,
-		struct ethtool_regs *regs, void *data)
+static void rt61pci_read_eeprom(void *dev, const unsigned long word,
+		void *data)
 {
-	PRTMP_ADAPTER pAd = net_dev->priv;
-	unsigned int counter;
+	RTMP_ADAPTER *pAd = dev;
 
-	regs->len = CSR_REG_SIZE;
-
-	for (counter = 0; counter < CSR_REG_SIZE; counter += sizeof(u32)) {
-		RTMP_IO_READ32(pAd, CSR_REG_BASE + counter, (u32 *) data);
-		data += sizeof(u32);
-	}
+	*((u16*)data) = RTMP_EEPROM_READ16(pAd, word * sizeof(u16));
 }
 
-static int rt2x00_get_eeprom_len(struct net_device *net_dev)
+static void rt61pci_write_eeprom(void *dev, const unsigned long word,
+	void *data)
 {
-	return EEPROM_SIZE;
+	/* DANGEROUS, DON'T DO THIS! */
 }
 
-static int
-rt2x00_get_eeprom(struct net_device *net_dev,
-		  struct ethtool_eeprom *eeprom, u8 * data)
+static void rt61pci_read_bbp(void *dev, const unsigned long word,
+		void *data)
 {
-	PRTMP_ADAPTER pAd = net_dev->priv;
-	unsigned int counter;
+	RTMP_ADAPTER *pAd = dev;
 
-	for (counter = eeprom->offset; counter < eeprom->len;
-	     counter += sizeof(u16)) {
-		u16 value = RTMP_EEPROM_READ16(pAd, CSR_REG_BASE + counter);
-		memcpy(data, &value, sizeof(u16));
-		data += sizeof(u16);
-	}
-
-	return 0;
+	RTMP_BBP_IO_READ8_BY_REG_ID(pAd, (u8)word, ((u8*)data));
 }
 
-static struct ethtool_ops rt2x00_ethtool_ops = {
-	.get_drvinfo = rt2x00_get_drvinfo,
-	.get_regs_len = rt2x00_get_regs_len,
-	.get_regs = rt2x00_get_regs,
-	.get_link = ethtool_op_get_link,
-	.get_eeprom_len = rt2x00_get_eeprom_len,
-	.get_eeprom = rt2x00_get_eeprom,
-};
-#endif
+static void rt61pci_write_bbp(void *dev, const unsigned long word,
+	void *data)
+{
+	RTMP_ADAPTER *pAd = dev;
+
+	RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, word, *((u8*)data));
+}
+
+static void rt61pci_open_debugfs(RTMP_ADAPTER *pAd)
+{
+	struct rt2x00debug *debug = &pAd->debug;
+
+	debug->owner 			= THIS_MODULE;
+	debug->mod_name			= DRIVER_NAME;
+	debug->mod_version		= DRIVER_VERSION;
+	debug->reg_csr.read		= rt61pci_read_csr;
+	debug->reg_csr.write		= rt61pci_write_csr;
+	debug->reg_csr.word_size	= sizeof(u32);
+	debug->reg_csr.length		= CSR_REG_SIZE;
+	debug->reg_eeprom.read		= rt61pci_read_eeprom;
+	debug->reg_eeprom.write		= rt61pci_write_eeprom;
+	debug->reg_eeprom.word_size	= sizeof(u16);
+	debug->reg_eeprom.length	= EEPROM_SIZE;
+	debug->reg_bbp.read		= rt61pci_read_bbp;
+	debug->reg_bbp.write		= rt61pci_write_bbp;
+	debug->reg_bbp.word_size	= sizeof(u8);
+	debug->reg_bbp.length		= BBP_SIZE;
+	debug->dev 			= pAd;
+
+	snprintf(debug->intf_name, sizeof(debug->intf_name),
+		"%s", pAd->net_dev->name);
+
+	if (rt2x00debug_register(debug))
+		printk(KERN_ERR "Failed to register debug handler.\n");
+}
+
+static void rt61pci_close_debugfs(RTMP_ADAPTER *pAd)
+{
+	rt2x00debug_deregister(&pAd->debug);
+}
+#else /* RT2X00DEBUGFS */
+static inline void rt61pci_open_debugfs(RTMP_ADAPTER *pAd){}
+static inline void rt61pci_close_debugfs(RTMP_ADAPTER *pAd){}
+#endif /* RT2X00DEBUGFS */
 
 // =======================================================================
 // Ralink PCI device table, include all supported chipsets
@@ -198,9 +220,6 @@ INT __devinit RT61_probe(IN struct pci_dev * pPci_Dev,
 	}
 
 	SET_MODULE_OWNER(net_dev);
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2,5,0))
-	SET_ETHTOOL_OPS(net_dev, &rt2x00_ethtool_ops);
-#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
 	SET_NETDEV_DEV(net_dev, &(pPci_Dev->dev));
@@ -306,6 +325,8 @@ INT __devinit RT61_probe(IN struct pci_dev * pPci_Dev,
 
 	// Build channel list for default physical mode
 	BuildChannelList(pAd);
+
+	rt61pci_open_debugfs(pAd);
 
 	return 0;
 
@@ -544,7 +565,7 @@ INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
 		// and pSkb->len is actual data len
 		pSkb->data_len = pSkb->len;
 
-		// Record that orignal packet source is from protocol layer,so that 
+		// Record that orignal packet source is from protocol layer,so that
 		// later on driver knows how to release this skb buffer
 		RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_NDIS);
 		pAdapter->RalinkCounters.PendingNdisPacketCount++;
@@ -552,7 +573,7 @@ INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
 	}
 
 	// Dequeue one frame from TxSwQueue[] and process it
-//    if ((!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS)) && 
+//    if ((!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS)) &&
 //              (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS)) &&
 //              (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)))
 	{
@@ -915,6 +936,7 @@ static VOID __devexit RT61_remove_one(IN struct pci_dev *pPci_Dev)
 
 	DBGPRINT(RT_DEBUG_TRACE, "===> RT61_remove_one\n");
 
+	rt61pci_close_debugfs(pAd);
 	// Unregister network device
 	unregister_netdev(net_dev);
 

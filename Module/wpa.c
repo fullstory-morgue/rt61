@@ -67,14 +67,14 @@ extern UCHAR CipherWpa2TemplateLen;
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Classify WPA EAP message type
 
 	Arguments:
 		EAPType		Value of EAP message type
 		MsgType		Internal Message definition for MLME state machine
-		
+
 	Return Value:
 		TRUE		Found appropriate message type
 		FALSE		No appropriate message type
@@ -82,7 +82,7 @@ extern UCHAR CipherWpa2TemplateLen;
 	Note:
 		All these constants are defined in wpa.h
 		For supplicant, there is only EAPOL Key message avaliable
-		
+
 	========================================================================
 */
 BOOLEAN WpaMsgTypeSubst(IN UCHAR EAPType, OUT ULONG * MsgType)
@@ -110,11 +110,11 @@ BOOLEAN WpaMsgTypeSubst(IN UCHAR EAPType, OUT ULONG * MsgType)
 	return TRUE;
 }
 
-/*	
+/*
 	==========================================================================
-	Description: 
+	Description:
 		association	state machine init,	including state	transition and timer init
-	Parameters:	
+	Parameters:
 		S -	pointer	to the association state machine
 	==========================================================================
  */
@@ -132,10 +132,10 @@ VOID WpaPskStateMachineInit(IN PRTMP_ADAPTER pAd,
 /*
 	==========================================================================
 	Description:
-		This is	state machine function.	
-		When receiving EAPOL packets which is  for 802.1x key management. 
-		Use	both in	WPA, and WPAPSK	case. 
-		In this	function, further dispatch to different	functions according	to the received	packet.	 3 categories are :	
+		This is	state machine function.
+		When receiving EAPOL packets which is  for 802.1x key management.
+		Use	both in	WPA, and WPAPSK	case.
+		In this	function, further dispatch to different	functions according	to the received	packet.	 3 categories are :
 		  1.  normal 4-way pairwisekey and 2-way groupkey handshake
 		  2.  MIC error	(Countermeasures attack)  report packet	from STA.
 		  3.  Request for pairwise/group key update	from STA
@@ -281,7 +281,7 @@ VOID WpaEAPOLKeyAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				 "Receive EAPOL Key Group Message 1\n");
 		}
 #ifdef BIG_ENDIAN
-		// recovery original byte order, before forward Elem to another routine    
+		// recovery original byte order, before forward Elem to another routine
 		{
 			USHORT tmpKeyinfo;
 
@@ -374,7 +374,7 @@ VOID WpaEAPOLKeyAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				 "Receive EAPOL Key Group Message 1\n");
 		}
 #ifdef BIG_ENDIAN
-		// recovery original byte order, before forward Elem to another routine    
+		// recovery original byte order, before forward Elem to another routine
 		{
 			USHORT tmpKeyinfo;
 
@@ -434,19 +434,19 @@ VOID WpaEAPOLKeyAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Process Pairwise key 4-way handshaking
 
 	Arguments:
 		pAd	Pointer	to our adapter
 		Elem		Message body
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-		
+
 	========================================================================
 */
 VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
@@ -540,7 +540,7 @@ VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	    sizeof(KEY_DESCRIPTER) - MAX_LEN_OF_RSNIE +
 	    Packet.KeyDesc.KeyDataLen[1];
 
-	// Update Key length 
+	// Update Key length
 	Packet.KeyDesc.KeyLength[0] = pMsg1->KeyDesc.KeyLength[0];
 	Packet.KeyDesc.KeyLength[1] = pMsg1->KeyDesc.KeyLength[1];
 	// 2. Key Type PeerKey
@@ -558,7 +558,7 @@ VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	       LEN_KEY_DESC_REPLAY);
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine        
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -738,7 +738,7 @@ VOID Wpa2PairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	       LEN_KEY_DESC_REPLAY);
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine        
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -798,19 +798,19 @@ VOID Wpa2PairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Process Pairwise key 4-way handshaking
 
 	Arguments:
 		pAd	Pointer	to our adapter
 		Elem		Message body
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-		
+
 	========================================================================
 */
 VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
@@ -843,7 +843,7 @@ VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		    (PEAPOL_PACKET) & Elem->Msg[LENGTH_802_11 + LENGTH_802_1_H];
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -862,7 +862,7 @@ VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		return;
 	}
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -939,7 +939,7 @@ VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	Packet.KeyDesc.Type = RSN_KEY_DESC;
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -966,12 +966,12 @@ VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// Station sends Msg4  KeyInfo.secure should be the same as that in Msg.3
 	Packet.KeyDesc.KeyInfo.Secure = pMsg3->KeyDesc.KeyInfo.Secure;
 
-	// Key Replay count     
+	// Key Replay count
 	memcpy(Packet.KeyDesc.ReplayCounter, pMsg3->KeyDesc.ReplayCounter,
 	       LEN_KEY_DESC_REPLAY);
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1080,7 +1080,7 @@ VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		    (PEAPOL_PACKET) & Elem->Msg[LENGTH_802_11 + LENGTH_802_1_H];
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1099,7 +1099,7 @@ VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		return;
 	}
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1154,7 +1154,7 @@ VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	DBGPRINT_RAW(RT_DEBUG_TRACE, "EKD = %d\n",
 		     pMsg3->KeyDesc.KeyInfo.EKD_DL);
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
-		// Decrypt AES GTK  
+		// Decrypt AES GTK
 		AES_GTK_KEY_UNWRAP(&pAd->PortCfg.PTK[16], KEYDATA,
 				   pMsg3->KeyDesc.KeyDataLen[1],
 				   pMsg3->KeyDesc.KeyData);
@@ -1215,7 +1215,7 @@ VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	Packet.KeyDesc.Type = RSN_KEY_DESC;
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1239,12 +1239,12 @@ VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	Packet.KeyDesc.KeyInfo.KeyMic = 1;
 	Packet.KeyDesc.KeyInfo.Secure = 1;
 
-	// Key Replay count 
+	// Key Replay count
 	memcpy(Packet.KeyDesc.ReplayCounter, pMsg3->KeyDesc.ReplayCounter,
 	       LEN_KEY_DESC_REPLAY);
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1326,19 +1326,19 @@ VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Process Group key 2-way handshaking
 
 	Arguments:
 		pAd	Pointer	to our adapter
 		Elem		Message body
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-		
+
 	========================================================================
 */
 VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
@@ -1352,7 +1352,7 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	EAPOL_PACKET Packet;
 	PEAPOL_PACKET pGroup;
 //    UCHAR               MSG[MAX_LEN_OF_MLME_BUFFER];
-//    UCHAR               KEYDATA[512];    
+//    UCHAR               KEYDATA[512];
 	UCHAR *mpool, *MSG, *KEYDATA;
 	UCHAR Mic[16], OldMic[16];
 	UCHAR GTK[32], Key[32];
@@ -1407,7 +1407,7 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		pGroup = (PEAPOL_PACKET) & MSG[LENGTH_802_11 + LENGTH_802_1_H];
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1439,7 +1439,7 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		}
 	}
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1480,7 +1480,7 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			 " MIC VALID in group msg 1 of 2-way handshake!!!!!!!!!! \n");
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1600,12 +1600,12 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK)
 		Packet.KeyDesc.KeyInfo.Secure = 1;
 
-	// Key Replay count     
+	// Key Replay count
 	memcpy(Packet.KeyDesc.ReplayCounter, pGroup->KeyDesc.ReplayCounter,
 	       LEN_KEY_DESC_REPLAY);
 
 #ifdef BIG_ENDIAN
-	// recovery original byte order, before forward Elem to another routine         
+	// recovery original byte order, before forward Elem to another routine
 	{
 		USHORT tmpKeyinfo;
 
@@ -1649,7 +1649,7 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	memcpy(Packet.KeyDesc.KeyMic, Mic, LEN_KEY_DESC_MIC);
 
 	MakeOutgoingFrame(pOutBuffer, &FrameLen, LENGTH_802_3, &Header802_3,
-//                      sizeof(EAPHEAD),  EAPHEAD, 
+//                      sizeof(EAPHEAD),  EAPHEAD,
 			  Packet.Len[1] + 4, &Packet, END_OF_ARGS);
 
 	// 5. Copy frame to Tx ring and prepare for encryption
@@ -1677,18 +1677,18 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Init WPA MAC header
 
 	Arguments:
 		pAd	Pointer	to our adapter
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-		
+
 	========================================================================
 */
 VOID WpaMacHeaderInit(IN PRTMP_ADAPTER pAd,
@@ -1710,16 +1710,16 @@ VOID WpaMacHeaderInit(IN PRTMP_ADAPTER pAd,
 
 /*
 	========================================================================
-	
+
 	Routine Description:
-		SHA1 function 
+		SHA1 function
 
 	Arguments:
-		
+
 	Return Value:
 
 	Note:
-		
+
 	========================================================================
 */
 VOID HMAC_SHA1(IN UCHAR * text,
@@ -1731,7 +1731,7 @@ VOID HMAC_SHA1(IN UCHAR * text,
 	UCHAR k_opad[65];	/* outer padding - key XORd with opad       */
 	INT i;
 
-	// if key is longer     than 64 bytes reset     it to key=SHA1(key)     
+	// if key is longer     than 64 bytes reset     it to key=SHA1(key)
 	if (key_len > 64) {
 		SHA_CTX tctx;
 		SHAInit(&tctx);
@@ -1744,19 +1744,19 @@ VOID HMAC_SHA1(IN UCHAR * text,
 	memcpy(k_ipad, key, key_len);
 	memcpy(k_opad, key, key_len);
 
-	// XOR key with ipad and opad values  
+	// XOR key with ipad and opad values
 	for (i = 0; i < 64; i++) {
 		k_ipad[i] ^= 0x36;
 		k_opad[i] ^= 0x5c;
 	}
 
-	// perform inner SHA1 
+	// perform inner SHA1
 	SHAInit(&context);	/* init context for 1st pass */
 	SHAUpdate(&context, k_ipad, 64);	/*      start with inner pad */
 	SHAUpdate(&context, text, text_len);	/*      then text of datagram */
 	SHAFinal(&context, digest);	/* finish up 1st pass */
 
-	//perform outer SHA1  
+	//perform outer SHA1
 	SHAInit(&context);	/* init context for 2nd pass */
 	SHAUpdate(&context, k_opad, 64);	/*      start with outer pad */
 	SHAUpdate(&context, digest, 20);	/*      then results of 1st     hash */
@@ -1765,18 +1765,18 @@ VOID HMAC_SHA1(IN UCHAR * text,
 
 /*
     ========================================================================
-    
+
     Routine Description:
-    Parse KEYDATA field.  KEYDATA[] May contain 2 RSN IE and optionally GTK.  
+    Parse KEYDATA field.  KEYDATA[] May contain 2 RSN IE and optionally GTK.
     GTK  is encaptulated in KDE format at  p.83 802.11i D10
 
     Arguments:
-        
+
     Return Value:
 
     Note:
-        802.11i D10  
-        
+        802.11i D10
+
     ========================================================================
 */
 VOID ParseKeyData(IN PRTMP_ADAPTER pAd, IN PUCHAR pKeyData, IN UCHAR KeyDataLen)
@@ -1874,17 +1874,17 @@ VOID WPAMake8023Hdr(IN PRTMP_ADAPTER pAd, IN PCHAR pDAddr, IN OUT PCHAR pHdr)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
-		PRF function 
+		PRF function
 
 	Arguments:
-		
+
 	Return Value:
 
 	Note:
 		802.1i	Annex F.9
-		
+
 	========================================================================
 */
 VOID PRF(IN UCHAR * key,
@@ -1914,17 +1914,17 @@ VOID PRF(IN UCHAR * key,
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Count TPTK from PMK
 
 	Arguments:
-		
+
 	Return Value:
 		Output		Store the TPTK
 
 	Note:
-		
+
 	========================================================================
 */
 VOID WpaCountPTK(IN UCHAR * PMK,
@@ -1977,17 +1977,17 @@ VOID WpaCountPTK(IN UCHAR * PMK,
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Misc function to Generate random number
 
 	Arguments:
-		
+
 	Return Value:
 
 	Note:
 		802.1i  Annex F.9
-		
+
 	========================================================================
 */
 VOID GenRandom(IN PRTMP_ADAPTER pAd, OUT UCHAR * random)
@@ -2022,16 +2022,16 @@ VOID GenRandom(IN PRTMP_ADAPTER pAd, OUT UCHAR * random)
 
 /*
     ========================================================================
-    
+
     Routine Description:
         Misc function to decrypt AES body
-    
+
     Arguments:
-            
+
     Return Value:
-    
+
     Note:
-        This function references to RFC 3394 for aes key unwrap algorithm.  
+        This function references to RFC 3394 for aes key unwrap algorithm.
     ========================================================================
 */
 VOID AES_GTK_KEY_UNWRAP(IN UCHAR * key,
@@ -2085,11 +2085,11 @@ VOID AES_GTK_KEY_UNWRAP(IN UCHAR * key,
     ========================================================================
     Routine Description:
        Send all EAP frames to wireless station.
-       These frames don't come from normal SendPackets routine, but are EAPPacket, EAPOL, 
-        
+       These frames don't come from normal SendPackets routine, but are EAPPacket, EAPOL,
+
     Arguments:
         pRxD        Pointer to the Rx descriptor
-        
+
     Return Value:
     None
     ========================================================================

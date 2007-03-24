@@ -1136,15 +1136,15 @@ void hmac_sha1(unsigned char *text, int text_len, unsigned char *key,
 		key_len = 20;
 	}
 
-	/* 
-	 * the HMAC_SHA1 transform looks like: 
-	 * 
-	 * SHA1(K XOR opad, SHA1(K XOR ipad, text)) 
-	 * 
-	 * where K is an n byte key 
-	 * ipad is the byte 0x36 repeated 64 times 
-	 * opad is the byte 0x5c repeated 64 times 
-	 * and text is the data being protected 
+	/*
+	 * the HMAC_SHA1 transform looks like:
+	 *
+	 * SHA1(K XOR opad, SHA1(K XOR ipad, text))
+	 *
+	 * where K is an n byte key
+	 * ipad is the byte 0x36 repeated 64 times
+	 * opad is the byte 0x5c repeated 64 times
+	 * and text is the data being protected
 	 */
 
 	/* start out by storing key in pads */
@@ -1173,10 +1173,10 @@ void hmac_sha1(unsigned char *text, int text_len, unsigned char *key,
 }
 
 /*
-* F(P, S, c, i) = U1 xor U2 xor ... Uc 
-* U1 = PRF(P, S || Int(i)) 
-* U2 = PRF(P, U1) 
-* Uc = PRF(P, Uc-1) 
+* F(P, S, c, i) = U1 xor U2 xor ... Uc
+* U1 = PRF(P, S || Int(i))
+* U2 = PRF(P, U1)
+* Uc = PRF(P, Uc-1)
 */
 
 void F(char *password, unsigned char *ssid, int ssidlength, int iterations,
@@ -1208,11 +1208,11 @@ void F(char *password, unsigned char *ssid, int ssidlength, int iterations,
 	}
 }
 
-/* 
-* password - ascii string up to 63 characters in length 
-* ssid - octet string up to 32 octets 
-* ssidlength - length of ssid in octets 
-* output must be 40 octets in length and outputs 256 bits of key 
+/*
+* password - ascii string up to 63 characters in length
+* ssid - octet string up to 32 octets
+* ssidlength - length of ssid in octets
+* output must be 40 octets in length and outputs 256 bits of key
 */
 int PasswordHash(char *password, unsigned char *ssid, int ssidlength,
 		 unsigned char *output)

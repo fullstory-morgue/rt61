@@ -1,23 +1,23 @@
-/*************************************************************************** 
- * RT2400/RT2500 SourceForge Project - http://rt2x00.serialmonkey.com      * 
- *                                                                         * 
- *   This program is free software; you can redistribute it and/or modify  * 
- *   it under the terms of the GNU General Public License as published by  * 
- *   the Free Software Foundation; either version 2 of the License, or     * 
- *   (at your option) any later version.                                   * 
- *                                                                         * 
- *   This program is distributed in the hope that it will be useful,       * 
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of        * 
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         * 
- *   GNU General Public License for more details.                          * 
- *                                                                         * 
- *   You should have received a copy of the GNU General Public License     * 
- *   along with this program; if not, write to the                         * 
- *   Free Software Foundation, Inc.,                                       * 
- *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             * 
- *                                                                         * 
- *   Licensed under the GNU GPL                                            * 
- *   Original code supplied under license from RaLink Inc, 2005.           * 
+/***************************************************************************
+ * RT2400/RT2500 SourceForge Project - http://rt2x00.serialmonkey.com      *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ *                                                                         *
+ *   Licensed under the GNU GPL                                            *
+ *   Original code supplied under license from RaLink Inc, 2005.           *
  ***************************************************************************/
 
 /***************************************************************************
@@ -92,7 +92,7 @@ UCHAR CipherSuiteWpaNoneAesLen =
 VOID MlmeCntlInit(IN PRTMP_ADAPTER pAd,
 		  IN STATE_MACHINE * S, OUT STATE_MACHINE_FUNC Trans[])
 {
-	// Control state machine differs from other state machines, the interface 
+	// Control state machine differs from other state machines, the interface
 	// follows the standard interface
 	pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
 }
@@ -130,8 +130,8 @@ VOID MlmeCntlMachinePerformAction(IN PRTMP_ADAPTER pAd,
 		break;
 
 		// CNTL_WAIT_REASSOC is the only state in CNTL machine that does
-		// not triggered directly or indirectly by "RTMPSetInformation(OID_xxx)". 
-		// Therefore not protected by NDIS's "only one outstanding OID request" 
+		// not triggered directly or indirectly by "RTMPSetInformation(OID_xxx)".
+		// Therefore not protected by NDIS's "only one outstanding OID request"
 		// rule. Which means NDIS may SET OID in the middle of ROAMing attempts.
 		// Current approach is to block new SET request at RTMPSetInformation()
 		// when CntlMachine.CurrState is not CNTL_IDLE
@@ -226,7 +226,7 @@ VOID CntlOidScanProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	DBGPRINT(RT_DEBUG_INFO, "CNTL - SCAN starts\n");
 
-	// record current BSS if network is connected. 
+	// record current BSS if network is connected.
 	// 2003-2-13 do not include current IBSS if this is the only STA in this IBSS.
 	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
 		BssIdx =
@@ -238,7 +238,7 @@ VOID CntlOidScanProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			       sizeof(BSS_ENTRY));
 
 			// 2003-2-20 reset this RSSI to a low value but not zero. In normal case, the coming SCAN
-			//     should return a correct RSSI to overwrite this. If no BEEACON received after SCAN, 
+			//     should return a correct RSSI to overwrite this. If no BEEACON received after SCAN,
 			//     at least we still report a "greater than 0" RSSI since we claim it's CONNECTED.
 			//CurrBss.Rssi = pAd->BbpRssiToDbmDelta - 85; // assume -85 dB
 		}
@@ -246,9 +246,9 @@ VOID CntlOidScanProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// clean up previous SCAN result, add current BSS back to table if any
 	BssTableInit(&pAd->ScanTab);
 	if (BssIdx != BSS_NOT_FOUND) {
-		// DDK Note: If the NIC is associated with a particular BSSID and SSID 
-		//    that are not contained in the list of BSSIDs generated by this scan, the 
-		//    BSSID description of the currently associated BSSID and SSID should be 
+		// DDK Note: If the NIC is associated with a particular BSSID and SSID
+		//    that are not contained in the list of BSSIDs generated by this scan, the
+		//    BSSID description of the currently associated BSSID and SSID should be
 		//    appended to the list of BSSIDs in the NIC's database.
 		// To ensure this, we append this BSS as the first entry in SCAN result
 		memcpy(&pAd->ScanTab.BssEntry[0], &CurrBss, sizeof(BSS_ENTRY));
@@ -294,7 +294,7 @@ VOID CntlOidSsidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	}
 #endif
 
-	// step 2. find all matching BSS in the lastest SCAN result (inBssTab) 
+	// step 2. find all matching BSS in the lastest SCAN result (inBssTab)
 	//    & log them into MlmeAux.SsidBssTab for later-on iteration. Sort by RSSI order
 	BssTableSsidSort(pAd, &pAd->MlmeAux.SsidBssTab, pAd->MlmeAux.Ssid,
 			 pAd->MlmeAux.SsidLen);
@@ -315,7 +315,7 @@ VOID CntlOidSsidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	    (memcmp
 	     (pAd->PortCfg.Bssid, pAd->MlmeAux.SsidBssTab.BssEntry[0].Bssid,
 	      ETH_ALEN) == 0)) {
-		// Case 1. already connected with an AP who has the desired SSID 
+		// Case 1. already connected with an AP who has the desired SSID
 		//         with highest RSSI
 		if (((pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA) ||
 		     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) ||
@@ -323,10 +323,10 @@ VOID CntlOidSsidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK)
 //#ifdef WPA_SUPPLICANT_SUPPORT
 		     || (pAd->PortCfg.IEEE8021X == TRUE)
-//#endif                         
+//#endif
 		    ) &&
 		    (pAd->PortCfg.PortSecured == WPA_802_1X_PORT_NOT_SECURED)) {
-			// case 1.1 For WPA, WPA-PSK, if the 1x port is not secured, we have to redo 
+			// case 1.1 For WPA, WPA-PSK, if the 1x port is not secured, we have to redo
 			//          connection process
 			DBGPRINT(RT_DEBUG_TRACE,
 				 "CNTL - disassociate with current AP...\n");
@@ -363,9 +363,9 @@ VOID CntlOidSsidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	} else if (INFRA_ON(pAd)) {
 		// case 2. active INFRA association existent
 		//    roaming is done within miniport driver, nothing to do with configuration
-		//    utility. so upon a new SET(OID_802_11_SSID) is received, we just 
-		//    disassociate with the current associated AP, 
-		//    then perform a new association with this new SSID, no matter the 
+		//    utility. so upon a new SET(OID_802_11_SSID) is received, we just
+		//    disassociate with the current associated AP,
+		//    then perform a new association with this new SSID, no matter the
 		//    new/old SSID are the same or not.
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "CNTL - disassociate with current AP...\n");
@@ -565,14 +565,14 @@ VOID CntlOidRTBssidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 }
 
 // Roaming is the only external request triggering CNTL state machine
-// despite of other "SET OID" operation. All "SET OID" related oerations 
+// despite of other "SET OID" operation. All "SET OID" related oerations
 // happen in sequence, because no other SET OID will be sent to this device
 // until the the previous SET operation is complete (successful o failed).
 // So, how do we quarantee this ROAMING request won't corrupt other "SET OID"?
 // or been corrupted by other "SET OID"?
 VOID CntlMlmeRoamingProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
-	// TODO: 
+	// TODO:
 	// AP in different channel may show lower RSSI than actual value??
 	// should we add a weighting factor to compensate it?
 	DBGPRINT(RT_DEBUG_TRACE, "CNTL - Roaming in MlmeAux.RoamTab...\n");
@@ -599,7 +599,7 @@ VOID CntlWaitDisassocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		DBGPRINT(RT_DEBUG_TRACE, "CNTL - Dis-associate successful\n");
 		LinkDown(pAd, FALSE);
 
-		// case 1. no matching BSS, and user wants ADHOC, so we just start a new one        
+		// case 1. no matching BSS, and user wants ADHOC, so we just start a new one
 		if ((pAd->MlmeAux.SsidBssTab.BssNr == 0)
 		    && (pAd->PortCfg.BssType == BSS_ADHOC)) {
 			DBGPRINT(RT_DEBUG_TRACE,
@@ -743,7 +743,7 @@ VOID CntlWaitAuthProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_ASSOC;
 
 		} else {
-			// This fail may because of the AP already keep us in its MAC table without 
+			// This fail may because of the AP already keep us in its MAC table without
 			// ageing-out. The previous authentication attempt must have let it remove us.
 			// so try Authentication again may help. For D-Link DWL-900AP+ compatibility.
 			DBGPRINT(RT_DEBUG_TRACE,
@@ -770,7 +770,7 @@ VOID CntlWaitAuthProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 /*
     ==========================================================================
-    Description:	
+    Description:
     ==========================================================================
 */
 VOID CntlWaitAuthProc2(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
@@ -812,7 +812,7 @@ VOID CntlWaitAuthProc2(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				// not success, try next BSS
 				DBGPRINT(RT_DEBUG_TRACE,
 					 "CNTL - AUTH FAIL, give up; try next BSS\n");
-// 2004-09-11 john -  why change state?                
+// 2004-09-11 john -  why change state?
 //             pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE; //???????
 				pAd->MlmeAux.BssIdx++;
 				IterateOnBssTab(pAd);
@@ -861,7 +861,7 @@ VOID CntlWaitReassocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	if (Elem->MsgType == MT2_REASSOC_CONF) {
 		memcpy(&Result, Elem->Msg, sizeof(USHORT));
 		if (Result == MLME_SUCCESS) {
-			// 
+			//
 			// NDIS requires a new Link UP indication but no Link Down for RE-ASSOC
 			//
 			LinkUp(pAd, BSS_INFRA);
@@ -1048,7 +1048,7 @@ VOID LinkUp(IN PRTMP_ADAPTER pAd, IN UCHAR BssType)
 	     (pAd->PortCfg.PhyMode == PHY_11ABG_MIXED))) {
 		NewTxRxCsr4.field.OfdmTxFallbacktoCCK = 1;	//Enable OFDM TX rate auto fallback to CCK 1M, 2M
 	} else {
-		NewTxRxCsr4.field.OfdmTxFallbacktoCCK = 0;	//Disable OFDM TX rate auto fallback to CCK 1M, 2M 
+		NewTxRxCsr4.field.OfdmTxFallbacktoCCK = 0;	//Disable OFDM TX rate auto fallback to CCK 1M, 2M
 	}
 
 	if (NewTxRxCsr4.word != CurTxRxCsr4.word)
@@ -1069,8 +1069,8 @@ VOID LinkUp(IN PRTMP_ADAPTER pAd, IN UCHAR BssType)
 	Arguments:
 		pAd				- Pointer to our adapter
 		IsReqFromAP		- Request from AP
-		
-	Return Value:		
+
+	Return Value:
 		None
 
 	Note:
@@ -1078,7 +1078,7 @@ VOID LinkUp(IN PRTMP_ADAPTER pAd, IN UCHAR BssType)
 		If yes! we need to do extra handling, for example, remove the WPA key.
 		Otherwise on 4-way handshaking will faied, since the WPA key didn't be
 		remove while auto reconnect.
-		Disconnect request from AP, it means we will start afresh 4-way handshaking 
+		Disconnect request from AP, it means we will start afresh 4-way handshaking
 		on WPA mode.
 
 	==========================================================================
@@ -1125,14 +1125,14 @@ VOID LinkDown(IN PRTMP_ADAPTER pAd, IN BOOLEAN IsReqFromAP)
 			pAd->MlmeAux.CurrReqIsFromNdis = FALSE;
 		} else {
 			// Set linkdown timer
-			pAd->Mlme.LinkDownTimer.expires = jiffies + 10 * HZ;	// timeout Timer 
+			pAd->Mlme.LinkDownTimer.expires = jiffies + 10 * HZ;	// timeout Timer
 			add_timer(&pAd->Mlme.LinkDownTimer);
 		}
 
 		BssTableDeleteEntry(&pAd->ScanTab, pAd->PortCfg.Bssid,
 				    pAd->PortCfg.Channel);
 
-		// restore back to - 
+		// restore back to -
 		//      1. long slot (20 us) or short slot (9 us) time
 		//      2. turn on/off RTS/CTS and/or CTS-to-self protection
 		//      3. short preamble
@@ -1142,9 +1142,9 @@ VOID LinkDown(IN PRTMP_ADAPTER pAd, IN BOOLEAN IsReqFromAP)
 
 	//
 	// Reset CWMin & CWMax to default value
-	// Since we reset the slot time to 0x14(long slot time), so we also need to  
+	// Since we reset the slot time to 0x14(long slot time), so we also need to
 	// Reset the flag fOP_STATUS_SHORT_SLOT_INUSED at the same time.
-	// 
+	//
 	RTMP_IO_WRITE32(pAd, MAC_CSR9, 0x0704a414);
 	OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_SHORT_SLOT_INUSED);
 
@@ -1504,14 +1504,14 @@ ULONG MakeIbssBeacon(IN PRTMP_ADAPTER pAd)
 		SupRate[3] = 0x96;	// 11 mbps
 		SupRateLen = 4;
 
-		ExtRate[0] = 0x0C;	// 6 mbps, in units of 0.5 Mbps, not set basic rate when connect B only STA 
+		ExtRate[0] = 0x0C;	// 6 mbps, in units of 0.5 Mbps, not set basic rate when connect B only STA
 		ExtRate[1] = 0x12;	// 9 mbps, in units of 0.5 Mbps
-		ExtRate[2] = 0x18;	// 12 mbps, in units of 0.5 Mbps, not set basic rate when connect B only STA  
+		ExtRate[2] = 0x18;	// 12 mbps, in units of 0.5 Mbps, not set basic rate when connect B only STA
 		ExtRate[3] = 0x24;	// 18 mbps, in units of 0.5 Mbps
-		ExtRate[4] = 0x30;	// 24 mbps, in units of 0.5 Mbps, not set basic rate when connect B only STA 
+		ExtRate[4] = 0x30;	// 24 mbps, in units of 0.5 Mbps, not set basic rate when connect B only STA
 		ExtRate[5] = 0x48;	// 36 mbps, in units of 0.5 Mbps
 		ExtRate[6] = 0x60;	// 48 mbps, in units of 0.5 Mbps
-		ExtRate[7] = 0x6c;	// 54 mbps, in units of 0.5 Mbps         
+		ExtRate[7] = 0x6c;	// 54 mbps, in units of 0.5 Mbps
 		ExtRateLen = 8;
 	} else {
 		SupRateLen = pAd->PortCfg.SupRateLen;

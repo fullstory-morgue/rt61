@@ -132,7 +132,7 @@ RTMP_REG_PAIR MACRegTable[] = {
 	{TXRX_CSR1, 0x9eb39eb3},	// 0x3044, BBP 30:Ant-A RSSI, R51:Ant-B RSSI, R42:OFDM rate, R47:CCK SIGNAL
 	{TXRX_CSR2, 0x8a8b8c8d},	// 0x3048, CCK TXD BBP registers
 	{TXRX_CSR3, 0x00858687},	// 0x304c, OFDM TXD BBP registers
-	{TXRX_CSR7, 0x2E31353B},	// 0x305c, ACK/CTS payload consume time for 18/12/9/6 mbps    
+	{TXRX_CSR7, 0x2E31353B},	// 0x305c, ACK/CTS payload consume time for 18/12/9/6 mbps
 	{TXRX_CSR8, 0x2a2a2a2c},	// 0x3060, ACK/CTS payload consume time for 54/48/36/24 mbps
 	{TXRX_CSR15, 0x0000000f},	// 0x307c, TKIP MIC priority byte "AND" mask
 	{MAC_CSR6, 0x00000fff},	// 0x3018, MAX frame length
@@ -2948,7 +2948,7 @@ static UCHAR RT2661_FirmwareImage[] = {
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Allocate RTMP_ADAPTER data block and do some initialization
 
@@ -2960,7 +2960,7 @@ static UCHAR RT2661_FirmwareImage[] = {
 		NDIS_STATUS_FAILURE
 
 	Note:
-	
+
 	========================================================================
 */
 NDIS_STATUS RTMPAllocAdapterBlock(IN PRTMP_ADAPTER pAdapter)
@@ -3019,7 +3019,7 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 			ULONG BufBasePaLow;
 			PVOID BufBaseVa;
 
-			// 
+			//
 			// Allocate Tx ring descriptor's memory (5 TX rings = 4 ACs + 1 HCCA)
 			//
 			pAdapter->TxDescRing[num].AllocSize =
@@ -3045,7 +3045,7 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 			RingBasePa = pAdapter->TxDescRing[num].AllocPa;
 			RingBaseVa = pAdapter->TxDescRing[num].AllocVa;
 
-			// 
+			//
 			// Allocate all 1st TXBuf's memory for this TxRing
 			//
 			pAdapter->TxBufSpace[num].AllocSize =
@@ -3320,7 +3320,7 @@ VOID RTMPFreeDMAMemory(IN PRTMP_ADAPTER pAdapter)
 	DBGPRINT(RT_DEBUG_TRACE, "<-- RTMPFreeDMAMemory\n");
 }
 
-// By removing 'inline' directive from the function definitions. 
+// By removing 'inline' directive from the function definitions.
 // Then Driverloader is compiled and runs smooth after kernel 2.6.9
 #ifdef BIG_ENDIAN
 inline VOID
@@ -3355,7 +3355,7 @@ NICEnableInterrupt(IN PRTMP_ADAPTER pAdapter)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Initialize transmit data structures
 
@@ -3368,7 +3368,7 @@ NICEnableInterrupt(IN PRTMP_ADAPTER pAdapter)
 	Note:
 		Initialize all transmit releated private buffer, include those define
 		in RTMP_ADAPTER structure and all private data structures.
-		
+
 	========================================================================
 */
 VOID NICInitTxRxRingAndBacklogQueue(IN PRTMP_ADAPTER pAdapter)
@@ -3414,7 +3414,7 @@ VOID NICInitTxRxRingAndBacklogQueue(IN PRTMP_ADAPTER pAdapter)
         None
 
     Note:
-        
+
     ========================================================================
 */
 VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
@@ -3688,8 +3688,8 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 	}
 	//
 	// Get RSSI Offset on EEPROM 0x9Ah & 0x9Ch.
-	// The valid value are (-10 ~ 10) 
-	// 
+	// The valid value are (-10 ~ 10)
+	//
 	value = RTMP_EEPROM_READ16(pAd, EEPROM_RSSI_BG_OFFSET);
 	pAd->BGRssiOffset1 = value & 0x00ff;
 	pAd->BGRssiOffset2 = (value >> 8);
@@ -3841,7 +3841,7 @@ VOID NICInitAsicFromEEPROM(IN PRTMP_ADAPTER pAd)
 	pAd->NicConfig2.word = NicConfig2.word;
 
 	//
-	// Since BBP has been progamed, to make sure BBP setting will be 
+	// Since BBP has been progamed, to make sure BBP setting will be
 	// upate inside of AsicAntennaSelect, so reset to UNKNOWN_BAND!!
 	//
 	pAd->PortCfg.BandState = UNKNOWN_BAND;
@@ -3886,7 +3886,7 @@ NDIS_STATUS NICInitializeAdapter(IN PRTMP_ADAPTER pAdapter)
 	RTMP_IO_WRITE32(pAdapter, AC3_BASE_CSR, Value);
 
 	// Write HCCA base address register
-	//  Value = pci_map_single(pAdapter->pPci_Dev, pAdapter->TxRing[QID_HCCA].Cell[0].AllocVa, 
+	//  Value = pci_map_single(pAdapter->pPci_Dev, pAdapter->TxRing[QID_HCCA].Cell[0].AllocVa,
 	//                         pAdapter->TxRing[QID_HCCA].Cell[0].AllocSize, PCI_DMA_TODEVICE);
 	//  RTMP_IO_WRITE32(pAdapter, HCCA_BASE_CSR, Value);
 
@@ -4093,7 +4093,7 @@ BOOLEAN NICCheckForHang(IN PRTMP_ADAPTER pAd)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Read statistical counters from hardware registers and record them
 		in software variables for later on query
@@ -4185,14 +4185,14 @@ VOID NICResetFromError(IN PRTMP_ADAPTER pAdapter)
 	NICInitializeAdapter(pAdapter);
 	NICInitAsicFromEEPROM(pAdapter);
 
-	// Switch to current channel, since during reset process, the connection should remains on.     
+	// Switch to current channel, since during reset process, the connection should remains on.
 	AsicSwitchChannel(pAdapter, pAdapter->PortCfg.Channel);
 	AsicLockChannel(pAdapter, pAdapter->PortCfg.Channel);
 }
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Load 8051 firmware RT2561.BIN file into MAC ASIC
 
@@ -4241,10 +4241,10 @@ NDIS_STATUS NICLoadFirmware(IN PRTMP_ADAPTER pAd)
 	RTMP_IO_WRITE32(pAd, MCU_CNTL_CSR, 0x02);
 	RTMP_IO_WRITE32(pAd, M2H_CMD_DONE_CSR, 0xffffffff);	// clear all CmdToken
 	RTMP_IO_WRITE32(pAd, H2M_MAILBOX_CSR, 0x00000000);	// MBOX owned by HOST
-	RTMP_IO_WRITE32(pAd, HOST_CMD_CSR, 0x00000000);	// 
+	RTMP_IO_WRITE32(pAd, HOST_CMD_CSR, 0x00000000);	//
 
 	// Save uid and gid used for filesystem access.
-	// Set user and group to 0 (root)       
+	// Set user and group to 0 (root)
 	orgfsuid = current->fsuid;
 	orgfsgid = current->fsgid;
 	current->fsuid = current->fsgid = 0;
@@ -4490,7 +4490,7 @@ PUCHAR RTMPFindSection(IN PCHAR buffer)
 
     Arguments:
         key                         Pointer to key string
-        dest                        Pointer to destination      
+        dest                        Pointer to destination
         destsize                    The datasize of the destination
         buffer                      Pointer to the buffer to start find the key
 
@@ -4595,7 +4595,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 	src = PROFILE_PATH;
 
 	// Save uid and gid used for filesystem access.
-	// Set user and group to 0 (root)   
+	// Set user and group to 0 (root)
 	orgfsuid = current->fsuid;
 	orgfsgid = current->fsgid;
 	current->fsuid = current->fsgid = 0;
@@ -5075,7 +5075,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 							 pAd->PortCfg.
 							 bWmmCapable);
 					}
-					//AckPolicy1 for AC_BK 
+					//AckPolicy1 for AC_BK
 					if (RTMPGetKeyParameter
 					    ("AckPolicy1", tmpbuf, 32,
 					     buffer)) {
@@ -5089,7 +5089,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 							 pAd->PortCfg.
 							 AckPolicy[0]);
 					}
-					//AckPolicy2 for AC_BE 
+					//AckPolicy2 for AC_BE
 					if (RTMPGetKeyParameter
 					    ("AckPolicy2", tmpbuf, 32,
 					     buffer)) {
@@ -5103,7 +5103,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 							 pAd->PortCfg.
 							 AckPolicy[1]);
 					}
-					//AckPolicy3 for AC_VI 
+					//AckPolicy3 for AC_VI
 					if (RTMPGetKeyParameter
 					    ("AckPolicy3", tmpbuf, 32,
 					     buffer)) {
@@ -5501,7 +5501,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 								   Ndis802_11AuthModeWPANone)
 							{
 								// Set wpapsk key later
-								// set the flag 
+								// set the flag
 								pAd->PortCfg.
 								    WpaState =
 								    SS_START;
@@ -5539,9 +5539,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					if (RTMPGetKeyParameter
 					    ("Key1Type", tmpbuf, 32, buffer)) {
 						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled
-						    && pAd->PortCfg.
-						    DefaultKeyId == 0) {
+						    Ndis802_11WEPEnabled) {
 							KeyType =
 							    simple_strtol
 							    (tmpbuf, 0, 10);
@@ -5597,7 +5595,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 											     "%s::(Key1Str is Invalid key length!)\n",
 											     __FUNCTION__);
 										}
-									} else {	//Ascii                                                            
+									} else {	//Ascii
 										if ((KeyLen == 5) || (KeyLen == 13)) {
 											pAd->
 											    SharedKey
@@ -5654,9 +5652,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					if (RTMPGetKeyParameter
 					    ("Key2Type", tmpbuf, 32, buffer)) {
 						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled
-						    && pAd->PortCfg.
-						    DefaultKeyId == 1) {
+						    Ndis802_11WEPEnabled) {
 							KeyType =
 							    simple_strtol
 							    (tmpbuf, 0, 10);
@@ -5712,7 +5708,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 											     "%s::(Key2Str is Invalid key length!)\n",
 											     __FUNCTION__);
 										}
-									} else {	//Ascii                                                            
+									} else {	//Ascii
 										if ((KeyLen == 5) || (KeyLen == 13)) {
 											pAd->
 											    SharedKey
@@ -5769,9 +5765,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					if (RTMPGetKeyParameter
 					    ("Key3Type", tmpbuf, 32, buffer)) {
 						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled
-						    && pAd->PortCfg.
-						    DefaultKeyId == 2) {
+						    Ndis802_11WEPEnabled) {
 							KeyType =
 							    simple_strtol
 							    (tmpbuf, 0, 10);
@@ -5827,7 +5821,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 											     "%s::(Key3Str is Invalid key length!)\n",
 											     __FUNCTION__);
 										}
-									} else {	//Ascii                                                            
+									} else {	//Ascii
 										if ((KeyLen == 5) || (KeyLen == 13)) {
 											pAd->
 											    SharedKey
@@ -5884,9 +5878,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					if (RTMPGetKeyParameter
 					    ("Key4Type", tmpbuf, 32, buffer)) {
 						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled
-						    && pAd->PortCfg.
-						    DefaultKeyId == 3) {
+						    Ndis802_11WEPEnabled) {
 							KeyType =
 							    simple_strtol
 							    (tmpbuf, 0, 10);
@@ -5942,7 +5934,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 											     "%s::(Key4Str is Invalid key length!)\n",
 											     __FUNCTION__);
 										}
-									} else {	//Ascii                                                            
+									} else {	//Ascii
 										if ((KeyLen == 5) || (KeyLen == 13)) {
 											pAd->
 											    SharedKey
@@ -6020,9 +6012,9 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 						    CipherAlg =
 						    pAd->SharedKey[KeyIdx].
 						    CipherAlg;
-//#endif                                                
+//#endif
 
-						//if ((pAd->PortCfg.DefaultKeyId >= 0) && (pAd->PortCfg.DefaultKeyId < 4))    
+						//if ((pAd->PortCfg.DefaultKeyId >= 0) && (pAd->PortCfg.DefaultKeyId < 4))
 						AsicAddSharedKeyEntry(pAd,
 								      0,
 								      pAd->
@@ -6057,7 +6049,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					 "--> Error %d closing %s\n", -retval,
 					 src);
 			}
-		}		// else (IS_ERR(srcf))      
+		}		// else (IS_ERR(srcf))
 	}			//if (src && *src)
 
       done:
@@ -6280,7 +6272,7 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Initialize port configuration structure
 
@@ -6291,7 +6283,7 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 		None
 
 	Note:
-		
+
 	========================================================================
 */
 VOID PortCfgInit(IN PRTMP_ADAPTER pAd)
@@ -6325,7 +6317,7 @@ VOID PortCfgInit(IN PRTMP_ADAPTER pAd)
 
 	pAd->bLocalAdminMAC = FALSE;	//TRUE;
 
-	pAd->PortCfg.Dsifs = 10;	// in units of usec 
+	pAd->PortCfg.Dsifs = 10;	// in units of usec
 	pAd->PortCfg.PrivacyFilter = Ndis802_11PrivFilterAcceptAll;
 	pAd->PortCfg.TxPower = 100;	//mW
 	pAd->PortCfg.TxPowerPercentage = 0xffffffff;	// AUTO
@@ -6397,7 +6389,7 @@ VOID PortCfgInit(IN PRTMP_ADAPTER pAd)
 	pAd->PortCfg.bSwRadio = TRUE;	// Default Software Radio status is On
 	pAd->PortCfg.bRadio = TRUE;	// bHwRadio && bSwRadio
 	pAd->PortCfg.bHardwareRadio = FALSE;	// Default is OFF
-	pAd->PortCfg.bShowHiddenSSID = FALSE;	// Default no show 
+	pAd->PortCfg.bShowHiddenSSID = FALSE;	// Default no show
 
 	// Nitro mode control
 	pAd->PortCfg.bAutoReconnect = TRUE;
@@ -6429,7 +6421,7 @@ VOID PortCfgInit(IN PRTMP_ADAPTER pAd)
 	pAd->PortCfg.IEEE8021X = 0;
 	pAd->PortCfg.IEEE8021x_required_keys = 0;
 	pAd->PortCfg.WPA_Supplicant = 0;
-//#endif        
+//#endif
 
 #ifdef RALINK_ATE
 	memset(&pAd->ate, 0, sizeof(ATE_INFO));
@@ -6505,7 +6497,7 @@ VOID RTMPusecDelay(IN ULONG usec)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Set LED Status
 
@@ -6517,7 +6509,7 @@ VOID RTMPusecDelay(IN ULONG usec)
 		None
 
 	Note:
-		
+
 	========================================================================
 */
 VOID RTMPSetLED(IN PRTMP_ADAPTER pAd, IN UCHAR Status)
@@ -6579,9 +6571,9 @@ VOID RTMPSetLED(IN PRTMP_ADAPTER pAd, IN UCHAR Status)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
-		Set LED Signal Stregth 
+		Set LED Signal Stregth
 
 	Arguments:
 		pAd						Pointer to our adapter
@@ -6591,7 +6583,7 @@ VOID RTMPSetLED(IN PRTMP_ADAPTER pAd, IN UCHAR Status)
 		None
 
 	Note:
-		Can be run on any IRQL level. 
+		Can be run on any IRQL level.
 
 		According to Microsoft Zero Config Wireless Signal Stregth definition as belows.
 		<= -90  No Signal
@@ -6599,7 +6591,7 @@ VOID RTMPSetLED(IN PRTMP_ADAPTER pAd, IN UCHAR Status)
 		<= -71  Low
 		<= -67  Good
 		<= -57  Very Good
-		 > -57  Excellent		
+		 > -57  Excellent
 	========================================================================
 */
 VOID RTMPSetSignalLED(IN PRTMP_ADAPTER pAd, IN NDIS_802_11_RSSI Dbm)

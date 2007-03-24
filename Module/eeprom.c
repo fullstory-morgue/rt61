@@ -37,7 +37,7 @@ VOID RaiseClock(IN PRTMP_ADAPTER pAd, IN ULONG * x)
 {
 	*x = *x | EESK;
 	RTMP_IO_WRITE32(pAd, E2PROM_CSR, *x);
-	RTMPusecDelay(1);	// Max frequency = 1MHz in Spec. definition 
+	RTMPusecDelay(1);	// Max frequency = 1MHz in Spec. definition
 }
 
 VOID LowerClock(IN PRTMP_ADAPTER pAd, IN ULONG * x)
@@ -125,7 +125,7 @@ VOID EWEN(IN PRTMP_ADAPTER pAd)
 	RaiseClock(pAd, &x);
 	LowerClock(pAd, &x);
 
-	// output the read_opcode and six pulse in that order    
+	// output the read_opcode and six pulse in that order
 	ShiftOutBits(pAd, EEPROM_EWEN_OPCODE, 5);
 	ShiftOutBits(pAd, 0, 6);
 
@@ -146,7 +146,7 @@ VOID EWDS(IN PRTMP_ADAPTER pAd)
 	RaiseClock(pAd, &x);
 	LowerClock(pAd, &x);
 
-	// output the read_opcode and six pulse in that order    
+	// output the read_opcode and six pulse in that order
 	ShiftOutBits(pAd, EEPROM_EWDS_OPCODE, 5);
 	ShiftOutBits(pAd, 0, 6);
 
@@ -169,7 +169,7 @@ USHORT RTMP_EEPROM_READ16(IN PRTMP_ADAPTER pAd, IN USHORT Offset)
 	RaiseClock(pAd, &x);
 	LowerClock(pAd, &x);
 
-	// output the read_opcode and register number in that order    
+	// output the read_opcode and register number in that order
 	ShiftOutBits(pAd, EEPROM_READ_OPCODE, 3);
 	ShiftOutBits(pAd, Offset, pAd->EEPROMAddressNum);
 
@@ -199,7 +199,7 @@ VOID RTMP_EEPROM_WRITE16(IN PRTMP_ADAPTER pAd, IN USHORT Offset, IN USHORT Data)
 	RaiseClock(pAd, &x);
 	LowerClock(pAd, &x);
 
-	// output the read_opcode ,register number and data in that order    
+	// output the read_opcode ,register number and data in that order
 	ShiftOutBits(pAd, EEPROM_WRITE_OPCODE, 3);
 	ShiftOutBits(pAd, Offset, pAd->EEPROMAddressNum);
 	ShiftOutBits(pAd, Data, 16);	// 16-bit access

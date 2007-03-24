@@ -42,7 +42,7 @@
         Sm - pointer to the auth state machine
     Note:
         The state machine looks like this
-        
+
                         AUTH_REQ_IDLE           AUTH_WAIT_SEQ2                   AUTH_WAIT_SEQ4
     MT2_MLME_AUTH_REQ   mlme_auth_req_action    invalid_state_when_auth          invalid_state_when_auth
     MT2_MLME_DEAUTH_REQ mlme_deauth_req_action  mlme_deauth_req_action           mlme_deauth_req_action

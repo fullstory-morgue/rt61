@@ -55,14 +55,14 @@ ULONG BasicRateMask[12] =
 UCHAR BROADCAST_ADDR[ETH_ALEN] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 UCHAR ZERO_MAC_ADDR[ETH_ALEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-// e.g. RssiSafeLevelForTxRate[RATE_36]" means if the current RSSI is greater than 
-//      this value, then it's quaranteed capable of operating in 36 mbps TX rate in 
+// e.g. RssiSafeLevelForTxRate[RATE_36]" means if the current RSSI is greater than
+//      this value, then it's quaranteed capable of operating in 36 mbps TX rate in
 //      clean environment.
 //                                TxRate: 1   2   5.5   11   6    9    12   18   24   36   48   54   72  100
 CHAR RssiSafeLevelForTxRate[] =
     { -92, -91, -90, -87, -88, -86, -85, -83, -81, -78, -72, -71, -40, -40 };
 
-				  //  1      2       5.5      11  
+				  //  1      2       5.5      11
 UCHAR Phy11BNextRateDownward[] = { RATE_1, RATE_1, RATE_2, RATE_5_5 };
 UCHAR Phy11BNextRateUpward[] = { RATE_2, RATE_5_5, RATE_11, RATE_11 };
 
@@ -110,7 +110,7 @@ UCHAR IbssIe = IE_IBSS_PARM;
 extern UCHAR WPA_OUI[];
 extern UCHAR RSN_OUI[];
 
-// Reset the RFIC setting to new series    
+// Reset the RFIC setting to new series
 RTMP_RF_REGS RF5225RegTable[] = {
 //      ch   R1          R2          R3(TX0~4=0) R4
 	{1, 0x95002ccc, 0x95004786, 0x95068455, 0x950ffa0b},
@@ -162,7 +162,7 @@ RTMP_RF_REGS RF5225RegTable[] = {
 };
 UCHAR NUM_OF_5225_CHNL = (sizeof(RF5225RegTable) / sizeof(RTMP_RF_REGS));
 
-// Reset the RFIC setting to new series    
+// Reset the RFIC setting to new series
 RTMP_RF_REGS RF5225RegTable_1[] = {
 //      ch   R1          R2          R3(TX0~4=0) R4
 	{1, 0x95002ccc, 0x95004786, 0x95068455, 0x950ffa0b}
@@ -254,12 +254,12 @@ UCHAR NUM_OF_5225_CHNL_1 = (sizeof(RF5225RegTable_1) / sizeof(RTMP_RF_REGS));
 /*
     ==========================================================================
     Description:
-        initialize the MLME task and its data structure (queue, spinlock, 
+        initialize the MLME task and its data structure (queue, spinlock,
         timer, state machines).
-        
+
     Return:
         always return NDIS_STATUS_SUCCESS
-        
+
     ==========================================================================
 */
 NDIS_STATUS MlmeInit(IN PRTMP_ADAPTER pAd)
@@ -302,7 +302,7 @@ NDIS_STATUS MlmeInit(IN PRTMP_ADAPTER pAd)
 		WpaPskStateMachineInit(pAd, &pAd->Mlme.WpaPskMachine,
 				       pAd->Mlme.WpaPskFunc);
 
-		// Since we are using switch/case to implement it, the init is different from the above 
+		// Since we are using switch/case to implement it, the init is different from the above
 		// state machine init
 		MlmeCntlInit(pAd, &pAd->Mlme.CntlMachine, NULL);
 
@@ -341,7 +341,7 @@ NDIS_STATUS MlmeInit(IN PRTMP_ADAPTER pAd)
         Mlme has to be initialized, and there are something inside the queue
     Note:
         This function is invoked from MPSetInformation and MPReceive;
-        This task guarantee only one MlmeHandler will run. 
+        This task guarantee only one MlmeHandler will run.
 
     ==========================================================================
  */
@@ -454,7 +454,7 @@ VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
         Adapter - NIC Adapter pointer
     Post:
         The MLME task will no longer work properly
-        
+
     ==========================================================================
  */
 VOID MlmeHalt(IN PRTMP_ADAPTER pAd)
@@ -519,14 +519,14 @@ VOID MlmeHalt(IN PRTMP_ADAPTER pAd)
     ==========================================================================
     Description:
         This routine is executed periodically to -
-        1. Decide if it's a right time to turn on PwrMgmt bit of all 
+        1. Decide if it's a right time to turn on PwrMgmt bit of all
            outgoiing frames
         2. Calculate ChannelQuality based on statistics of the last
-           period, so that TX rate won't toggling very frequently between a 
+           period, so that TX rate won't toggling very frequently between a
            successful TX and a failed TX.
-        3. If the calculated ChannelQuality indicated current connection not 
+        3. If the calculated ChannelQuality indicated current connection not
            healthy, then a ROAMing attempt is tried here.
-        
+
     ==========================================================================
  */
 
@@ -647,7 +647,7 @@ VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 		 && (pAd->Antenna.field.TxDefaultAntenna == 0)
 		 && (pAd->Antenna.field.RxDefaultAntenna == 0)))
 	    && (pAd->Mlme.PeriodicRound % 2 == 1)) {
-		// check every 2 second. If rcv-beacon less than 5 in the past 2 second, then AvgRSSI is no longer a 
+		// check every 2 second. If rcv-beacon less than 5 in the past 2 second, then AvgRSSI is no longer a
 		// valid indication of the distance between this AP and its clients.
 		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
 			SHORT realavgrssi1, realavgrssi2;
@@ -815,7 +815,7 @@ VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 #if 0
 			else if (CQI_IS_POOR(pAd->Mlme.ChannelQuality)) {
 				// perform aggresive roaming only when SECURITY OFF or WEP64/128;
-				// WPA and WPA-PSK has no aggresive roaming because re-negotiation 
+				// WPA and WPA-PSK has no aggresive roaming because re-negotiation
 				// between 802.1x supplicant and authenticator/AAA server is required
 				// but can't be guaranteed.
 				if (pAd->PortCfg.AuthMode <
@@ -872,7 +872,7 @@ VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 			pAd->ActiveCfg.SupRateLen = pAd->PortCfg.SupRateLen;
 
 			MlmeUpdateTxRates(pAd, FALSE);
-			MakeIbssBeacon(pAd);	// re-build BEACON frame 
+			MakeIbssBeacon(pAd);	// re-build BEACON frame
 			AsicEnableIbssSync(pAd);	// copy to on-chip memory
 		}
 		//radar detect
@@ -975,7 +975,7 @@ VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 								      PortCfg.
 								      PskKey.
 								      Key);
-						// turn on the flag of PortCfg.WpaState as reading profile 
+						// turn on the flag of PortCfg.WpaState as reading profile
 						// and reset after adding key
 						pAd->PortCfg.WpaState =
 						    SS_NOTUSE;
@@ -1008,7 +1008,7 @@ VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 								      PortCfg.
 								      PskKey.
 								      Key);
-						// turn on the flag of PortCfg.WpaState as reading profile 
+						// turn on the flag of PortCfg.WpaState as reading profile
 						// and reset after adding key
 						pAd->PortCfg.WpaState =
 						    SS_NOTUSE;
@@ -1134,7 +1134,7 @@ BOOLEAN MlmeValidateSSID(IN PUCHAR pSsid, IN UCHAR SsidLen)
         This routine checks if there're other APs out there capable for
         roaming. Caller should call this routine only when Link up in INFRA mode
         and channel quality is below CQI_GOOD_THRESHOLD.
-        
+
     Output:
     ==========================================================================
  */
@@ -1244,7 +1244,7 @@ VOID MlmeCheckForFastRoaming(IN PRTMP_ADAPTER pAd, IN unsigned long Now)
 
 		DBGPRINT(RT_DEBUG_TRACE, "LastRssi = %d, pBss->Rssi = %d\n",
 			 pAd->PortCfg.LastRssi, pBss->Rssi);
-		// AP passing all above rules is put into roaming candidate table        
+		// AP passing all above rules is put into roaming candidate table
 		memcpy(&pRoamTab->BssEntry[pRoamTab->BssNr], pBss,
 		       sizeof(BSS_ENTRY));
 		pRoamTab->BssNr += 1;
@@ -1289,15 +1289,15 @@ VOID MlmeCheckForFastRoaming(IN PRTMP_ADAPTER pAd, IN unsigned long Now)
 /*
     ==========================================================================
     Description:
-        This routine calculates TxPER, RxPER of the past N-sec period. And 
-        according to the calculation result, ChannelQuality is calculated here 
-        to decide if current AP is still doing the job. 
+        This routine calculates TxPER, RxPER of the past N-sec period. And
+        according to the calculation result, ChannelQuality is calculated here
+        to decide if current AP is still doing the job.
 
         If ChannelQuality is not good, a ROAMing attempt may be tried later.
     Output:
         PortCfg.ChannelQuality - 0..100
 
-        
+
     NOTE: This routine decide channle quality based on RX CRC error ratio.
         Caller should make sure a function call to NICUpdateRawCounters(pAd)
         is performed right before this routine, so that this routine can decide
@@ -1373,14 +1373,14 @@ VOID MlmeCalculateChannelQuality(IN PRTMP_ADAPTER pAd, IN ULONG Now32)
 /*
     ==========================================================================
     Description:
-        This routine calculates the acumulated TxPER of eaxh TxRate. And 
-        according to the calculation result, change PortCfg.TxRate which 
-        is the stable TX Rate we expect the Radio situation could sustained. 
+        This routine calculates the acumulated TxPER of eaxh TxRate. And
+        according to the calculation result, change PortCfg.TxRate which
+        is the stable TX Rate we expect the Radio situation could sustained.
 
-        PortCfg.TxRate will change dynamically within {RATE_1/RATE_6, MaxTxRate} 
+        PortCfg.TxRate will change dynamically within {RATE_1/RATE_6, MaxTxRate}
     Output:
-        PortCfg.TxRate - 
-        
+        PortCfg.TxRate -
+
 
     NOTE:
         call this routine every second
@@ -1402,7 +1402,7 @@ VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
 	RTMP_IO_WRITE32(pAd, TXRX_CSR5, NewBasicRateBitmap);
 
 	// if no traffic in the past 1-sec period, don't change TX rate,
-	// but clear all bad history. because the bad history may affect the next 
+	// but clear all bad history. because the bad history may affect the next
 	// Chariot throughput test
 	TxTotalCnt = pAd->RalinkCounters.OneSecTxNoRetryOkCount +
 	    pAd->RalinkCounters.OneSecTxRetryOkCount +
@@ -1527,8 +1527,8 @@ VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
 
 #if 1
 		// 2004-3-13 special case: Claim noisy environment
-		//   decide if there was a false "rate down" in the past 2 sec due to noisy 
-		//   environment. if so, we would rather switch back to the higher TX rate. 
+		//   decide if there was a false "rate down" in the past 2 sec due to noisy
+		//   environment. if so, we would rather switch back to the higher TX rate.
 		//   criteria -
 		//     1. there's a higher rate available, AND
 		//     2. there was a rate-down happened, AND
@@ -1585,8 +1585,8 @@ VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
 			}
 		}
 #endif
-		// we're going to upgrade CurrRate to UpRate at next few seconds, 
-		// but before that, we'd better try a NULL frame @ UpRate and 
+		// we're going to upgrade CurrRate to UpRate at next few seconds,
+		// but before that, we'd better try a NULL frame @ UpRate and
 		// see if UpRate is stable or not. If this NULL frame fails, it will
 		// downgrade TxQuality[CurrRate], so that STA won't switch to
 		// to UpRate in the next second
@@ -1670,7 +1670,7 @@ VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
 		memset(pAd->DrsCounters.PER, 0, MAX_LEN_OF_SUPPORTED_RATES);
 		//
 		// For TxRate fast train up, issued by David 2005/05/12
-		// 
+		//
 		if (!pAd->PortCfg.QuickResponeForRateUpTimerRunning) {
 			if (pAd->PortCfg.TxRate <= RATE_12)
 				pAd->PortCfg.QuickResponeForRateUpTimer.
@@ -1710,10 +1710,10 @@ VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
 /*
     ==========================================================================
     Description:
-        This routine is executed periodically inside MlmePeriodicExec() after 
+        This routine is executed periodically inside MlmePeriodicExec() after
         association with an AP.
         It checks if PortCfg.Psm is consistent with user policy (recorded in
-        PortCfg.WindowsPowerMode). If not, enforce user policy. However, 
+        PortCfg.WindowsPowerMode). If not, enforce user policy. However,
         there're some conditions to consider:
         1. we don't support power-saving in ADHOC mode, so Psm=PWR_ACTIVE all
            the time when Mibss==TRUE
@@ -1721,7 +1721,7 @@ VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
            if outgoing traffic available in TxRing or MgmtRing.
     Output:
         1. change pAd->PortCfg.Psm to PWR_SAVE or leave it untouched
-        
+
 
     ==========================================================================
  */
@@ -1860,7 +1860,7 @@ VOID MlmeUpdateTxRates(IN PRTMP_ADAPTER pAd, IN BOOLEAN bLinkUp)
 
 	pAd->PortCfg.MaxDesiredRate = MaxDesire;
 
-	// Auto rate switching is enabled only if more than one DESIRED RATES are 
+	// Auto rate switching is enabled only if more than one DESIRED RATES are
 	// specified; otherwise disabled
 	if (num <= 1)
 		OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_TX_RATE_SWITCH_ENABLED);
@@ -2151,7 +2151,7 @@ VOID MlmeRadioOn(IN PRTMP_ADAPTER pAd)
 	RTMP_IO_WRITE32(pAd, MAC_CSR10, 0x00000718);	// turn on radio
 	RTMP_IO_WRITE32(pAd, TX_CNTL_CSR, 0x001f0000);	// abort all TX rings
 
-	// Disable Rx   
+	// Disable Rx
 	RTMPWriteTXRXCsr0(pAd, TRUE, FALSE);
 
 	RTMPRingCleanUp(pAd, QID_AC_BK);
@@ -2198,11 +2198,11 @@ VOID BssTableInit(IN BSS_TABLE * Tab)
 
 /*! \brief search the BSS table by SSID
  *  \param p_tab pointer to the bss table
- *  \param ssid SSID string 
+ *  \param ssid SSID string
  *  \return index of the table, BSS_NOT_FOUND if not in the table
  *  \pre
  *  \post
- *  \note search by sequential search 
+ *  \note search by sequential search
  */
 ULONG BssTableSearch(IN BSS_TABLE * Tab, IN PUCHAR pBssid, IN UCHAR Channel)
 {
@@ -2212,7 +2212,7 @@ ULONG BssTableSearch(IN BSS_TABLE * Tab, IN PUCHAR pBssid, IN UCHAR Channel)
 		//
 		// Some AP that support A/B/G mode that may used the same BSSID on 11A and 11B/G.
 		// We should distinguish this case.
-		//      
+		//
 		if ((((Tab->BssEntry[i].Channel <= 14) && (Channel <= 14)) ||
 		     ((Tab->BssEntry[i].Channel > 14) && (Channel > 14))) &&
 		    (memcmp(Tab->BssEntry[i].Bssid, pBssid, ETH_ALEN) == 0)) {
@@ -2232,7 +2232,7 @@ ULONG BssSsidTableSearch(IN BSS_TABLE * Tab,
 		//
 		// Some AP that support A/B/G mode that may used the same BSSID on 11A and 11B/G.
 		// We should distinguish this case.
-		//      
+		//
 		if ((((Tab->BssEntry[i].Channel <= 14) && (Channel <= 14)) ||
 		     ((Tab->BssEntry[i].Channel > 14) && (Channel > 14))) &&
 		    (memcmp(Tab->BssEntry[i].Bssid, pBssid, ETH_ALEN) == 0) &&
@@ -2290,7 +2290,7 @@ VOID BssTableDeleteEntry(IN OUT BSS_TABLE * Tab,
 }
 
 /*! \brief
- *  \param 
+ *  \param
  *  \return
  *  \pre
  *  \post
@@ -2390,7 +2390,7 @@ VOID BssEntrySet(IN PRTMP_ADAPTER pAd,
 		pBss->QbssLoad.bValid = FALSE;
 }
 
-/*! 
+/*!
  *  \brief insert an entry into the bss table
  *  \param p_tab The BSS table
  *  \param Bssid BSSID
@@ -2566,7 +2566,7 @@ VOID BssTableSsidSort(IN PRTMP_ADAPTER pAd,
 						continue;
 				}
 			}
-			// Bss Type matched, SSID matched. 
+			// Bss Type matched, SSID matched.
 			// We will check wepstatus for qualification Bss
 			else if (pAd->PortCfg.WepStatus != pInBss->WepStatus) {
 				DBGPRINT(RT_DEBUG_TRACE,
@@ -2653,7 +2653,7 @@ VOID BssTableSsidSort(IN PRTMP_ADAPTER pAd,
 						continue;
 				}
 			}
-			// Bss Type matched, SSID matched. 
+			// Bss Type matched, SSID matched.
 			// We will check wepstatus for qualification Bss
 			else if (pAd->PortCfg.WepStatus != pInBss->WepStatus)
 				continue;
@@ -2757,7 +2757,7 @@ VOID BssCipherParse(IN OUT PBSS_ENTRY pBss)
 
 			// Cipher Suite Selectors from Spec P802.11i/D3.2 P26.
 			//  Value      Meaning
-			//  0           None 
+			//  0           None
 			//  1           WEP-40
 			//  2           Tkip
 			//  3           WRAP
@@ -3010,7 +3010,7 @@ VOID BssCipherParse(IN OUT PBSS_ENTRY pBss)
 			pBss->WepStatus = pBss->WPA2.PairCipher;
 
 			// 6. Get RSN capability
-			//pBss->WPA2.RsnCapability = *(PUSHORT) pTmp;                   
+			//pBss->WPA2.RsnCapability = *(PUSHORT) pTmp;
 			memcpy(&pBss->WPA2.RsnCapability, pTmp, sizeof(USHORT));
 #ifdef BIG_ENDIAN
 			pBss->WPA2.RsnCapability =
@@ -3082,8 +3082,8 @@ VOID MgtMacHeaderInit(IN PRTMP_ADAPTER pAd,
 // ===========================================================================================
 
 /*!***************************************************************************
- * This routine build an outgoing frame, and fill all information specified 
- * in argument list to the frame body. The actual frame size is the summation 
+ * This routine build an outgoing frame, and fill all information specified
+ * in argument list to the frame body. The actual frame size is the summation
  * of all arguments.
  * input params:
  *      Buffer - pointer to a pre-allocated memory segment
@@ -3092,7 +3092,7 @@ VOID MgtMacHeaderInit(IN PRTMP_ADAPTER pAd,
  *                         function will FAIL!!!
  * return:
  *      Size of the buffer
- * usage:  
+ * usage:
  *      MakeOutgoingFrame(Buffer, output_length, 2, &fc, 2, &dur, 6, p_addr1, 6,p_addr2, END_OF_ARGS);
  ****************************************************************************/
 ULONG MakeOutgoingFrame(OUT CHAR * Buffer, OUT ULONG * FrameLen, ...)
@@ -3508,7 +3508,7 @@ BOOLEAN MlmeQueueFull(IN MLME_QUEUE * Queue)
 }
 
 /*! \brief   The destructor of MLME Queue
- *  \param 
+ *  \param
  *  \return
  *  \pre
  *  \post
@@ -3553,7 +3553,7 @@ BOOLEAN MsgTypeSubst(IN PRTMP_ADAPTER pAd,
 	UCHAR EAPType;
 	BOOLEAN Return;
 
-// only PROBE_REQ can be broadcast, all others must be unicast-to-me && is_mybssid; otherwise, 
+// only PROBE_REQ can be broadcast, all others must be unicast-to-me && is_mybssid; otherwise,
 // ignore this frame
 
 	// wpa EAPOL PACKET
@@ -3641,12 +3641,12 @@ BOOLEAN MsgTypeSubst(IN PRTMP_ADAPTER pAd,
 // ===========================================================================================
 
 /*! \brief Initialize the state machine.
- *  \param *S           pointer to the state machine 
+ *  \param *S           pointer to the state machine
  *  \param  Trans       State machine transition function
- *  \param  StNr        number of states 
- *  \param  MsgNr       number of messages 
- *  \param  DefFunc     default function, when there is invalid state/message combination 
- *  \param  InitState   initial state of the state machine 
+ *  \param  StNr        number of states
+ *  \param  MsgNr       number of messages
+ *  \param  DefFunc     default function, when there is invalid state/message combination
+ *  \param  InitState   initial state of the state machine
  *  \param  Base        StateMachine base, internal use only
  *  \pre p_sm should be a legal pointer
  *  \post
@@ -3679,7 +3679,7 @@ VOID StateMachineInit(IN STATE_MACHINE * S,
 
 }
 
-/*! \brief This function fills in the function pointer into the cell in the state machine 
+/*! \brief This function fills in the function pointer into the cell in the state machine
  *  \param *S   pointer to the state machine
  *  \param St   state
  *  \param Msg  incoming message
@@ -3717,8 +3717,8 @@ VOID StateMachinePerformAction(IN PRTMP_ADAPTER pAd,
 /*
     ==========================================================================
     Description:
-        The drop function, when machine executes this, the message is simply 
-        ignored. This function does nothing, the message is freed in 
+        The drop function, when machine executes this, the message is simply
+        ignored. This function does nothing, the message is freed in
         StateMachinePerformAction()
     ==========================================================================
  */
@@ -3797,14 +3797,14 @@ VOID AsicSwitchChannel(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 	if (TxPwer > 31) {
 		//
 		// R3 can't large than 36 (0x24), 31 ~ 36 used by BBP 94
-		//              
+		//
 		R3 = 31;
 		if (TxPwer <= 36)
 			Bbp94 = BBPR94_DEFAULT + (UCHAR) (TxPwer - 31);
 	} else if (TxPwer < 0) {
 		//
 		// R3 can't less than 0, -1 ~ -6 used by BBP 94
-		//      
+		//
 		R3 = 0;
 		if (TxPwer >= -6)
 			Bbp94 = BBPR94_DEFAULT + TxPwer;
@@ -3818,7 +3818,7 @@ VOID AsicSwitchChannel(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 	// We lower TX power here according to the percentage specified from UI
 	if (pAd->PortCfg.TxPowerPercentage > 90)	// 91 ~ 100%, treat as 100% in terms of mW
 		;
-	else if (pAd->PortCfg.TxPowerPercentage > 60)	// 61 ~ 90%, treat as 75% in terms of mW    
+	else if (pAd->PortCfg.TxPowerPercentage > 60)	// 61 ~ 90%, treat as 75% in terms of mW
 	{
 		if (R3 > 2)
 			R3 -= 2;
@@ -3956,7 +3956,7 @@ VOID AsicSwitchChannel(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 	}
 	//
 	// On 11A, We should delay and wait RF/BBP to be stable
-	// and the appropriate time should be 1000 micro seconds 
+	// and the appropriate time should be 1000 micro seconds
 	//
 	RTMPusecDelay(1000);
 
@@ -4017,11 +4017,11 @@ VOID AsicAntennaSelect(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 	if (Channel <= 14) {
 		if (pAd->NicConfig2.field.ExternalLNAForG) {
 			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17, 0x30);	// if external LNA enable, this value need to be offset 0x10
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 96, 0x68);	// if external LNA enable, R96 need to shit 0x20 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 104, 0x3C);	// if external LNA enable, R104 need to shit 0x10 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 75, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 86, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 88, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12 
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 96, 0x68);	// if external LNA enable, R96 need to shit 0x20 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 104, 0x3C);	// if external LNA enable, R104 need to shit 0x10 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 75, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 86, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 88, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12
 		} else {
 			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17, 0x20);
 			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 96, 0x48);
@@ -4033,11 +4033,11 @@ VOID AsicAntennaSelect(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 	} else {
 		if (pAd->NicConfig2.field.ExternalLNAForA) {
 			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17, 0x38);	// if external LNA enable, this value need to be offset 0x10
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 96, 0x78);	// if external LNA enable, R96 need to shit 0x20 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 104, 0x48);	// if external LNA enable, R104 need to shit 0x10 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 75, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 86, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12 
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 88, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12                
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 96, 0x78);	// if external LNA enable, R96 need to shit 0x20 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 104, 0x48);	// if external LNA enable, R104 need to shit 0x10 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 75, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 86, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 88, 0x80);	// if external LNA enable, set this to 0x80 on B/G mode, Request by David 2005/05/12
 		} else {
 			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17, 0x28);
 			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 96, 0x58);
@@ -4064,7 +4064,7 @@ VOID AsicAntennaSelect(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Antenna miscellaneous setting.
 
@@ -4074,13 +4074,13 @@ VOID AsicAntennaSelect(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 
 	Return Value:
 		None
-	
+
 	Note:
 		1.) Frame End type control
 			only valid for G only (RF_2527 & RF_2529)
 			0: means DPDT, set BBP R4 bit 5 to 1
 			1: means SPDT, set BBP R4 bit 5 to 0
-			
+
 
 	========================================================================
 */
@@ -4111,7 +4111,7 @@ VOID AsicAntennaSetting(IN PRTMP_ADAPTER pAd, IN ABGBAND_STATE BandState)
 	switch (pAd->Antenna.field.RfIcType) {
 	case RFIC_5225:
 	case RFIC_5325:
-		//Support 11B/G/A                       
+		//Support 11B/G/A
 		if (BandState == BG_BAND) {
 			//Check Rx Anttena
 			if (pAd->Antenna.field.RxDefaultAntenna == ANTENNA_A) {
@@ -4274,16 +4274,16 @@ VOID AsicAntennaSetting(IN PRTMP_ADAPTER pAd, IN ABGBAND_STATE BandState)
 			{
 				if (pAd->NicConfig2.field.TxRxFixed == 0)	// TxRxFixed <Tx:Rx> = <E1/E1:E4>
 				{
-					R4 = R4 | 0x01;	// <Bit5:Bit1:Bit0> = <0:0:1>                                           
+					R4 = R4 | 0x01;	// <Bit5:Bit1:Bit0> = <0:0:1>
 
-					R77 = R77 & 0xfc;	// <Bit1:Bit0> = <0:0>                                          
+					R77 = R77 & 0xfc;	// <Bit1:Bit0> = <0:0>
 					RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd,
 								     BBP_R77,
 								     R77);
 					AsicSetRxAnt(pAd, 0, 1);
 				} else if (pAd->NicConfig2.field.TxRxFixed == 1)	// TxRxFixed <Tx:Rx> = <E2/E2:E3>
 				{
-					R4 = R4 | 0x01;	// <Bit5:Bit1:Bit0> = <0:0:1>                                           
+					R4 = R4 | 0x01;	// <Bit5:Bit1:Bit0> = <0:0:1>
 
 					R77 = R77 & 0xfc;	// <Bit1:Bit0> = <0:0>
 					RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd,
@@ -4292,7 +4292,7 @@ VOID AsicAntennaSetting(IN PRTMP_ADAPTER pAd, IN ABGBAND_STATE BandState)
 					AsicSetRxAnt(pAd, 1, 0);
 				} else if (pAd->NicConfig2.field.TxRxFixed == 2)	// TxRxFixed <Tx:Rx> = <E3/E1:E3>
 				{
-					R4 = R4 | 0x01;	// <Bit5:Bit1:Bit0> = <0:0:1>                                           
+					R4 = R4 | 0x01;	// <Bit5:Bit1:Bit0> = <0:0:1>
 
 					R77 = R77 | 0x03;	// <Bit1:Bit0> = <1:1>
 					RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd,
@@ -4598,11 +4598,11 @@ VOID AsicAdjustTxPower(IN PRTMP_ADAPTER pAd)
 /*
     ==========================================================================
     Description:
-        put PHY to sleep here, and set next wakeup timer. PHY doesn't not wakeup 
+        put PHY to sleep here, and set next wakeup timer. PHY doesn't not wakeup
         automatically. Instead, MCU will issue a TwakeUpInterrupt to host after
         the wakeup timer timeout. Driver has to issue a separate command to wake
         PHY up.
-        
+
     ==========================================================================
  */
 VOID AsicSleepThenAutoWakeup(IN PRTMP_ADAPTER pAd,
@@ -4701,7 +4701,7 @@ VOID AsicForceWakeup(IN PRTMP_ADAPTER pAd)
 	//
 	// Can't enable interrupt here if ASIC wake up from sleep.
 	// This will cause some interrupt occured and cause no one got service it.
-	// then cause system hang. 
+	// then cause system hang.
 	// We will enable it on the regular routine NdisMSynchronizeWithInterrupt
 	// before exit the ISR routine.
 	//
@@ -4715,7 +4715,7 @@ VOID AsicForceWakeup(IN PRTMP_ADAPTER pAd)
 /*
     ==========================================================================
     Description:
-        
+
     ==========================================================================
  */
 VOID AsicSetBssid(IN PRTMP_ADAPTER pAd, IN PUCHAR pBssid)
@@ -4735,7 +4735,7 @@ VOID AsicSetBssid(IN PRTMP_ADAPTER pAd, IN PUCHAR pBssid)
 /*
     ==========================================================================
     Description:
-   
+
     ==========================================================================
  */
 VOID AsicDisableSync(IN PRTMP_ADAPTER pAd)
@@ -4744,7 +4744,7 @@ VOID AsicDisableSync(IN PRTMP_ADAPTER pAd)
 	DBGPRINT(RT_DEBUG_TRACE, "--->Disable TSF synchronization\n");
 
 	// 2003-12-20 disable TSF and TBTT while NIC in power-saving have side effect
-	//            that NIC will never wakes up because TSF stops and no more 
+	//            that NIC will never wakes up because TSF stops and no more
 	//            TBTT interrupts
 	RTMP_IO_READ32(pAd, TXRX_CSR9, &csr.word);
 	csr.field.bBeaconGen = 0;
@@ -4780,11 +4780,11 @@ VOID AsicEnableBssSync(IN PRTMP_ADAPTER pAd)
 /*
     ==========================================================================
     Description:
-    Note: 
+    Note:
         BEACON frame in shared memory should be built ok before this routine
         can be called. Otherwise, a garbage frame maybe transmitted out every
         Beacon period.
- 
+
     ==========================================================================
  */
 VOID AsicEnableIbssSync(IN PRTMP_ADAPTER pAd)
@@ -4821,9 +4821,9 @@ VOID AsicEnableIbssSync(IN PRTMP_ADAPTER pAd)
 	}
 
 	//
-	// For Wi-Fi faily generated beacons between participating stations. 
+	// For Wi-Fi faily generated beacons between participating stations.
 	// Set TBTT phase adaptive adjustment step to 8us (default 16us)
-	// 
+	//
 	RTMP_IO_WRITE32(pAd, TXRX_CSR10, 0x00001008);
 
 	// start sending BEACON
@@ -4991,7 +4991,7 @@ VOID AsicSetSlotTime(IN PRTMP_ADAPTER pAd, IN BOOLEAN bUseShortSlotTime)
 #if 0
 	//
 	// For some reasons, always set it to short slot time.
-	// 
+	//
 	// ToDo: Should consider capability with 11B
 	//
 	RTMP_IO_READ32(pAd, MAC_CSR9, &Csr9.word);
@@ -5007,7 +5007,7 @@ VOID AsicSetSlotTime(IN PRTMP_ADAPTER pAd, IN BOOLEAN bUseShortSlotTime)
 /*
 	==========================================================================
 	Description:
-		danamic tune BBP R17 to find a balance between sensibility and 
+		danamic tune BBP R17 to find a balance between sensibility and
 		noise isolation
 
 	==========================================================================
@@ -5176,16 +5176,16 @@ VOID AsicAddSharedKeyEntry(IN PRTMP_ADAPTER pAd,
 	if (pRxMic) {
 		DBGPRINT_RAW(RT_DEBUG_TRACE, "     Rx MIC Key = ");
 		for (i = 0; i < 8; i++) {
-			printk("%02x:", pRxMic[i]);
+			DBGPRINT_RAW(RT_DEBUG_TRACE, "%02x:", pRxMic[i]);
 		}
-		printk("\n");
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "\n");
 	}
 	if (pTxMic) {
 		DBGPRINT_RAW(RT_DEBUG_TRACE, "     Tx MIC Key = ");
 		for (i = 0; i < 8; i++) {
-			printk("%02x:", pTxMic[i]);
+			DBGPRINT_RAW(RT_DEBUG_TRACE, "%02x:", pTxMic[i]);
 		}
-		printk("\n");
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "\n");
 	}
 	//
 	// fill key material - key + TX MIC + RX MIC
@@ -5359,7 +5359,7 @@ BOOLEAN AsicSendCommandToMcu(IN PRTMP_ADAPTER pAd,
 
     Return Value:
         None
-        
+
     ========================================================================
 */
 VOID RTMPCheckRates(IN PRTMP_ADAPTER pAd,
@@ -5372,14 +5372,14 @@ VOID RTMPCheckRates(IN PRTMP_ADAPTER pAd,
 
 	if (pAd->PortCfg.PhyMode == PHY_11B)
 		RateIdx = 4;
-//  else if ((pAd->PortCfg.PhyMode == PHY_11BG_MIXED) && 
+//  else if ((pAd->PortCfg.PhyMode == PHY_11BG_MIXED) &&
 //      (pAd->PortCfg.BssType == BSS_ADHOC)           &&
 //      (pAd->PortCfg.AdhocMode == 0))
 //              RateIdx = 4;
 	else
 		RateIdx = 12;
 
-	// Check for support rates exclude basic rate bit       
+	// Check for support rates exclude basic rate bit
 	for (i = 0; i < *SupRateLen; i++)
 		for (j = 0; j < RateIdx; j++)
 			if ((SupRate[i] & 0x7f) == RateIdTo500Kbps[j])
@@ -5420,7 +5420,7 @@ VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 			RTMP_IO_READ32(pAd, MAC_CSR13, &data);
 			data &= ~0x00001010;	// clear Bit 4,12
 
-			if (Pair1 == 0)	// pair1 Primary Ant  
+			if (Pair1 == 0)	// pair1 Primary Ant
 			{	//     Ant E1
 				//data;
 			} else {	//     Ant E2
@@ -5433,7 +5433,7 @@ VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 			RTMP_IO_READ32(pAd, MAC_CSR13, &data);
 			data &= ~0x00000808;	// clear Bit 3,11
 
-			if (Pair2 == 0)	// pair2 Primary Ant  
+			if (Pair2 == 0)	// pair2 Primary Ant
 			{	//     Ant E3
 				data |= 0x08;
 			} else {	//     Ant E4
@@ -5491,7 +5491,7 @@ VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 
 		R77 &= ~0x03;	// clear Bit 0,1
 
-		//Support 11B/G/A                       
+		//Support 11B/G/A
 		if (pAd->PortCfg.BandState == BG_BAND) {
 			//Check Rx Anttena
 			if (Pair1 == 0) {
@@ -5519,7 +5519,7 @@ VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 }
 
 // switch to secondary RxAnt pair for a while to collect it's average RSSI
-// also set a timeout routine to do the actual evaluation. If evaluation 
+// also set a timeout routine to do the actual evaluation. If evaluation
 // result shows a much better RSSI using secondary RxAnt, then a official
 // RX antenna switch is performed.
 VOID AsicEvaluateSecondaryRxAnt(IN PRTMP_ADAPTER pAd)
@@ -5876,14 +5876,14 @@ BOOLEAN RadarChannelCheck(IN PRTMP_ADAPTER pAd, IN UCHAR Ch)
     ========================================================================
     Routine Description:
         Set/reset MAC registers according to bPiggyBack parameter
-        
+
     Arguments:
     	pAd			- Adapter pointer
     	bPiggyBack	- Enable / Disable Piggy-Back
-        
+
     Return Value:
         None
-        
+
     ========================================================================
 */
 VOID RTMPSetPiggyBack(IN PRTMP_ADAPTER pAd,
