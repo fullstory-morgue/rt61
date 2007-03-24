@@ -5,10 +5,12 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 
 DEB_INSTALL_CHANGELOGS_ALL := CHANGELOG
 
-UUPVERSION = $(shell dpkg-parsechangelog | grep ^Vers | cut -d\  -f2 | sed -e s/-.*// -es/+.*//)
-DFSG = $(shell echo $$UUPVERSION | grep \.dfsg\. || echo \.dfsg\.1)
-UPVERSION = $(UUPVERSION)$(DFSG)
-CVSVERSION = $(shell date -u +%Y%m%d)
+# upstream major version
+UPVERSION := $(shell dpkg-parsechangelog | sed -n 's/^Version: \(.*\)\.dfsg.*/\1/p')
+# upstream CVS version
+DATE := $(shell date +%Y%m%d)
+# dfsg version
+DFSG := dfsg.2
 
 install/rt61-source::
 	# Enforce executable bit on debian/rules, and create directory 
@@ -36,26 +38,12 @@ install/rt61-fwcutter::
 			debian/rt61-fwcutter/usr/share/rt61-fwcutter/
 
 get-orig-source:
-	rm $(CURDIR)/* || true
-	rm -rf source Module CVS $(DEB_SOURCE_PACKAGE)-*
-	
-	@echo "press [ENTER] do checkout current CVS Head:"
-	cvs -d:pserver:anonymous@rt2400.cvs.sourceforge.net:/cvsroot/rt2400 login
-	cvs -z3 -d:pserver:anonymous@rt2400.cvs.sourceforge.net:/cvsroot/rt2400 co -P source/rt61/
-	
-	find $(CURDIR) -type d -name CVS -exec rm -rf {} \; || true
-	find $(CURDIR) -type f -name \*\\.bin -exec rm -rf {} \; || true
-	
-	mv source/rt61 $(DEB_SOURCE_PACKAGE)-$(UPVERSION)+cvs$(CVSVERSION)
-	if ! test -e "../$(DEB_SOURCE_PACKAGE)-$(UPVERSION)+cvs$(CVSVERSION)"; then \
-		mv ../`basename $(CURDIR)` ../$(DEB_SOURCE_PACKAGE)-$(UPVERSION)+cvs$(CVSVERSION) ; \
-	fi
-	cp -r $(DEB_SOURCE_PACKAGE)-$(UPVERSION)+cvs$(CVSVERSION)/* ./
-	
-	if ! test -e "../$(DEB_SOURCE_PACKAGE)_$(UPVERSION)+cvs$(CVSVERSION).orig.tar.gz"; then \
-		tar -czf ../$(DEB_SOURCE_PACKAGE)_$(UPVERSION)+cvs$(CVSVERSION).orig.tar.gz $(DEB_SOURCE_PACKAGE)-$(UPVERSION)+cvs$(CVSVERSION) ; \
-	fi
-	rm -rf source $(DEB_SOURCE_PACKAGE)-*
-	
-	dch --no-preserve -v $(UPVERSION)+cvs$(CVSVERSION)-1 "New CVS Snapshot."
-
+	@rm -rf ../rt61-$(DATE) ../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz
+	cd .. && cvs -z3 -d:pserver:anonymous@rt2400.cvs.sourceforge.net:/cvsroot/rt2400 \
+		export -d rt61-$(DATE) -D $(DATE) source/rt61/
+	@test -d ../rt61-$(DATE)
+	tar zcf ../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz \
+		--exclude='*.bin' -C .. rt61-$(DATE)
+	@rm -rf ../rt61-$(DATE)
+	@echo "Don't forget to update your upstream with " \
+		"../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz"
