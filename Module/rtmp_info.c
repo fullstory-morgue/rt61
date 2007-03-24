@@ -178,7 +178,7 @@ static struct {
 	"PSMode", Set_PSMode_Proc},
 #ifdef RALINK_ATE
 	{
-	"ATE", Set_ATE_Proc},	// set ATE Mode to: STOP, TXCONT, TXCARR, TXFRAME, RXFRAME          
+	"ATE", Set_ATE_Proc},	// set ATE Mode to: STOP, TXCONT, TXCARR, TXFRAME, RXFRAME
 	{
 	"ATEDA", Set_ATE_DA_Proc},	// set ATE TxFrames ADDR1, DA
 	{
@@ -264,9 +264,9 @@ int rt_ioctl_siwfreq(struct net_device *dev,
 		return -EINVAL;
 
 	if ((freq->e == 0) && (freq->m <= 1000))
-		chan = freq->m;	// Setting by channel number 
+		chan = freq->m;	// Setting by channel number
 	else
-		MAP_KHZ_TO_CHANNEL_ID((freq->m / 100), chan);	// Setting by frequency - search the table , like 2.412G, 2.422G, 
+		MAP_KHZ_TO_CHANNEL_ID((freq->m / 100), chan);	// Setting by frequency - search the table , like 2.412G, 2.422G,
 	pAdapter->PortCfg.Channel = chan;
 	DBGPRINT(RT_DEBUG_TRACE,
 		 "==>rt_ioctl_siwfreq::SIOCSIWFREQ[cmd=0x%x] (Channel=%d)\n",
@@ -505,7 +505,7 @@ int rt_ioctl_giwap(struct net_device *dev,
  *
  * If you assume that the noise floor is -95, which is an
  * excellent assumption 99.5 % of the time, then you can
- * derive the absolute signal level (i.e. -95 + rssi). 
+ * derive the absolute signal level (i.e. -95 + rssi).
  * There are some other slight factors to take into account
  * depending on whether the rssi measurement is from 11b,
  * 11g, or 11a.   These differences are at most 2db and
@@ -602,9 +602,9 @@ int rt_ioctl_siwscan(struct net_device *dev,
 		    && ((pAdapter->PortCfg.AuthMode == Ndis802_11AuthModeWPA)
 			|| (pAdapter->PortCfg.AuthMode ==
 			    Ndis802_11AuthModeWPAPSK)
-//#ifdef WPA_SUPPLICANT_SUPPORT                          
+//#ifdef WPA_SUPPLICANT_SUPPORT
 			|| (pAdapter->PortCfg.IEEE8021X == TRUE)
-//#endif                                                                        
+//#endif
 		    )
 		    && (pAdapter->PortCfg.PortSecured ==
 			WPA_802_1X_PORT_NOT_SECURED)
@@ -685,7 +685,7 @@ rt_ioctl_giwscan(struct net_device *dev,
 		    iwe_stream_add_event(current_ev, end_buf, &iwe,
 					 IW_EV_ADDR_LEN);
 
-		//ESSID 
+		//ESSID
 		//================================
 		memset(&iwe, 0, sizeof(iwe));
 		iwe.cmd = SIOCGIWESSID;
@@ -695,7 +695,7 @@ rt_ioctl_giwscan(struct net_device *dev,
 		    iwe_stream_add_point(current_ev, end_buf, &iwe,
 					 pAdapter->ScanTab.BssEntry[i].Ssid);
 
-		//Network Type 
+		//Network Type
 		//================================
 		memset(&iwe, 0, sizeof(iwe));
 		iwe.cmd = SIOCGIWMODE;
@@ -808,7 +808,7 @@ rt_ioctl_giwscan(struct net_device *dev,
 		if ((current_val - current_ev) > IW_EV_LCP_LEN)
 			current_ev = current_val;
 
-		//Extended Rate 
+		//Extended Rate
 		//================================
 		memset(&iwe, 0, sizeof(iwe));
 		iwe.cmd = IWEVCUSTOM;
@@ -1160,61 +1160,52 @@ int rt_ioctl_siwencode(struct net_device *dev,
 				 erq->flags);
 			len = erq->length;
 
-			if ((len == WEP_SMALL_KEY_LEN)
-			    || (len == WEP_LARGE_KEY_LEN)) {
-				// If this instruction default key
-				memset(pAdapter->
-				       SharedKey[pAdapter->PortCfg.
-						 DefaultKeyId].Key, 0,
-				       MAX_LEN_OF_KEY);
-				memcpy(pAdapter->
-				       SharedKey[pAdapter->PortCfg.
-						 DefaultKeyId].Key, keybuf,
-				       len);
-				pAdapter->SharedKey[pAdapter->PortCfg.
-						    DefaultKeyId].KeyLen =
-				    (UCHAR) (len ==
-					     WEP_SMALL_KEY_LEN ?
-					     WEP_SMALL_KEY_LEN :
-					     WEP_LARGE_KEY_LEN);
+			if (len > WEP_LARGE_KEY_LEN)
+				len = WEP_LARGE_KEY_LEN;
 
-				memcpy(WepKey.keyinfo.KeyMaterial, keybuf, len);
-				WepKey.keyinfo.KeyIndex =
-				    0x80000000 + pAdapter->PortCfg.DefaultKeyId;
-				WepKey.keyinfo.KeyLength = len;
+			// If this instruction default key
+			memset(pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].Key,
+			       0, MAX_LEN_OF_KEY);
+			memcpy(pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].Key,
+			       keybuf, len);
+			pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].KeyLen =
+			    (UCHAR) (len <= WEP_SMALL_KEY_LEN ?
+				     WEP_SMALL_KEY_LEN : WEP_LARGE_KEY_LEN);
 
-				DBGPRINT(RT_DEBUG_TRACE, "SharedKey");
-				for (i = 0; i < 5; i++)
-					DBGPRINT(RT_DEBUG_TRACE, "   =%x ",
-						 pAdapter->SharedKey[pAdapter->
-								     PortCfg.
-								     DefaultKeyId].
-						 Key[i]);
-				DBGPRINT(RT_DEBUG_TRACE, "\n");
+			memcpy(WepKey.keyinfo.KeyMaterial, keybuf, len);
+			WepKey.keyinfo.KeyIndex =
+			    0x80000000 + pAdapter->PortCfg.DefaultKeyId;
+			WepKey.keyinfo.KeyLength = len;
 
-				// set key into ASIC
-				pAdapter->SharedKey[pAdapter->PortCfg.
-						    DefaultKeyId].CipherAlg =
-				    (pAdapter->
-				     SharedKey[pAdapter->PortCfg.DefaultKeyId].
-				     KeyLen ==
-				     WEP_SMALL_KEY_LEN) ? CIPHER_WEP64 :
-				    CIPHER_WEP128;
+			DBGPRINT(RT_DEBUG_TRACE, "SharedKey");
+			for (i = 0; i < 5; i++)
+				DBGPRINT(RT_DEBUG_TRACE, "   =%x ",
+					 pAdapter->SharedKey[pAdapter->
+							     PortCfg.
+							     DefaultKeyId].
+					 Key[i]);
+			DBGPRINT(RT_DEBUG_TRACE, "\n");
 
-				AsicAddSharedKeyEntry(pAdapter,
-						      0,
-						      (UCHAR) pAdapter->PortCfg.
-						      DefaultKeyId,
-						      pAdapter->
-						      SharedKey[pAdapter->
-								PortCfg.
-								DefaultKeyId].
-						      CipherAlg,
-						      //                                      pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].Key,
-						      WepKey.keyinfo.
-						      KeyMaterial, NULL, NULL);
-			}
+			// set key into ASIC
+			pAdapter->SharedKey[pAdapter->PortCfg.
+					    DefaultKeyId].CipherAlg =
+			    (pAdapter->
+			     SharedKey[pAdapter->PortCfg.DefaultKeyId].
+			     KeyLen ==
+			     WEP_SMALL_KEY_LEN) ? CIPHER_WEP64 : CIPHER_WEP128;
 
+			AsicAddSharedKeyEntry(pAdapter,
+					      0,
+					      (UCHAR) pAdapter->PortCfg.
+					      DefaultKeyId,
+					      pAdapter->
+					      SharedKey[pAdapter->
+							PortCfg.
+							DefaultKeyId].
+					      CipherAlg,
+					      // pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].Key,
+					      WepKey.keyinfo.
+					      KeyMaterial, NULL, NULL);
 		}
 
 	}
@@ -1310,14 +1301,14 @@ rt_ioctl_setparam(struct net_device *dev, struct iw_request_info *info,
 	for (PRTMP_PRIVATE_SET_PROC = RTMP_PRIVATE_SUPPORT_PROC;
 	     PRTMP_PRIVATE_SET_PROC->name; PRTMP_PRIVATE_SET_PROC++) {
 		if (strcmp(this_char, PRTMP_PRIVATE_SET_PROC->name) == 0) {
-			if (!PRTMP_PRIVATE_SET_PROC->set_proc(pAdapter, value)) {	//FALSE:Set private failed then return Invalid argument                                                         
+			if (!PRTMP_PRIVATE_SET_PROC->set_proc(pAdapter, value)) {	//FALSE:Set private failed then return Invalid argument
 				Status = -EINVAL;
 			}
-			break;	//Exit for loop.                                                                                        
+			break;	//Exit for loop.
 		}
 	}
 
-	if (PRTMP_PRIVATE_SET_PROC->name == NULL) {	//Not found argument                                                                                                     
+	if (PRTMP_PRIVATE_SET_PROC->name == NULL) {	//Not found argument
 		Status = -EINVAL;
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "===>rt_ioctl_setparam:: (iwpriv) Not Support Set Command [%s=%s]\n",
@@ -1430,13 +1421,13 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 	ULONG PowerTemp;
 	BOOLEAN RadioState;
 	BOOLEAN StateMachineTouched = FALSE;
-//#ifdef WPA_SUPPLICANT_SUPPORT    
+//#ifdef WPA_SUPPLICANT_SUPPORT
 	PNDIS_802_11_WEP pWepKey = NULL;
 	PNDIS_802_11_PMKID pPmkId = NULL;
 	BOOLEAN IEEE8021xState;
 	BOOLEAN IEEE8021x_required_keys;
 	BOOLEAN wpa_supplicant_enable;
-//#endif      
+//#endif
 //    USHORT                              TxTotalCnt;
 
 	switch (cmd & 0x7FFF) {
@@ -1494,7 +1485,7 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 			    Ndis802_11AuthModeWPA2PSK)
 //#ifdef WPA_SUPPLICANT_SUPPORT
 			|| (pAdapter->PortCfg.IEEE8021X == TRUE)
-//#endif                                        
+//#endif
 		    ) &&
 		    (pAdapter->PortCfg.PortSecured ==
 		     WPA_802_1X_PORT_NOT_SECURED)) {
@@ -2076,7 +2067,7 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 				pAdapter->PortCfg.TxPowerDefault = PowerTemp;	//keep current setting.
 
 				// Only update TxPowerPercentage if the value is smaller than current AP setting
-				// TODO: 2005-03-08 john removed the following line. 
+				// TODO: 2005-03-08 john removed the following line.
 				// if (pAdapter->PortCfg.TxPowerDefault < pAdapter->PortCfg.TxPowerPercentage)
 				pAdapter->PortCfg.TxPowerPercentage =
 				    pAdapter->PortCfg.TxPowerDefault;
@@ -2289,8 +2280,8 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 			} else {
 				if (pAdapter->PortCfg.AuthMode >=
 				    Ndis802_11AuthModeWPA) {
-					// Probably PortCfg.Bssid reset to zero as linkdown, 
-					// Set pKey.BSSID to Broadcast bssid in order to ensure AsicAddSharedKeyEntry done 
+					// Probably PortCfg.Bssid reset to zero as linkdown,
+					// Set pKey.BSSID to Broadcast bssid in order to ensure AsicAddSharedKeyEntry done
 					if (pAdapter->PortCfg.AuthMode ==
 					    Ndis802_11AuthModeWPANone) {
 						memcpy(pKey->BSSID,
@@ -2354,7 +2345,7 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 		}
 		kfree(pKey);
 		break;
-//#ifdef WPA_SUPPLICANT_SUPPORT 
+//#ifdef WPA_SUPPLICANT_SUPPORT
 	case OID_802_11_SET_IEEE8021X:
 		if (wrq->u.data.length != sizeof(BOOLEAN))
 			Status = -EINVAL;
@@ -2432,7 +2423,7 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 				 pAdapter->PortCfg.IEEE8021x_required_keys);
 		}
 		break;
-		// For WPA_SUPPLICANT to set dynamic wep key        
+		// For WPA_SUPPLICANT to set dynamic wep key
 	case OID_802_11_ADD_WEP:
 		pWepKey = kmalloc(wrq->u.data.length, GFP_KERNEL);
 
@@ -2460,7 +2451,7 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 			} else {
 				// After receiving eap-success in 802.1x mode, PortSecured will be TRUE.
 				// At this moment, wpa_supplicant will set dynamic wep key to driver.
-				// Otherwise, driver only records it, not set to Asic. 
+				// Otherwise, driver only records it, not set to Asic.
 				if (pAdapter->PortCfg.PortSecured ==
 				    WPA_802_1X_PORT_SECURED) {
 					UCHAR CipherAlg;
@@ -2533,7 +2524,7 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 		}
 		kfree(pWepKey);
 		break;
-//#endif                    
+//#endif
 	case OID_802_11_CONFIGURATION:
 		if (wrq->u.data.length != sizeof(NDIS_802_11_CONFIGURATION))
 			Status = -EINVAL;
@@ -2571,7 +2562,7 @@ INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 			}
 		}
 		break;
-//#ifdef WPA_SUPPLICANT_SUPPORT     
+//#ifdef WPA_SUPPLICANT_SUPPORT
 	case OID_SET_COUNTERMEASURES:
 		if (wrq->u.param.value) {
 			pAdapter->PortCfg.bBlockAssoc = TRUE;
@@ -3452,7 +3443,7 @@ INT RT61_ioctl(IN struct net_device * net_dev,
 					     PRTMP_PRIVATE_SET_PROC->name)) {
 						if (!PRTMP_PRIVATE_SET_PROC->
 						    set_proc(pAd, value)) {
-							//FALSE:Set private failed then return Invalid argument                                                             
+							//FALSE:Set private failed then return Invalid argument
 							Status = -EINVAL;
 						}
 						break;	//Exit for loop.
@@ -3513,7 +3504,7 @@ INT RT61_ioctl(IN struct net_device * net_dev,
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Add WPA key process
 
@@ -3523,7 +3514,7 @@ INT RT61_ioctl(IN struct net_device * net_dev,
 
 	Return Value:
 		NDIS_SUCCESS		    Add key successfully
-		
+
 	========================================================================
 */
 NDIS_STATUS RTMPWPAAddKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
@@ -3713,7 +3704,7 @@ NDIS_STATUS RTMPWPAAddKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Remove WPA Key process
 
@@ -3723,7 +3714,7 @@ NDIS_STATUS RTMPWPAAddKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
 
 	Return Value:
 		NDIS_SUCCESS		    Add key successfully
-		
+
 	========================================================================
 */
 NDIS_STATUS RTMPWPARemoveKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
@@ -3791,7 +3782,7 @@ NDIS_STATUS RTMPWPARemoveKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Construct and indicate WPA2 Media Specific Status
 
@@ -3802,7 +3793,7 @@ NDIS_STATUS RTMPWPARemoveKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
 		None
 
     Note:
-		
+
 	========================================================================
 */
 VOID RTMPIndicateWPA2Status(IN PRTMP_ADAPTER pAd)
@@ -3823,7 +3814,7 @@ VOID RTMPIndicateWPA2Status(IN PRTMP_ADAPTER pAd)
 	Candidate.List.NumCandidates = 1;
 	memcpy(&Candidate.List.CandidateList[0].BSSID, pAd->PortCfg.Bssid, 6);
 	Candidate.List.CandidateList[0].Flags = 0;
-//      NdisMIndicateStatus(pAd->AdapterHandle, NDIS_STATUS_MEDIA_SPECIFIC_INDICATION, &Candidate, sizeof(Candidate));  
+//      NdisMIndicateStatus(pAd->AdapterHandle, NDIS_STATUS_MEDIA_SPECIFIC_INDICATION, &Candidate, sizeof(Candidate));
 //#ifdef WPA_SUPPLICANT_SUPPORT
 	//pmkid_list.Version =1;
 	//pmkid_list.NumCandidates = 1;
@@ -3833,13 +3824,13 @@ VOID RTMPIndicateWPA2Status(IN PRTMP_ADAPTER pAd)
 	//wrqu.data.flags = RT_PMKIDCAND_FLAG;
 	//wrqu.data.length = sizeof(pmkid_list);
 	//wireless_send_event(pAd->net_dev, IWEVCUSTOM, &wrqu, (char *) &pmkid_list);
-//#endif        
+//#endif
 	DBGPRINT(RT_DEBUG_TRACE, "RTMPIndicateWPA2Status\n");
 }
 
 /*
 	========================================================================
-	
+
 	Routine Description:
 		Remove All WPA Keys
 
@@ -3848,7 +3839,7 @@ VOID RTMPIndicateWPA2Status(IN PRTMP_ADAPTER pAd)
 
 	Return Value:
 		None
-	
+
 	========================================================================
 */
 VOID RTMPWPARemoveAllKeys(IN PRTMP_ADAPTER pAd)
@@ -3883,11 +3874,11 @@ VOID RTMPWPARemoveAllKeys(IN PRTMP_ADAPTER pAd)
 	========================================================================
 	Routine Description:
 		Change NIC PHY mode. Re-association may be necessary. possible settings
-		include - PHY_11B, PHY_11BG_MIXED, PHY_11A, and PHY_11ABG_MIXED 
+		include - PHY_11B, PHY_11BG_MIXED, PHY_11A, and PHY_11ABG_MIXED
 
 	Arguments:
 		pAd - Pointer to our adapter
-        phymode  - 
+        phymode  -
 
 	========================================================================
 */
@@ -4127,7 +4118,7 @@ INT Set_DriverVersion_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Country Region.
@@ -4166,7 +4157,7 @@ INT Set_CountryRegion_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Country Region for A band.
@@ -4206,7 +4197,7 @@ INT Set_CountryRegionABand_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set SSID
@@ -4272,7 +4263,7 @@ INT Set_SSID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return success;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Wireless Mode
@@ -4331,7 +4322,7 @@ INT Set_WirelessMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set TxRate
@@ -4369,12 +4360,12 @@ INT Set_TxRate_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	} else {
 		DBGPRINT(RT_DEBUG_ERROR,
 			 "Set_TxRate_Proc::parameters out of range\n");
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 	}
 
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Channel
@@ -4403,7 +4394,7 @@ INT Set_Channel_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return success;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set 11B/11G Protection
@@ -4423,7 +4414,7 @@ INT Set_BGProtection_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	case 2:		//Always OFF
 		pAdapter->PortCfg.UseBGProtection = 2;
 		break;
-	default:		//Invalid argument 
+	default:		//Invalid argument
 		return FALSE;
 	}
 	DBGPRINT(RT_DEBUG_TRACE, "Set_BGProtection_Proc::(BGProtection=%d)\n",
@@ -4432,7 +4423,7 @@ INT Set_BGProtection_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set TxPreamble
@@ -4457,7 +4448,7 @@ INT Set_TxPreamble_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 		pAdapter->PortCfg.TxPreamble = Preamble;
 		MlmeSetTxPreamble(pAdapter, Rt802_11PreambleLong);
 		break;
-	default:		//Invalid argument 
+	default:		//Invalid argument
 		return FALSE;
 	}
 
@@ -4467,7 +4458,7 @@ INT Set_TxPreamble_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set RTS Threshold
@@ -4496,7 +4487,7 @@ INT Set_RTSThreshold_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Fragment Threshold
@@ -4519,7 +4510,7 @@ INT Set_FragThreshold_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	else if (FragThresh == 0)
 		pAdapter->PortCfg.FragmentThreshold = MAX_FRAG_THRESHOLD;
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	if (pAdapter->PortCfg.FragmentThreshold == MAX_FRAG_THRESHOLD)
 		pAdapter->PortCfg.bFragmentZeroDisable = TRUE;
@@ -4532,7 +4523,7 @@ INT Set_FragThreshold_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set TxBurst
@@ -4551,7 +4542,7 @@ INT Set_TxBurst_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	else if (TxBurst == 0)
 		pAdapter->PortCfg.bEnableTxBurst = FALSE;
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	DBGPRINT(RT_DEBUG_TRACE, "Set_TxBurst_Proc::(TxBurst=%d)\n",
 		 pAdapter->PortCfg.bEnableTxBurst);
@@ -4560,7 +4551,7 @@ INT Set_TxBurst_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 }
 
 #ifdef AGGREGATION_SUPPORT
-/* 
+/*
     ==========================================================================
     Description:
         Set TxBurst
@@ -4579,7 +4570,7 @@ INT Set_PktAggregate_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	else if (aggre == 0)
 		pAd->PortCfg.bAggregationCapable = FALSE;
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	DBGPRINT(RT_DEBUG_TRACE, "Set_PktAggregate_Proc::(AGGRE=%d)\n",
 		 pAd->PortCfg.bAggregationCapable);
@@ -4588,7 +4579,7 @@ INT Set_PktAggregate_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 }
 #endif
 
-/* 
+/*
     ==========================================================================
     Description:
         Set TurboRate Enable or Disable
@@ -4607,7 +4598,7 @@ INT Set_TurboRate_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	else if (TurboRate == 0)
 		pAdapter->PortCfg.EnableTurboRate = FALSE;
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	DBGPRINT(RT_DEBUG_TRACE, "Set_TurboRate_Proc::(TurboRate=%d)\n",
 		 pAdapter->PortCfg.EnableTurboRate);
@@ -4616,7 +4607,7 @@ INT Set_TurboRate_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 }
 
 #ifdef WMM_SUPPORT
-/* 
+/*
     ==========================================================================
     Description:
         Set WmmCapable Enable or Disable
@@ -4635,7 +4626,7 @@ INT Set_WmmCapable_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	else if (bWmmCapable == 0)
 		pAd->PortCfg.bWmmCapable = FALSE;
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	DBGPRINT(RT_DEBUG_TRACE,
 		 "IF(ra%d) Set_WmmCapable_Proc::(bWmmCapable=%d)\n",
@@ -4645,7 +4636,7 @@ INT Set_WmmCapable_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 }
 #endif				/* WMM_SUPPORT */
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Short Slot Time Enable or Disable
@@ -4664,7 +4655,7 @@ INT Set_ShortSlot_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	else if (ShortSlot == 0)
 		pAdapter->PortCfg.UseShortSlotTime = FALSE;
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	DBGPRINT(RT_DEBUG_TRACE, "Set_ShortSlot_Proc::(ShortSlot=%d)\n",
 		 pAdapter->PortCfg.UseShortSlotTime);
@@ -4672,7 +4663,7 @@ INT Set_ShortSlot_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set IEEE80211H.
@@ -4692,7 +4683,7 @@ INT Set_IEEE80211H_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	else if (ieee80211h == 0)
 		pAd->PortCfg.bIEEE80211H = FALSE;
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	DBGPRINT(RT_DEBUG_TRACE, "Set_IEEE80211H_Proc::(IEEE80211H=%d)\n",
 		 pAd->PortCfg.bIEEE80211H);
@@ -4700,7 +4691,7 @@ INT Set_IEEE80211H_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Network Type(Infrastructure/Adhoc mode)
@@ -4727,7 +4718,7 @@ INT Set_NetworkType_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Authentication mode
@@ -4762,7 +4753,7 @@ INT Set_AuthMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Encryption Type
@@ -4811,7 +4802,7 @@ INT Set_EncrypType_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Default Key ID
@@ -4830,7 +4821,7 @@ INT Set_DefaultKeyID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	if ((KeyIdx >= 1) && (KeyIdx <= 4))
 		pAdapter->PortCfg.DefaultKeyId = (UCHAR) (KeyIdx - 1);
 	else
-		return FALSE;	//Invalid argument 
+		return FALSE;	//Invalid argument
 
 	DBGPRINT(RT_DEBUG_TRACE, "Set_DefaultKeyID_Proc::(DefaultKeyID=%d)\n",
 		 pAdapter->PortCfg.DefaultKeyId);
@@ -4838,7 +4829,7 @@ INT Set_DefaultKeyID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set WEP KEY1
@@ -4900,7 +4891,7 @@ INT Set_Key1_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg, "Hex");
 		break;
-	default:		//Invalid argument 
+	default:		//Invalid argument
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key1_Proc::Invalid argument (=%s)\n", arg);
 		return FALSE;
@@ -4922,7 +4913,7 @@ INT Set_Key1_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
 
     Description:
@@ -4985,7 +4976,7 @@ INT Set_Key2_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg, "Hex");
 		break;
-	default:		//Invalid argument 
+	default:		//Invalid argument
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key2_Proc::Invalid argument (=%s)\n", arg);
 		return FALSE;
@@ -5006,7 +4997,7 @@ INT Set_Key2_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set WEP KEY3
@@ -5068,7 +5059,7 @@ INT Set_Key3_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg, "Hex");
 		break;
-	default:		//Invalid argument 
+	default:		//Invalid argument
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key3_Proc::Invalid argument (=%s)\n", arg);
 		return FALSE;
@@ -5089,7 +5080,7 @@ INT Set_Key3_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set WEP KEY4
@@ -5151,7 +5142,7 @@ INT Set_Key4_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg, "Hex");
 		break;
-	default:		//Invalid argument 
+	default:		//Invalid argument
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "Set_Key4_Proc::Invalid argument (=%s)\n", arg);
 		return FALSE;
@@ -5172,7 +5163,7 @@ INT Set_Key4_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set WPA PSK key
@@ -5230,14 +5221,14 @@ INT Set_WPAPSK_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Reset statistics counter
 
     Arguments:
         pAdapter            Pointer to our adapter
-        arg                 
+        arg
 
     Return:
         TRUE if all parameters are OK, FALSE otherwise
@@ -5257,7 +5248,7 @@ INT Set_ResetStatCounter_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set Power Saving mode
@@ -5315,7 +5306,7 @@ INT Set_PSMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 }
 
 #ifdef RT61_DBG
-/* 
+/*
     ==========================================================================
     Description:
         Read / Write BBP
@@ -5327,7 +5318,7 @@ INT Set_PSMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
         None
 
     Note:
-        Usage: 
+        Usage:
                1.) iwpriv ra0 bbp               ==> read all BBP
                2.) iwpriv ra0 bbp 1             ==> read BBP where RegID=1
                3.) iwpriv ra0 bbp 1=10		    ==> write BBP R1=0x10
@@ -5373,7 +5364,7 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
 		if ((value = rtstrchr(this_char, '=')) != NULL)
 			*value++ = 0;
 
-		if (!value || !*value) {	//Read                                                                                    
+		if (!value || !*value) {	//Read
 			DBGPRINT(RT_DEBUG_INFO, "this_char=%s, value=%s\n",
 				 this_char, value);
 			if (sscanf(this_char, "%d", &(bbpId)) == 1) {
@@ -5386,15 +5377,15 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
 						bbpId * 2, regBBP);
 					DBGPRINT(RT_DEBUG_INFO, "msg=%s\n",
 						 msg);
-				} else {	//Invalid parametes, so default printk all bbp                                     
+				} else {	//Invalid parametes, so default printk all bbp
 					bIsPrintAllBBP = TRUE;
 					goto next;
 				}
-			} else {	//Invalid parametes, so default printk all bbp                                        
+			} else {	//Invalid parametes, so default printk all bbp
 				bIsPrintAllBBP = TRUE;
 				goto next;
 			}
-		} else {	//Write                                                                                   
+		} else {	//Write
 			DBGPRINT(RT_DEBUG_INFO, "this_char=%s, value=%s\n",
 				 this_char, value);
 			if ((sscanf(this_char, "%d", &(bbpId)) == 1)
@@ -5408,7 +5399,7 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
 								     bbpId,
 								     (UCHAR)
 								     bbpValue);
-					//Read it back for showing                                                      
+					//Read it back for showing
 					RTMP_BBP_IO_READ8_BY_REG_ID(pAdapter,
 								    bbpId,
 								    &regBBP);
@@ -5417,11 +5408,11 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
 						bbpId * 2, regBBP);
 					DBGPRINT(RT_DEBUG_INFO, "msg=%s\n",
 						 msg);
-				} else {	//Invalid parametes, so default printk all bbp                                     
+				} else {	//Invalid parametes, so default printk all bbp
 					bIsPrintAllBBP = TRUE;
 					goto next;
 				}
-			} else {	//Invalid parametes, so default printk all bbp                                        
+			} else {	//Invalid parametes, so default printk all bbp
 				bIsPrintAllBBP = TRUE;
 				goto next;
 			}
@@ -5467,7 +5458,7 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
 	kfree(arg);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Read / Write MAC
@@ -5479,7 +5470,7 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
         None
 
     Note:
-        Usage: 
+        Usage:
                1.) iwpriv ra0 mac 0        ==> read MAC where Addr=0x0
                2.) iwpriv ra0 mac 0=12     ==> write MAC where Addr=0x0, value=12
     ==========================================================================
@@ -5682,7 +5673,7 @@ VOID RTMPIoctlMAC(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq)
 }
 
 #ifdef RALINK_ATE
-/* 
+/*
     ==========================================================================
     Description:
         Read / Write E2PROM
@@ -5694,7 +5685,7 @@ VOID RTMPIoctlMAC(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq)
         None
 
     Note:
-        Usage: 
+        Usage:
                1.) iwpriv ra0 e2p 0     	==> read E2PROM where Addr=0x0
                2.) iwpriv ra0 e2p 0=1234    ==> write E2PROM where Addr=0x0, value=1234
     ==========================================================================
@@ -5859,7 +5850,7 @@ VOID RTMPIoctlE2PROM(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq)
 #endif				//RALINK_ATE
 #endif				//#ifdef RT61_DBG
 
-/* 
+/*
     ==========================================================================
     Description:
         Read statistics counter
@@ -5871,7 +5862,7 @@ Arguments:
         None
 
     Note:
-        Usage: 
+        Usage:
                1.) iwpriv ra0 stat 0     	==> Read statistics counter
     ==========================================================================
 */
@@ -5962,7 +5953,7 @@ INT RTMPIoctlGetRFMONTX(IN PRTMP_ADAPTER pAd, OUT struct iwreq *wrq)
     return 0;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Parse encryption type
@@ -6010,7 +6001,7 @@ CHAR *GetAuthMode(CHAR auth)
 		return "UNKNOW";
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Get site survey results
@@ -6171,7 +6162,7 @@ NDIS_STATUS RTMPWPANoneAddKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
 }
 
 #ifdef RALINK_ATE
-UCHAR TemplateFrame[24] = { 0x08, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xAA, 0xBB, 0x12, 0x34, 0x56, 0x00, 0x11, 0x22, 0xAA, 0xBB, 0xCC, 0x00, 0x00 };	// 802.11 MAC Header, Type:Data, Length:24bytes 
+UCHAR TemplateFrame[24] = { 0x08, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xAA, 0xBB, 0x12, 0x34, 0x56, 0x00, 0x11, 0x22, 0xAA, 0xBB, 0xCC, 0x00, 0x00 };	// 802.11 MAC Header, Type:Data, Length:24bytes
 
 /*
     ==========================================================================
@@ -6424,10 +6415,10 @@ INT Set_ATE_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 }
 #endif
 
-/* 
+/*
     ==========================================================================
     Description:
-        Set ATE ADDR1=DA for TxFrames    
+        Set ATE ADDR1=DA for TxFrames
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6461,10 +6452,10 @@ INT Set_ATE_DA_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        Set ATE ADDR2=SA for TxFrames    
+        Set ATE ADDR2=SA for TxFrames
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6498,10 +6489,10 @@ INT Set_ATE_SA_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        Set ATE ADDR3=BSSID for TxFrames    
+        Set ATE ADDR3=BSSID for TxFrames
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6535,10 +6526,10 @@ INT Set_ATE_BSSID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        Set ATE Channel    
+        Set ATE Channel
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6561,10 +6552,10 @@ INT Set_ATE_CHANNEL_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        Set ATE Tx Power    
+        Set ATE Tx Power
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6596,11 +6587,11 @@ INT Set_ATE_TX_POWER_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set ATE RF frequence offset
-        
+
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6633,10 +6624,10 @@ INT Set_ATE_TX_FREQOFFSET_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        Set ATE Tx Length    
+        Set ATE Tx Length
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6658,10 +6649,10 @@ INT Set_ATE_TX_LENGTH_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        Set ATE Tx Count    
+        Set ATE Tx Count
     Return:
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
@@ -6676,7 +6667,7 @@ INT Set_ATE_TX_COUNT_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Set ATE Tx Rate
@@ -6793,7 +6784,7 @@ VOID ATEAsicSwitchChannel(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 
 	//
 	// On 11A, We should delay and wait RF/BBP to be stable
-	// and the appropriate time should be 1000 micro seconds 
+	// and the appropriate time should be 1000 micro seconds
 	//
 	if (Channel > 14)
 		RTMPusecDelay(1000);

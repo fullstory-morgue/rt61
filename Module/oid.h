@@ -274,7 +274,7 @@ typedef LONG NDIS_802_11_RSSI;	// in dBm
 
 typedef struct _NDIS_802_11_CONFIGURATION_FH {
 	ULONG Length;		// Length of structure
-	ULONG HopPattern;	// As defined by 802.11, MSB set 
+	ULONG HopPattern;	// As defined by 802.11, MSB set
 	ULONG HopSet;		// to one if non-802.11
 	ULONG DwellTime;	// units are Kusec
 } NDIS_802_11_CONFIGURATION_FH, *PNDIS_802_11_CONFIGURATION_FH;
@@ -527,7 +527,7 @@ typedef enum _RT_802_11_PREAMBLE {
 	Rt802_11PreambleAuto
 } RT_802_11_PREAMBLE, *PRT_802_11_PREAMBLE;
 
-// 2005-03-08 match current RaConfig. 
+// 2005-03-08 match current RaConfig.
 typedef enum _RT_802_11_PHY_MODE {
 	PHY_11BG_MIXED,
 	PHY_11B,

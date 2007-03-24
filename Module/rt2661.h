@@ -224,7 +224,7 @@ typedef struct _HW_PAIRWISE_TA_ENTRY {	// 8-byte per entry
 #define PBF_QUEUE_CSR       0x34b0
 
 // firmware DMA registers - base 0x3400
-// firmwre DMA registers are dedicated for MCU usage and should not be touched 
+// firmwre DMA registers are dedicated for MCU usage and should not be touched
 // by host driver. Therefore we skip the definition of these registers
 #define FW_TX_BASE_CSR      0x34c0
 #define FW_TX_START_CSR     0x34c4
@@ -570,7 +570,7 @@ typedef struct _RXD_STRUC {
 	// The above 20-byte is called RXINFO and is prepared by MAC RX block and passed
 	// the HOST driver.
 
-	// The following fields are for DMA block and HOST usage only. Can't be touched 
+	// The following fields are for DMA block and HOST usage only. Can't be touched
 	// by ASIC MAC block.
 
 	// Word 5
@@ -625,7 +625,7 @@ typedef struct _RXD_STRUC {
 	// The above 20-byte is called RXINFO and is prepared by MAC RX block and passed
 	// the HOST driver.
 
-	// The following fields are for DMA block and HOST usage only. Can't be touched 
+	// The following fields are for DMA block and HOST usage only. Can't be touched
 	// by ASIC MAC block.
 
 	// Word 5
@@ -1121,7 +1121,7 @@ typedef union _TXRX_CSR4_STRUC {
 		ULONG AutoResponderPreamble:1;	// 0:long, 1:short preamble
 		ULONG OfdmTxRateDownEnable:1;	// 1:enable
 		ULONG OfdmTxRateDownStep:2;	// 0:1-step, 1: 2-step, 2:3-step, 3:4-step
-		ULONG OfdmTxFallbacktoCCK:1;	// 0: Fallbackt o OFDM 6M oly, 1: Fallback to CCK 1M,2M         
+		ULONG OfdmTxFallbacktoCCK:1;	// 0: Fallbackt o OFDM 6M oly, 1: Fallback to CCK 1M,2M
 		ULONG Rsv1:1;
 		ULONG LongRetryLimit:4;
 		ULONG ShortRetryLimit:4;
@@ -1168,7 +1168,7 @@ typedef union _TXRX_CSR9_STRUC {
 typedef union _PHY_CSR3_STRUC {
 	struct {
 		ULONG:15;
-		ULONG Busy:1;	// 1: ASIC is busy execute BBP programming.     
+		ULONG Busy:1;	// 1: ASIC is busy execute BBP programming.
 		ULONG fRead:1;	// 0: Write BBP, 1: Read BBP
 		ULONG RegNum:7;	// Selected     BBP     register
 		ULONG Value:8;	// Register     value to program into BBP
@@ -1181,7 +1181,7 @@ typedef union _PHY_CSR3_STRUC {
 		ULONG Value:8;	// Register     value to program into BBP
 		ULONG RegNum:7;	// Selected     BBP     register
 		ULONG fRead:1;	// 0: Write BBP, 1: Read BBP
-		ULONG Busy:1;	// 1: ASIC is busy execute BBP programming.     
+		ULONG Busy:1;	// 1: ASIC is busy execute BBP programming.
 		 ULONG:15;
 	} field;
 	ULONG word;
@@ -1194,7 +1194,7 @@ typedef union _PHY_CSR3_STRUC {
 #ifdef BIG_ENDIAN
 typedef union _PHY_CSR4_STRUC {
 	struct {
-		ULONG Busy:1;	// 1: ASIC is busy execute RF programming.              
+		ULONG Busy:1;	// 1: ASIC is busy execute RF programming.
 		ULONG PLL_LD:1;	// RF PLL_LD status
 		ULONG IFSelect:1;	// 1: select IF to program,     0: select RF to program
 		ULONG NumberOfBits:5;	// Number of bits used in RFRegValue (I:20,     RFMD:22)
@@ -1417,7 +1417,7 @@ typedef union _STA_CSR4_STRUC {
 #else
 typedef union _STA_CSR4_STRUC {
 	struct {
-		ULONG bValid:1;	// 1:This register contains a valid TX result 
+		ULONG bValid:1;	// 1:This register contains a valid TX result
 		ULONG TxResult:3;
 		ULONG RetryCount:4;
 //      ULONG       Pid:8;      // packet id as a TX statistics categorization tool
@@ -1634,7 +1634,7 @@ typedef union _RX_RING_CSR_STRUC {
 		ULONG Rsv:13;
 		ULONG RxdWritebackSize:3;
 		 ULONG:2;
-		ULONG RxdSize:6;	// in unit of 32-bit     
+		ULONG RxdSize:6;	// in unit of 32-bit
 		ULONG RxRingTotal:8;
 	} field;
 	ULONG word;
@@ -1643,7 +1643,7 @@ typedef union _RX_RING_CSR_STRUC {
 typedef union _RX_RING_CSR_STRUC {
 	struct {
 		ULONG RxRingTotal:8;
-		ULONG RxdSize:6;	// in unit of 32-bit     
+		ULONG RxdSize:6;	// in unit of 32-bit
 		 ULONG:2;
 		ULONG RxdWritebackSize:3;
 		ULONG Rsv:13;
@@ -1826,11 +1826,11 @@ typedef union _AC_TXOP_CSR1_STRUC {
 #ifdef BIG_ENDIAN
 typedef union _EEPROM_ANTENNA_STRUC {
 	struct {
-		USHORT RfIcType:5;	// see E2PROM document              
+		USHORT RfIcType:5;	// see E2PROM document
 		USHORT HardwareRadioControl:1;	// 1: Hardware controlled radio enabled, Read GPIO0 required.
 		USHORT DynamicTxAgcControl:1;
 		USHORT Rsv:2;
-		USHORT FrameType:1;	// 0: DPDT , 1: SPDT , noted this bit is valid for g only.                              
+		USHORT FrameType:1;	// 0: DPDT , 1: SPDT , noted this bit is valid for g only.
 		USHORT RxDefaultAntenna:2;	// default of antenna, 0: diversity, 1:antenna-A, 2:antenna-B reserved (default = 0)
 		USHORT TxDefaultAntenna:2;	// default of antenna, 0: diversity, 1:antenna-A, 2:antenna-B reserved (default = 0)
 		USHORT NumOfAntenna:2;	// Number of antenna
@@ -1857,8 +1857,8 @@ typedef union _EEPROM_ANTENNA_STRUC {
 typedef union _EEPROM_NIC_CINFIG2_STRUC {
 	struct {
 		USHORT Rsv:9;	// must be 0
-		USHORT ExternalLNAForA:1;	// external LNA enable for 5G           
-		USHORT CardbusAcceleration:1;	// !!! NOTE: 0 - enable, 1 - disable            
+		USHORT ExternalLNAForA:1;	// external LNA enable for 5G
+		USHORT CardbusAcceleration:1;	// !!! NOTE: 0 - enable, 1 - disable
 		USHORT ExternalLNAForG:1;	// external LNA enable for 2.4G
 		USHORT TxRxFixed:2;	//
 		USHORT TxDiversity:1;	//
@@ -1873,7 +1873,7 @@ typedef union _EEPROM_NIC_CINFIG2_STRUC {
 		USHORT TxDiversity:1;	//
 		USHORT TxRxFixed:2;	//
 		USHORT ExternalLNAForG:1;	// external LNA enable for 2.4G
-		USHORT CardbusAcceleration:1;	// !!! NOTE: 0 - enable, 1 - disable            
+		USHORT CardbusAcceleration:1;	// !!! NOTE: 0 - enable, 1 - disable
 		USHORT ExternalLNAForA:1;	// external LNA enable for 5G
 		USHORT Rsv:9;	// must be 0
 	} field;
@@ -1945,7 +1945,7 @@ typedef union _EEPROM_LED_STRUC {
 		USHORT PolarityGPIO_3:1;	// Polarity GPIO#3 setting.
 		USHORT PolarityGPIO_4:1;	// Polarity GPIO#4 setting.
 		USHORT LedMode:5;	// Led mode.
-		USHORT Rsvd:3;	// Reserved             
+		USHORT Rsvd:3;	// Reserved
 	} field;
 	USHORT word;
 } EEPROM_LED_STRUC, *PEEPROM_LED_STRUC;

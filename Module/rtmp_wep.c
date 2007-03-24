@@ -113,20 +113,20 @@ UCHAR WEPKEY[] = {
     ========================================================================
 
     Routine Description:
-        Init WEP function.  
-        
+        Init WEP function.
+
     Arguments:
       pAdapter      Pointer to our adapter
         pKey        Pointer to the WEP KEY
         KeyId       WEP Key ID
         KeyLen      the length of WEP KEY
         pDest       Pointer to the destination which Encryption data will store in.
-        
+
     Return Value:
         None
 
     Note:
-    
+
     ========================================================================
 */
 VOID RTMPInitWepEngine(IN PRTMP_ADAPTER pAdapter,
@@ -142,8 +142,8 @@ VOID RTMPInitWepEngine(IN PRTMP_ADAPTER pAdapter,
 		WEPKEY[i] = RandomByte(pAdapter);	//Call mlme RandomByte() function.
 	ARCFOUR_INIT(&pAdapter->PrivateInfo.WEPCONTEXT, WEPKEY, KeyLen + 3);	//INIT SBOX, KEYLEN+3(IV)
 
-	memcpy(pDest, WEPKEY, 3);	//Append Init Vector 
-	*(pDest + 3) = (KeyId << 6);	//Append KEYID 
+	memcpy(pDest, WEPKEY, 3);	//Append Init Vector
+	*(pDest + 3) = (KeyId << 6);	//Append KEYID
 
 }
 
@@ -151,19 +151,19 @@ VOID RTMPInitWepEngine(IN PRTMP_ADAPTER pAdapter,
     ========================================================================
 
     Routine Description:
-        Encrypt transimitted data       
-        
+        Encrypt transimitted data
+
     Arguments:
       pAdapter      Pointer to our adapter
       pSrc          Pointer to the transimitted source data that will be encrypt
       pDest         Pointer to the destination where entryption data will be store in.
       Len           Indicate the length of the source data
-        
+
     Return Value:
       None
-        
+
     Note:
-    
+
     ========================================================================
 */
 VOID RTMPEncryptData(IN PRTMP_ADAPTER pAdapter,
@@ -178,18 +178,18 @@ VOID RTMPEncryptData(IN PRTMP_ADAPTER pAdapter,
     ========================================================================
 
     Routine Description:
-        The Stream Cipher Encryption Algorithm "ARCFOUR" initialize     
-        
+        The Stream Cipher Encryption Algorithm "ARCFOUR" initialize
+
     Arguments:
        Ctx         Pointer to ARCFOUR CONTEXT (SBOX)
         pKey        Pointer to the WEP KEY
         KeyLen      Indicate the length fo the WEP KEY
-        
+
     Return Value:
        None
-        
+
     Note:
-    
+
     ========================================================================
 */
 VOID ARCFOUR_INIT(IN PARCFOURCONTEXT Ctx, IN PUCHAR pKey, IN UINT KeyLen)
@@ -222,16 +222,16 @@ VOID ARCFOUR_INIT(IN PARCFOURCONTEXT Ctx, IN PUCHAR pKey, IN UINT KeyLen)
     ========================================================================
 
     Routine Description:
-        Get bytes from ARCFOUR CONTEXT (S-BOX)              
-        
+        Get bytes from ARCFOUR CONTEXT (S-BOX)
+
     Arguments:
        Ctx         Pointer to ARCFOUR CONTEXT (SBOX)
-        
+
     Return Value:
-       UCHAR  - the value of the ARCFOUR CONTEXT (S-BOX)        
-        
+       UCHAR  - the value of the ARCFOUR CONTEXT (S-BOX)
+
     Note:
-    
+
     ========================================================================
 */
 UCHAR ARCFOUR_BYTE(IN PARCFOURCONTEXT Ctx)
@@ -259,19 +259,19 @@ UCHAR ARCFOUR_BYTE(IN PARCFOURCONTEXT Ctx)
     ========================================================================
 
     Routine Description:
-        The Stream Cipher Decryption Algorithm      
-        
+        The Stream Cipher Decryption Algorithm
+
     Arguments:
         Ctx         Pointer to ARCFOUR CONTEXT (SBOX)
-        pDest           Pointer to the Destination 
+        pDest           Pointer to the Destination
         pSrc        Pointer to the Source data
         Len         Indicate the length of the Source data
-        
+
     Return Value:
         None
-        
+
     Note:
-    
+
     ========================================================================
 */
 VOID ARCFOUR_DECRYPT(IN PARCFOURCONTEXT Ctx,
@@ -287,19 +287,19 @@ VOID ARCFOUR_DECRYPT(IN PARCFOURCONTEXT Ctx,
     ========================================================================
 
     Routine Description:
-        The Stream Cipher Encryption Algorithm      
-        
+        The Stream Cipher Encryption Algorithm
+
     Arguments:
         Ctx         Pointer to ARCFOUR CONTEXT (SBOX)
-        pDest           Pointer to the Destination 
+        pDest           Pointer to the Destination
         pSrc        Pointer to the Source data
         Len         Indicate the length of the Source dta
-        
+
     Return Value:
         None
-        
+
     Note:
-    
+
     ========================================================================
 */
 VOID ARCFOUR_ENCRYPT(IN PARCFOURCONTEXT Ctx,
@@ -316,17 +316,17 @@ VOID ARCFOUR_ENCRYPT(IN PARCFOURCONTEXT Ctx,
 
     Routine Description:
         Calculate a new FCS given the current FCS and the new data.
-        
+
     Arguments:
         Fcs       the original FCS value
         Cp          pointer to the data which will be calculate the FCS
         Len         the length of the data
-        
+
     Return Value:
         ULONG - FCS 32 bits
-        
+
     Note:
-    
+
     ========================================================================
 */
 ULONG RTMP_CALC_FCS32(IN ULONG Fcs, IN PUCHAR Cp, IN INT Len)
@@ -341,16 +341,16 @@ ULONG RTMP_CALC_FCS32(IN ULONG Fcs, IN PUCHAR Cp, IN INT Len)
     ========================================================================
 
     Routine Description:
-        Get last FCS and encrypt it to the destination              
-        
+        Get last FCS and encrypt it to the destination
+
     Arguments:
-        pDest           Pointer to the Destination 
-        
+        pDest           Pointer to the Destination
+
     Return Value:
         None
-        
+
     Note:
-    
+
     ========================================================================
 */
 VOID RTMPSetICV(IN PRTMP_ADAPTER pAdapter, IN PUCHAR pDest)

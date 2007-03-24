@@ -38,7 +38,7 @@
 
 #include "oid.h"
 
-// maximum supported capability information - 
+// maximum supported capability information -
 // ESS, IBSS, Privacy, Short Preamble, Short Slot
 #define SUPPORTED_CAPABILITY_INFO   0x0433
 
@@ -95,7 +95,7 @@
 
 #define MAX_LEN_OF_MLME_QUEUE            10
 
-// Fast Roaming Offset 
+// Fast Roaming Offset
 #define MAX_ROAM_THRESHOLD		         90	// the condition to roam when receiving Rssi less than this value. It's negative value.
 #define MIN_ROAM_THRESHOLD		         60	// the condition to roam when receiving Rssi less than this value. It's negative value.
 
@@ -403,7 +403,7 @@ typedef struct _MLME_AUX {
 	ULONG RoamIdx;
 
 	BOOLEAN CurrReqIsFromNdis;	// TRUE - then we should call NdisMSetInformationComplete()
-	// FALSE - req is from driver itself. 
+	// FALSE - req is from driver itself.
 	// no NdisMSetInformationComplete() is required
 
 	struct timer_list BeaconTimer, ScanTimer;

@@ -32,6 +32,7 @@
 	* Add RFMONTx support
 	* Import 64-bit fixes from new Ralink (1.1.0.0) driver.
 	* Fix essid truncation on kernels >= 2.6.19.
+	* Fix rejection of WEP keys that do not have the exact correct length.
 
  Version: 1.1.0-beta1 
 	* Initial baseline code from Ralink (1.0.3.0)

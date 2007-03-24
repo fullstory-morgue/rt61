@@ -70,7 +70,7 @@ UCHAR A_BAND_REGION_7_CHANNEL_LIST[] =
 /*
     ==========================================================================
     Description:
-        The sync state machine, 
+        The sync state machine,
     Parameters:
         Sm - pointer to the state machine
     Note:
@@ -158,7 +158,7 @@ VOID SyncStateMachineInit(IN PRTMP_ADAPTER pAd,
 	pAd->MlmeAux.ScanTimer.function = &ScanTimeout;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Becaon timeout handler, executed in timer thread
@@ -173,7 +173,7 @@ VOID BeaconTimeout(IN unsigned long data)
 	MlmeHandler(pAd);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Scan timeout handler, executed in timer thread
@@ -188,7 +188,7 @@ VOID ScanTimeout(IN unsigned long data)
 	MlmeHandler(pAd);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME SCAN req state machine procedure
@@ -216,9 +216,9 @@ VOID MlmeScanReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		DBGPRINT(RT_DEBUG_TRACE, "SYNC - MlmeScanReqAction\n");
 
 		//
-		// To prevent data lost.        
+		// To prevent data lost.
 		// Send an NULL data with turned PSM bit on to current associated AP before SCAN progress.
-		// And should send an NULL data with turned PSM bit off to AP, when scan progress done 
+		// And should send an NULL data with turned PSM bit off to AP, when scan progress done
 		//
 		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)
 		    && (INFRA_ON(pAd))) {
@@ -269,7 +269,7 @@ VOID MlmeScanReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME JOIN req state machine procedure
@@ -314,7 +314,7 @@ VOID MlmeJoinReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	pAd->Mlme.SyncMachine.CurrState = JOIN_WAIT_BEACON;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME START Request state machine procedure, starting an IBSS
@@ -433,7 +433,7 @@ VOID MlmeStartReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         peer sends beacon back when scanning
@@ -502,8 +502,8 @@ VOID PeerBeaconAtScanAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		CHAR RealRssi;
 
 		// This correct im-proper RSSI indication during SITE SURVEY issue.
-		// Always report bigger RSSI during SCANNING when receiving multiple BEACONs from the same AP. 
-		// This case happens because BEACONs come from adjacent channels, so RSSI become weaker as we 
+		// Always report bigger RSSI during SCANNING when receiving multiple BEACONs from the same AP.
+		// This case happens because BEACONs come from adjacent channels, so RSSI become weaker as we
 		// switch to more far away channels.
 		if (Elem->Channel != Channel)
 			return;
@@ -541,7 +541,7 @@ VOID PeerBeaconAtScanAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// sanity check fail, ignored
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         When waiting joining the (I)BSS, beacon received from external
@@ -644,7 +644,7 @@ VOID PeerBeaconAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			}
 			//
 			// We need to check if SSID only set to any, then we can record the current SSID.
-			// Otherwise will cause hidden SSID association failed. 
+			// Otherwise will cause hidden SSID association failed.
 			//
 			if (pAd->MlmeAux.SsidLen == 0) {
 				memcpy(pAd->MlmeAux.Ssid, Ssid, SsidLen);
@@ -720,11 +720,11 @@ VOID PeerBeaconAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// sanity check fail, ignore this frame
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         receive BEACON from peer
-        
+
     ==========================================================================
  */
 VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
@@ -811,7 +811,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			return;
 
 		//
-		// Housekeeping "SsidBssTab" table for later-on ROAMing usage. 
+		// Housekeeping "SsidBssTab" table for later-on ROAMing usage.
 		//
 		Bssidx =
 		    BssTableSearch(&pAd->MlmeAux.SsidBssTab, Bssid, Channel);
@@ -913,7 +913,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 		//
 		// BEACON from my BSSID - either IBSS or INFRA network
-		// 
+		//
 		if (is_my_bssid) {
 			pAd->PortCfg.LastBeaconRxTime = Now;
 			DBGPRINT(RT_DEBUG_INFO, "Rx My BEACON\n");
@@ -966,7 +966,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			    && (pAd->PortCfg.LastRssi <
 				pAd->PortCfg.RssiTrigger)) {
 				//NDIS_802_11_RSSI Dbm = pAd->PortCfg.LastRssi - pAd->BbpRssiToDbmDelta;
-				//DBGPRINT(RT_DEBUG_TRACE, "SYNC - NdisMIndicateStatus *** RSSI %d dBm, less than threshold %d dBm\n", 
+				//DBGPRINT(RT_DEBUG_TRACE, "SYNC - NdisMIndicateStatus *** RSSI %d dBm, less than threshold %d dBm\n",
 				//    Dbm, pAd->PortCfg.RssiTrigger - pAd->BbpRssiToDbmDelta);
 			} else
 			    if ((pAd->PortCfg.RssiTriggerMode ==
@@ -974,7 +974,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				&& (pAd->PortCfg.LastRssi >
 				    pAd->PortCfg.RssiTrigger)) {
 				//NDIS_802_11_RSSI Dbm = pAd->PortCfg.LastRssi - pAd->BbpRssiToDbmDelta;
-				//DBGPRINT(RT_DEBUG_TRACE, "SYNC - NdisMIndicateStatus *** RSSI %d dBm, greater than threshold %d dBm\n", 
+				//DBGPRINT(RT_DEBUG_TRACE, "SYNC - NdisMIndicateStatus *** RSSI %d dBm, greater than threshold %d dBm\n",
 				//    Dbm, pAd->PortCfg.RssiTrigger - pAd->BbpRssiToDbmDelta);
 			}
 
@@ -982,7 +982,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			{
 				BOOLEAN bUseShortSlot, bUseBGProtection;
 
-				// decide to use/change to - 
+				// decide to use/change to -
 				//      1. long slot (20 us) or short slot (9 us) time
 				//      2. turn on/off RTS/CTS and/or CTS-to-self protection
 				//      3. short preamble
@@ -1111,7 +1111,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 				// 2003/03/12 - john
 				// Make sure this entry in "ScanTab" table, thus complies to Microsoft's policy that
-				// "site survey" result should always include the current connected network. 
+				// "site survey" result should always include the current connected network.
 				//
 				Bssidx =
 				    BssTableSearch(&pAd->ScanTab, Bssid,
@@ -1147,7 +1147,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// sanity check fail, ignore this frame
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Receive PROBE REQ from remote peer when operating in IBSS mode
@@ -1178,7 +1178,7 @@ VOID PeerProbeReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 #if 0
 			CSR15_STRUC Csr15;
 
-			// we should respond a ProbeRsp only when we're the last BEACON transmitter 
+			// we should respond a ProbeRsp only when we're the last BEACON transmitter
 			// in this ADHOC network.
 			RTMP_IO_READ32(pAd, CSR15, &Csr15.word);
 			if (Csr15.field.BeaconSent == 0) {
@@ -1284,7 +1284,7 @@ VOID BeaconTimeoutAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_JOIN_CONF, 2, &Status);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Scan timeout procedure. basically add channel index by 1 and rescan
@@ -1297,7 +1297,7 @@ VOID ScanTimeoutAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	ScanNextChannel(pAd);	// this routine will stop if pAd->MlmeAux.Channel == 0
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Scan next channel
@@ -1334,7 +1334,7 @@ VOID ScanNextChannel(IN PRTMP_ADAPTER pAd)
 		//
 		// To prevent data lost.
 		// Send an NULL data with turned PSM bit on to current associated AP before SCAN progress.
-		// Now, we need to send an NULL data with turned PSM bit off to AP, when scan progress done 
+		// Now, we need to send an NULL data with turned PSM bit off to AP, when scan progress done
 		//
 		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)
 		    && (INFRA_ON(pAd))) {
@@ -1475,7 +1475,7 @@ VOID ScanNextChannel(IN PRTMP_ADAPTER pAd)
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
     ==========================================================================
@@ -1491,7 +1491,7 @@ VOID InvalidStateWhenScan(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_SCAN_CONF, 2, &Status);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
     ==========================================================================
@@ -1508,7 +1508,7 @@ VOID InvalidStateWhenJoin(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_JOIN_CONF, 2, &Status);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
     ==========================================================================
@@ -1525,10 +1525,10 @@ VOID InvalidStateWhenStart(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_START_CONF, 2, &Status);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-    	
+
     ==========================================================================
  */
 VOID EnqueuePsPoll(IN PRTMP_ADAPTER pAd)
@@ -1542,7 +1542,7 @@ VOID EnqueuePsPoll(IN PRTMP_ADAPTER pAd)
 // driver force send out a BEACON frame to cover ADHOC mode BEACON starving issue
 // that is, in ADHOC mode, driver guarantee itself can send out at least a BEACON
 // per a specified duration, even the peer's clock is faster than us and win all the
-// hardware-based BEACON TX oppertunity. 
+// hardware-based BEACON TX oppertunity.
 // we may remove this software feature once 2560 IC fix this problem in ASIC.
 VOID EnqueueBeaconFrame(IN PRTMP_ADAPTER pAd)
 {
@@ -1576,7 +1576,7 @@ VOID EnqueueBeaconFrame(IN PRTMP_ADAPTER pAd)
 #endif
 }
 
-/* 
+/*
     ==========================================================================
     Description:
     ==========================================================================
@@ -1625,7 +1625,7 @@ VOID EnqueueProbeRequest(IN PRTMP_ADAPTER pAd)
 
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         Update PortCfg->ChannelList[] according to 1) Country Region 2) RF IC type,
@@ -1802,7 +1802,7 @@ VOID BuildChannelList(IN PRTMP_ADAPTER pAd)
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         This routine returns the next channel number. This routine is called
@@ -1826,10 +1826,10 @@ UCHAR NextChannel(IN PRTMP_ADAPTER pAd, IN UCHAR channel)
 	return next_channel;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        This routine return the first channel number according to the country 
+        This routine return the first channel number according to the country
         code selection and RF IC selection (signal band or dual band). It is called
         whenever driver need to start a site survey of all supported channels.
     Return:

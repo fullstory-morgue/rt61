@@ -40,8 +40,8 @@
     Parameters:
         Sm - the state machine
     Note:
-        the state machine looks like the following 
-        
+        the state machine looks like the following
+
                                     AUTH_RSP_IDLE                       AUTH_RSP_WAIT_CHAL
     MT2_AUTH_CHALLENGE_TIMEOUT      auth_rsp_challenge_timeout_action   auth_rsp_challenge_timeout_action
     MT2_PEER_AUTH_ODD               peer_auth_at_auth_rsp_idle_action   peer_auth_at_auth_rsp_wait_action

@@ -48,7 +48,7 @@ UCHAR CipherWpaTemplate[] = {
 };
 UCHAR CipherWpa2Template[] = {
 	0x30,			// RSN IE
-	0x14,			// Length       
+	0x14,			// Length
 	0x01, 0x00,		// Version
 	0x00, 0x0f, 0xac, 0x02,	// group cipher, TKIP
 	0x01, 0x00,		// number of pairwise
@@ -60,15 +60,15 @@ UCHAR CipherWpa2Template[] = {
 
 UCHAR CipherWpa2TemplateLen = (sizeof(CipherWpa2Template) / sizeof(UCHAR));
 
-/*  
+/*
     ==========================================================================
-    Description: 
+    Description:
         association state machine init, including state transition and timer init
-    Parameters: 
+    Parameters:
         S - pointer to the association state machine
     Note:
-        The state machine looks like the following 
-        
+        The state machine looks like the following
+
                                ASSOC_IDLE               ASSOC_WAIT_RSP             REASSOC_WAIT_RSP             DISASSOC_WAIT_RSP
     MT2_MLME_ASSOC_REQ       mlme_assoc_req_action    invalid_state_when_assoc   invalid_state_when_assoc       invalid_state_when_assoc
     MT2_MLME_REASSOC_REQ     mlme_reassoc_req_action  invalid_state_when_reassoc invalid_state_when_reassoc     invalid_state_when_reassoc
@@ -161,7 +161,7 @@ VOID AssocStateMachineInit(IN PRTMP_ADAPTER pAd,
 /*
     ==========================================================================
     Description:
-        Association timeout procedure. After association timeout, this function 
+        Association timeout procedure. After association timeout, this function
         will be called and it will put a message into the MLME queue
     Parameters:
         Standard timer parameters
@@ -182,7 +182,7 @@ VOID AssocTimeout(IN unsigned long data)
 /*
     ==========================================================================
     Description:
-        Reassociation timeout procedure. After reassociation timeout, this 
+        Reassociation timeout procedure. After reassociation timeout, this
         function will be called and put a message into the MLME queue
     Parameters:
         Standard timer parameters
@@ -203,7 +203,7 @@ VOID ReassocTimeout(IN unsigned long data)
 /*
     ==========================================================================
     Description:
-        Disassociation timeout procedure. After disassociation timeout, this 
+        Disassociation timeout procedure. After disassociation timeout, this
         function will be called and put a message into the MLME queue
     Parameters:
         Standard timer parameters
@@ -234,7 +234,7 @@ VOID DisassocTimeout(IN unsigned long data)
         -# An association request frame is generated and sent to the air
         -# Association timer starts
         -# Association state -> ASSOC_WAIT_RSP
-        
+
     ==========================================================================
  */
 VOID MlmeAssocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
@@ -514,14 +514,14 @@ VOID MlmeAssocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
         mlme reassoc req handling procedure
     Parameters:
-        Elem - 
+        Elem -
     Pre:
         -# SSID  (Adapter->PortCfg.ssid[])
         -# BSSID (AP address, Adapter->PortCfg.bssid)
         -# Supported rates (Adapter->PortCfg.supported_rates[])
         -# Supported rates length (Adapter->PortCfg.supported_rates_len)
         -# Tx power (Adapter->PortCfg.tx_power)
-        
+
     ==========================================================================
  */
 VOID MlmeReassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
@@ -881,7 +881,7 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 
 	memset(&wrqu, 0, sizeof(wrqu));
 	wrqu.data.length = p - wpa_assoc_info;
-	//DBGPRINT(RT_DEBUG_TRACE, "adding %d bytes\n", wrqu.data.length);      
+	//DBGPRINT(RT_DEBUG_TRACE, "adding %d bytes\n", wrqu.data.length);
 	wireless_send_event(pAd->net_dev, IWEVCUSTOM, &wrqu, wpa_assoc_info);
 
 	kfree(wpa_assoc_info);
@@ -931,7 +931,7 @@ VOID PeerAssocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 //#ifdef WPA_SUPPLICANT_SUPPORT
 				if (pAd->PortCfg.WPA_Supplicant == TRUE) {
-					// collect associate info 
+					// collect associate info
 					link_status_handler(pAd);
 					//send associnfo event to wpa_supplicant
 					memset(&wrqu, 0, sizeof(wrqu));
@@ -1021,7 +1021,7 @@ VOID PeerReassocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 /*
     ==========================================================================
     Description:
-        procedures on IEEE 802.11/1999 p.376 
+        procedures on IEEE 802.11/1999 p.376
     Parametrs:
     ==========================================================================
  */
@@ -1103,7 +1103,7 @@ VOID AssocPostProc(IN PRTMP_ADAPTER pAd,
 /*
     ==========================================================================
     Description:
-        left part of IEEE 802.11/1999 p.374 
+        left part of IEEE 802.11/1999 p.374
     Parameters:
         Elem - MLME message containing the received frame
     ==========================================================================
@@ -1124,7 +1124,7 @@ VOID PeerDisassocAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 //#ifdef WPA_SUPPLICANT_SUPPORT
 			if (pAd->PortCfg.WPA_Supplicant == TRUE) {
-				// send disassoc event to wpa_supplicant 
+				// send disassoc event to wpa_supplicant
 				memset(&wrqu, 0, sizeof(wrqu));
 				wrqu.data.flags = RT_DISASSOC_EVENT_FLAG;
 				wireless_send_event(pAd->net_dev, IWEVCUSTOM,
@@ -1242,7 +1242,7 @@ VOID InvalidStateWhenDisassociate(IN PRTMP_ADAPTER pAd,
     ==========================================================================
     Description:
         right part of IEEE 802.11/1999 page 374
-    Note: 
+    Note:
         This event should never cause ASSOC state machine perform state
         transition, and has no relationship with CNTL machine. So we separate
         this routine as a service outside of ASSOC state transition table.

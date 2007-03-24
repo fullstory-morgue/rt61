@@ -166,7 +166,7 @@ VOID REPORT_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP_ADAPTER pAd,
 
 		// Write RxD buffer address & allocated buffer length
 		//pRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
-		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;           
+		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;
 	}
 #else
 	struct sk_buff *pSkb;
@@ -269,7 +269,7 @@ VOID REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP_ADAPTER pAd,
 		return;
 		// Write RxD buffer address & allocated buffer length
 		//pRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
-		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;           
+		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;
 	}
 }
 
@@ -349,8 +349,8 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 		if (pRxD->Owner != DESC_OWN_HOST)
 			break;
 
-		// start process the received frame. break out this "do {...} while(FALSE)" 
-		// loop without indication to upper layer or MLME if any error in this 
+		// start process the received frame. break out this "do {...} while(FALSE)"
+		// loop without indication to upper layer or MLME if any error in this
 		// received frame.
 		do {
 			pci_unmap_single(pAd->pPci_Dev,
@@ -690,7 +690,7 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 						break;	// give up this frame
 				}
 
-				// 
+				//
 				// Case I.1  Process Broadcast & Multicast data frame
 				//
 				if (pRxD->Bcast || pRxD->Mcast) {
@@ -728,8 +728,8 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 				//
 				else if (pRxD->U2M
 					 || pAd->bAcceptPromiscuous == TRUE) {
-// TODO: temp removed                           
-//                                      // Send PS-Poll for AP to send next data frame                                  
+// TODO: temp removed
+//                                      // Send PS-Poll for AP to send next data frame
 //                                      if ((pHeader->FC.MoreData) && INFRA_ON(pAd) && (pAd->PortCfg.Psm == PWR_SAVE))
 //                                              EnqueuePsPoll(pAd);
 
@@ -863,7 +863,7 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 							break;
 						}
 					} else {
-//#else 
+//#else
 						// Special DATA frame that has to pass to MLME
 						// EAPOL handshaking frames when driver supplicant enabled, pass to MLME for special process
 						if ((memcmp
@@ -1340,7 +1340,7 @@ VOID RTMPHandleTxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 				// update DRS related counters
 				if (csr.field.PidType ==
 				    (PTYPE_NULL_AT_HIGH_RATE >> 6)) {
-					// DRS - must be NULL frame retried @ UpRate; downgrade 
+					// DRS - must be NULL frame retried @ UpRate; downgrade
 					//       TxQuality[UpRate] so that not upgrade TX rate
 					if (csr.field.PidSubtype == 0)	// operate in STA mode
 					{
@@ -1376,7 +1376,7 @@ VOID RTMPHandleTxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 
 			// update DRS related counters
 			if (csr.field.PidType == (PTYPE_NULL_AT_HIGH_RATE >> 6)) {
-				// DRS - must be NULL frame failed @ UpRate; downgrade 
+				// DRS - must be NULL frame failed @ UpRate; downgrade
 				//       TxQuality[UpRate] so that not upgrade TX rate
 				if (csr.field.PidSubtype == 0)	// operate in STA mode
 				{
@@ -1487,7 +1487,7 @@ VOID RTMPHandleTxRingDmaDoneInterrupt(IN PRTMP_ADAPTER pAdapter,
 #endif
 
 	// Dequeue one frame from TxSwQueue[] and process it
-//      if ((!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS)) && 
+//      if ((!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS)) &&
 //              (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS)) &&
 //              (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)))
 	{
@@ -1597,7 +1597,7 @@ VOID RTMPHandleMgmtRingDmaDoneInterrupt(IN PRTMP_ADAPTER pAdapter)
 	Routine	Description:
 	Arguments:
 		Adapter		Pointer	to our adapter
-	
+
 	========================================================================
 */
 VOID RTMPHandleTBTTInterrupt(IN PRTMP_ADAPTER pAd)
@@ -1612,7 +1612,7 @@ VOID RTMPHandleTBTTInterrupt(IN PRTMP_ADAPTER pAd)
 	Routine	Description:
 	Arguments:
 		pAd		Pointer	to our adapter
-	
+
 	========================================================================
 */
 VOID RTMPHandleTwakeupInterrupt(IN PRTMP_ADAPTER pAd)
@@ -1627,19 +1627,19 @@ VOID RTMPHandleTwakeupInterrupt(IN PRTMP_ADAPTER pAd)
 	Routine	Description:
 		API for MLME to transmit management frame to AP (BSS Mode)
 	or station (IBSS Mode)
-	
+
 	Arguments:
 		pAdapter	Pointer	to our adapter
 		pData		Pointer to the outgoing 802.11 frame
 		Length		Size of outgoing management frame
-		
+
 	Return Value:
 		NDIS_STATUS_FAILURE
 		NDIS_STATUS_PENDING
 		NDIS_STATUS_SUCCESS
 
 	Note:
-	
+
 	========================================================================
 */
 NDIS_STATUS MiniportMMRequest(IN PRTMP_ADAPTER pAdapter,
@@ -1695,21 +1695,21 @@ NDIS_STATUS MiniportMMRequest(IN PRTMP_ADAPTER pAdapter,
 	========================================================================
 
 	Routine	Description:
-		Copy frame from waiting queue into relative ring buffer and set 
+		Copy frame from waiting queue into relative ring buffer and set
 	appropriate ASIC register to kick hardware transmit function
-	
+
 	Arguments:
 		pAdapter	Pointer	to our adapter
 		pBuffer		Pointer to  memory of outgoing frame
 		Length		Size of outgoing management frame
-		
+
 	Return Value:
 		NDIS_STATUS_FAILURE
 		NDIS_STATUS_PENDING
 		NDIS_STATUS_SUCCESS
 
 	Note:
-	
+
 	========================================================================
 */
 NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
@@ -1782,7 +1782,7 @@ NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 
 		return NDIS_STATUS_FAILURE;
 	}
-	// outgoing frame always wakeup PHY to prevent frame lost 
+	// outgoing frame always wakeup PHY to prevent frame lost
 	if (OPSTATUS_TEST_FLAG(pAdapter, fOP_STATUS_DOZE))
 		AsicForceWakeup(pAdapter);
 
@@ -1794,7 +1794,7 @@ NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 		MlmeRate = pAdapter->PortCfg.MlmeRate;
 	}
 
-	// Verify Mlme rate for a / g bands.    
+	// Verify Mlme rate for a / g bands.
 	if ((pAdapter->LatchRfRegs.Channel > 14) && (MlmeRate < RATE_6))	// 11A band
 		MlmeRate = RATE_6;
 
@@ -1802,9 +1802,9 @@ NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 	// Should not be hard code to set PwrMgmt to 0 (PWR_ACTIVE)
 	// Snice it's been set to 0 while on MgtMacHeaderInit
 	// By the way this will cause frame to be send on PWR_SAVE failed.
-	// 
+	//
 	// pHeader_802_11->FC.PwrMgmt = 0; // (pAd->PortCfg.Psm == PWR_SAVE);
-	// 
+	//
 	bInsertTimestamp = FALSE;
 	if (pHeader_802_11->FC.Type == BTYPE_CNTL)	// must be PS-POLL
 	{
@@ -1917,7 +1917,7 @@ BOOLEAN TxFrameIsAggregatible(IN PRTMP_ADAPTER pAd,
 		return FALSE;
 }
 
-// NOTE: we do have an assumption here, that Byte0 and Byte1 always reasid at the same 
+// NOTE: we do have an assumption here, that Byte0 and Byte1 always reasid at the same
 //       scatter gather buffer
 NDIS_STATUS Sniff2BytesFromNdisBuffer(IN struct sk_buff * pFirstSkb,
 				      IN UCHAR DesiredOffset,
@@ -1942,16 +1942,16 @@ NDIS_STATUS Sniff2BytesFromNdisBuffer(IN struct sk_buff * pFirstSkb,
 	Routine	Description:
 		This routine classifies outgoing frames into several AC (Access
 		Category) and enqueue them into corresponding s/w waiting queues.
-		
+
 	Arguments:
 		pAd	Pointer	to our adapter
 		pPacket		Pointer to send packet
-		
+
 	Return Value:
 		None
-	
+
 	Note:
-	
+
 	========================================================================
 */
 NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff * pSkb)
@@ -1967,7 +1967,7 @@ NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff * pSkb)
 
 	DBGPRINT(RT_DEBUG_INFO, "====> RTMPSendPacket\n");
 
-	// Prepare packet information structure for buffer descriptor 
+	// Prepare packet information structure for buffer descriptor
 	pSrcBufVA = (PVOID) pSkb->data;
 
 	if (pSrcBufVA == NULL) {
@@ -1976,10 +1976,10 @@ NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff * pSkb)
 		RELEASE_NDIS_PACKET(pAd, pSkb);
 		return NDIS_STATUS_FAILURE;
 	}
-	// STEP 1. Decide number of fragments required to deliver this MSDU. 
-	//     The estimation here is not very accurate because difficult to 
-	//     take encryption overhead into consideration here. The result 
-	//     "NumberOfFrag" is then just used to pre-check if enough free 
+	// STEP 1. Decide number of fragments required to deliver this MSDU.
+	//     The estimation here is not very accurate because difficult to
+	//     take encryption overhead into consideration here. The result
+	//     "NumberOfFrag" is then just used to pre-check if enough free
 	//     TXD are available to hold this MSDU.
 
 	if (*pSrcBufVA & 0x01)	// fragmentation not allowed on multicast & broadcast
@@ -1987,13 +1987,13 @@ NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff * pSkb)
 	else if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_AGGREGATION_INUSED))
 		NumberOfFrag = 1;	// Aggregation overwhelms fragmentation
 	else {
-		// The calculated "NumberOfFrag" is a rough estimation because of various 
+		// The calculated "NumberOfFrag" is a rough estimation because of various
 		// encryption/encapsulation overhead not taken into consideration. This number is just
 		// used to make sure enough free TXD are available before fragmentation takes place.
-		// In case the actual required number of fragments of an skb buffer 
+		// In case the actual required number of fragments of an skb buffer
 		// excceeds "NumberOfFrag"caculated here and not enough free TXD available, the
-		// last fragment (i.e. last MPDU) will be dropped in RTMPHardTransmit() due to out of 
-		// resource, and the skb buffer will be indicated NDIS_STATUS_FAILURE. This should 
+		// last fragment (i.e. last MPDU) will be dropped in RTMPHardTransmit() due to out of
+		// resource, and the skb buffer will be indicated NDIS_STATUS_FAILURE. This should
 		// rarely happen and the penalty is just like a TX RETRY fail. Affordable.
 
 		AllowFragSize =
@@ -2103,17 +2103,17 @@ NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff * pSkb)
 	Routine	Description:
 		This subroutine will scan through releative ring descriptor to find
 		out avaliable free ring descriptor and compare with request size.
-		
+
 	Arguments:
 		pAdapter	Pointer	to our adapter
 		QueIdx	    Selected TX Ring
-		
+
 	Return Value:
 		NDIS_STATUS_FAILURE		Not enough free descriptor
 		NDIS_STATUS_SUCCESS		Enough free descriptor
 
 	Note:
-	
+
 	========================================================================
 */
 NDIS_STATUS RTMPFreeTXDRequest(IN PRTMP_ADAPTER pAdapter,
@@ -2224,11 +2224,11 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK)
 //#ifdef WPA_SUPPLICANT_SUPPORT
 	     || (pAd->PortCfg.IEEE8021X == TRUE)
-//#endif                
+//#endif
 	    ) && (pAd->PortCfg.PortSecured == WPA_802_1X_PORT_NOT_SECURED)) {
 		return;
 	}
-	// outgoing frame always wakeup PHY to prevent frame lost 
+	// outgoing frame always wakeup PHY to prevent frame lost
 	//if (pAd->PortCfg.Psm == PWR_SAVE)
 	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE))
 		AsicForceWakeup(pAd);
@@ -2377,7 +2377,7 @@ VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 	// Write Tx descriptor
 	// Don't kick tx start until all frames are prepared
 	// RTS has to set more fragment bit for fragment burst
-	// RTS did not encrypt          
+	// RTS did not encrypt
 	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_BG_PROTECTION_INUSED)) {
 		DBGPRINT(RT_DEBUG_INFO, "Making CTS-to-self Frame\n");
 		pRtsFrame->FC.SubType = SUBTYPE_CTS;
@@ -2450,20 +2450,20 @@ VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 	========================================================================
 
 	Routine	Description:
-		Copy frame from waiting queue into relative ring buffer and set 
+		Copy frame from waiting queue into relative ring buffer and set
 	appropriate ASIC register to kick hardware encryption before really
 	sent out to air.
-		
+
 	Arguments:
 		pAd		Pointer	to our adapter
 		PNDIS_PACKET	Pointer to outgoing Ndis frame
 		NumberOfFrag	Number of fragment required
-		
+
 	Return Value:
 		None
-	
+
 	Note:
-	
+
 	========================================================================
 */
 #ifdef BIG_ENDIAN
@@ -2616,7 +2616,7 @@ static inline
 		//
 		// Case 802.11 b/g
 		// basic channel means that we can use CCKM's low rate as RATE_1.
-		//              
+		//
 		if ((TxRate != RATE_1) && RTMPCheckDHCPFrame(pAd, pSkb))
 			TxRate = RATE_1;
 	} else {
@@ -2762,7 +2762,7 @@ static inline
 	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK)
 //#ifdef WPA_SUPPLICANT_SUPPORT
 	     || (pAd->PortCfg.IEEE8021X == TRUE)
-//#endif                         
+//#endif
 	    ) &&
 	    ((pAd->PortCfg.PortSecured == WPA_802_1X_PORT_NOT_SECURED)
 	     || (pAd->PortCfg.MicErrCnt >= 2)) && (bEAPOLFrame == FALSE)) {
@@ -2777,7 +2777,7 @@ static inline
 		bAckRequired = FALSE;
 		PID = PTYPE_SPECIAL | PSUBTYPE_DATA_NO_ACK;
 		INC_COUNTER64(pAd->WlanCounters.MulticastTransmittedFrameCount);
-		Cipher = pAd->PortCfg.GroupCipher;	// Cipher for Multicast or Broadcast 
+		Cipher = pAd->PortCfg.GroupCipher;	// Cipher for Multicast or Broadcast
 	} else {
 		bAckRequired = TRUE;
 		PID = PTYPE_DATA_REQUIRE_ACK;
@@ -2800,7 +2800,7 @@ static inline
 		FrameGap = IFS_BACKOFF;	// Default frame gap mode
 
 	Protocol = *(pSrcBufVA + 12) * 256 + *(pSrcBufVA + 13);
-	// if orginal Ethernet frame contains no LLC/SNAP, then an extra LLC/SNAP encap is required 
+	// if orginal Ethernet frame contains no LLC/SNAP, then an extra LLC/SNAP encap is required
 	if (Protocol > 1500) {
 		pExtraLlcSnapEncap = SNAP_802_1H;
 		if ((memcmp(IPX, pSrcBufVA + 12, 2) == 0) ||
@@ -2812,7 +2812,7 @@ static inline
 
 	// ------------------------------------------------------------------
 	// STEP 1. WAKE UP PHY
-	//      outgoing frame always wakeup PHY to prevent frame lost and 
+	//      outgoing frame always wakeup PHY to prevent frame lost and
 	//      turn off PSM bit to improve performance
 	// ------------------------------------------------------------------
 	// not to change PSM bit, just send this frame out?
@@ -2880,7 +2880,7 @@ static inline
 
 	// STEP 3.1 if TKIP is used and fragmentation is required. Driver has to
 	//          append TKIP MIC at tail of the scatter buffer (This must be the
-	//          ONLY scatter buffer in the skb buffer). 
+	//          ONLY scatter buffer in the skb buffer).
 	//          MAC ASIC will only perform IV/EIV/ICV insertion but no TKIP MIC
 	if ((MpduRequired > 1) && (CipherAlg == CIPHER_TKIP)) {
 		ASSERT(pSGList->NumberOfElements == 1);
@@ -3080,8 +3080,8 @@ static inline
 			((PHEADER_802_11) pDestBufVA)->FC.Order = 1;	// steal "order" bit to mark "aggregation"
 		}
 		//
-		// STEP 5.4 COPY LLC/SNAP, CKIP MIC INTO 1ST DMA BUFFER ONLY WHEN THIS 
-		//          MPDU IS THE 1ST OR ONLY FRAGMENT 
+		// STEP 5.4 COPY LLC/SNAP, CKIP MIC INTO 1ST DMA BUFFER ONLY WHEN THIS
+		//          MPDU IS THE 1ST OR ONLY FRAGMENT
 		//
 		if (Header_802_11.Frag == 0) {
 			if (pExtraLlcSnapEncap) {
@@ -3338,20 +3338,20 @@ static inline
 	========================================================================
 
 	Routine	Description:
-		To do the enqueue operation and extract the first item of waiting 
-		list. If a number of available shared memory segments could meet 
+		To do the enqueue operation and extract the first item of waiting
+		list. If a number of available shared memory segments could meet
 		the request of extracted item, the extracted item will be fragmented
 		into shared memory segments.
-		
+
 	Arguments:
 		pAdapter	Pointer	to our adapter
 		pQueue		Pointer to Waiting Queue
-		
+
 	Return Value:
 		None
 
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
@@ -3390,7 +3390,7 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
 			break;
 
 		// RTS or CTS-to-self for B/G protection mode has been set already.
-		// There is no need to re-do it here. 
+		// There is no need to re-do it here.
 		// Total fragment required = number of fragment + RST if required
 		MpduRequired =
 		    RTMP_GET_PACKET_FRAGMENTS(pSkb) + RTMP_GET_PACKET_RTS(pSkb);
@@ -3402,7 +3402,7 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
 				skb_queue_head(pQueue, pSkb);
 				break;
 			}
-			// 2004-10-12 if HardTransmit returns SUCCESS, then the skb buffer should be 
+			// 2004-10-12 if HardTransmit returns SUCCESS, then the skb buffer should be
 			//            released in later on DMADoneIsr. If HardTransmit returns FAIL, the
 			//            the skb buffer should already be released inside RTMPHardTransmit
 			Status = RTMPHardTransmit(pAdapter, pSkb, QueIdx);
@@ -3436,19 +3436,19 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
 	========================================================================
 
 	Routine	Description:
-		Calculates the duration which is required to transmit out frames 
+		Calculates the duration which is required to transmit out frames
 	with given size and specified rate.
-		
+
 	Arguments:
 		pAdapter		Pointer	to our adapter
 		Rate			Transmit rate
 		Size			Frame size in units of byte
-		
+
 	Return Value:
 		Duration number in units of usec
 
 	Note:
-	
+
 	========================================================================
 */
 USHORT RTMPCalcDuration(IN PRTMP_ADAPTER pAdapter, IN UCHAR Rate, IN ULONG Size)
@@ -3483,11 +3483,11 @@ USHORT RTMPCalcDuration(IN PRTMP_ADAPTER pAdapter, IN UCHAR Rate, IN ULONG Size)
 
 /*
 	========================================================================
-	
+
 	Routine	Description:
-		Calculates the duration which is required to transmit out frames 
+		Calculates the duration which is required to transmit out frames
 	with given size and specified rate.
-		
+
 	Arguments:
 		pTxD		Pointer to transmit descriptor
 		Ack			Setting for Ack requirement bit
@@ -3499,10 +3499,10 @@ USHORT RTMPCalcDuration(IN PRTMP_ADAPTER pAdapter, IN UCHAR Rate, IN ULONG Size)
 		Length		Frame length
 		TxPreamble  Short or Long preamble when using CCK rates
 		QueIdx - 0-3, according to 802.11e/d4.4 June/2003
-		
+
 	Return Value:
 		None
-		
+
 	========================================================================
 */
 VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
@@ -3637,7 +3637,7 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 	}
 
 	pTxD->bWaitingDmaDoneInt = 1;
-	pTxD->Owner = DESC_OWN_NIC;	// change OWNER bit at the last 
+	pTxD->Owner = DESC_OWN_NIC;	// change OWNER bit at the last
 
 #ifdef BIG_ENDIAN
 	RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
@@ -3651,17 +3651,17 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 
 	Routine	Description:
 		Search tuple cache for receive duplicate frame from unicast frames.
-		
+
 	Arguments:
 		pAdapter		Pointer	to our adapter
 		pHeader			802.11 header of receiving frame
-		
+
 	Return Value:
 		TRUE			found matched tuple cache
 		FALSE			no matched found
 
 	Note:
-	
+
 	========================================================================
 */
 BOOLEAN RTMPSearchTupleCache(IN PRTMP_ADAPTER pAdapter,
@@ -3679,7 +3679,7 @@ BOOLEAN RTMPSearchTupleCache(IN PRTMP_ADAPTER pAdapter,
 		    && (pAdapter->TupleCache[Index].Sequence ==
 			pHeader->Sequence)
 		    && (pAdapter->TupleCache[Index].Frag == pHeader->Frag)) {
-//                      DBGPRINT(RT_DEBUG_TRACE,"DUPCHECK - duplicate frame hit entry %d\n", Index); 
+//                      DBGPRINT(RT_DEBUG_TRACE,"DUPCHECK - duplicate frame hit entry %d\n", Index);
 			return (TRUE);
 		}
 	}
@@ -3691,16 +3691,16 @@ BOOLEAN RTMPSearchTupleCache(IN PRTMP_ADAPTER pAdapter,
 
 	Routine	Description:
 		Update tuple cache for new received unicast frames.
-		
+
 	Arguments:
 		pAdapter		Pointer	to our adapter
 		pHeader			802.11 header of receiving frame
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPUpdateTupleCache(IN PRTMP_ADAPTER pAdapter, IN PHEADER_802_11 pHeader)
@@ -3769,15 +3769,15 @@ VOID RTMPUpdateTupleCache(IN PRTMP_ADAPTER pAdapter, IN PHEADER_802_11 pHeader)
 
 	Routine	Description:
 		Suspend MSDU transmission
-		
+
 	Arguments:
 		pAdapter		Pointer	to our adapter
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPSuspendMsduTransmission(IN PRTMP_ADAPTER pAd)
@@ -3795,15 +3795,15 @@ VOID RTMPSuspendMsduTransmission(IN PRTMP_ADAPTER pAd)
 
 	Routine	Description:
 		Resume MSDU transmission
-		
+
 	Arguments:
 		pAdapter		Pointer	to our adapter
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPResumeMsduTransmission(IN PRTMP_ADAPTER pAd)
@@ -3825,16 +3825,16 @@ VOID RTMPResumeMsduTransmission(IN PRTMP_ADAPTER pAd)
 
 	Routine	Description:
 		Check Rx descriptor, return NDIS_STATUS_FAILURE if any error dound
-		
+
 	Arguments:
 		pRxD		Pointer	to the Rx descriptor
-		
+
 	Return Value:
 		NDIS_STATUS_SUCCESS		No err
 		NDIS_STATUS_FAILURE		Error
-		
+
 	Note:
-	
+
 	========================================================================
 */
 NDIS_STATUS RTMPCheckRxError(IN PRTMP_ADAPTER pAd,
@@ -3894,19 +3894,19 @@ NDIS_STATUS RTMPCheckRxError(IN PRTMP_ADAPTER pAd,
 	Routine	Description:
 		Apply packet filter policy, return NDIS_STATUS_FAILURE if this frame
 		should be dropped.
-		
+
 	Arguments:
 		pAd		Pointer	to our adapter
 		pRxD			Pointer	to the Rx descriptor
 		pHeader			Pointer to the 802.11 frame header
-		
+
 	Return Value:
 		NDIS_STATUS_SUCCESS		Accept frame
 		NDIS_STATUS_FAILURE		Drop Frame
-			
+
 	Note:
 		Maganement frame should bypass this filtering rule.
-	
+
 	========================================================================
 */
 NDIS_STATUS RTMPApplyPacketFilter(IN PRTMP_ADAPTER pAd,
@@ -3996,15 +3996,15 @@ NDIS_STATUS RTMPApplyPacketFilter(IN PRTMP_ADAPTER pAd,
 
 	Routine	Description:
 		Check and fine the packet waiting in SW queue with highest priority
-		
+
 	Arguments:
 		pAdapter	Pointer	to our adapter
-		
+
 	Return Value:
 		pQueue		Pointer to Waiting Queue
 
 	Note:
-	
+
 	========================================================================
 */
 struct sk_buff_head *RTMPCheckTxSwQueue(IN PRTMP_ADAPTER pAdapter,
@@ -4058,16 +4058,16 @@ static void ralink_michael_mic_failure(struct net_device *dev,
 
 	Routine	Description:
 		Process MIC error indication and record MIC error timer.
-		
+
 	Arguments:
 		pAd		Pointer	to our adapter
 		pWpaKey			Pointer	to the WPA key structure
-		
+
 	Return Value:
 		None
-		
+
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPReportMicError(IN PRTMP_ADAPTER pAd, IN PCIPHER_KEY pWpaKey)
@@ -4335,12 +4335,12 @@ VOID RTMPFreeTXDUponTxDmaDone(IN PRTMP_ADAPTER pAd,
 	Routine	Description:
 		Check the out going frame, if this is an DHCP or ARP datagram
 	will be duplicate another frame at low data rate transmit.
-		
+
 	Arguments:
 		pAd			Pointer	to our adapter
 		pSkb		Pointer to outgoing skb buffer
-		
-	Return Value:		
+
+	Return Value:
 		TRUE		To be transmitted at Low data rate transmit. (1Mbps/6Mbps)
 		FALSE		Do nothing.
 
@@ -4348,15 +4348,15 @@ VOID RTMPFreeTXDUponTxDmaDone(IN PRTMP_ADAPTER pAd,
 
 		MAC header + IP Header + UDP Header
 		  14 Bytes    20 Bytes
-		  
+
 		UDP Header
 		00|01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|
 						Source Port
 		16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|
 					Destination Port
 
-		port 0x43 means Bootstrap Protocol, server. 
-		Port 0x44 means Bootstrap Protocol, client. 
+		port 0x43 means Bootstrap Protocol, server.
+		Port 0x44 means Bootstrap Protocol, client.
 
 	========================================================================
 */

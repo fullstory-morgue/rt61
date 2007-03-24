@@ -40,7 +40,7 @@ UCHAR WME_INFO_ELEM[] = { 0x00, 0x50, 0xf2, 0x02, 0x00, 0x01 };
 UCHAR WME_PARM_ELEM[] = { 0x00, 0x50, 0xf2, 0x02, 0x01, 0x01 };
 UCHAR RALINK_OUI[] = { 0x00, 0x0c, 0x43 };
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -74,7 +74,7 @@ BOOLEAN MlmeScanReqSanity(IN PRTMP_ADAPTER pAd,
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -103,7 +103,7 @@ BOOLEAN MlmeStartReqSanity(IN PRTMP_ADAPTER pAd,
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -129,7 +129,7 @@ BOOLEAN MlmeAssocReqSanity(IN PRTMP_ADAPTER pAd,
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -160,7 +160,7 @@ BOOLEAN MlmeAuthReqSanity(IN PRTMP_ADAPTER pAd,
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -295,12 +295,12 @@ BOOLEAN PeerAssocRspSanity(IN PRTMP_ADAPTER pAd,
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
     Return:
-        TRUE if all parameters are OK, FALSE otherwise       
+        TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
  */
 BOOLEAN PeerDisassocSanity(IN PRTMP_ADAPTER pAd,
@@ -316,7 +316,7 @@ BOOLEAN PeerDisassocSanity(IN PRTMP_ADAPTER pAd,
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -337,7 +337,7 @@ BOOLEAN PeerDeauthSanity(IN PRTMP_ADAPTER pAd,
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -386,7 +386,7 @@ BOOLEAN PeerAuthSanity(IN PRTMP_ADAPTER pAd,
 	}
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
@@ -436,12 +436,12 @@ BOOLEAN PeerProbeReqSanity(IN PRTMP_ADAPTER pAd,
 	return TRUE;
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check
     Return:
-        TRUE if all parameters are OK, FALSE otherwise   
+        TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
  */
 BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
@@ -559,7 +559,7 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 				memcpy(SupRate, pEid->Octet, pEid->Len);
 				*pSupRateLen = pEid->Len;
 
-				// TODO: 2004-09-14 not a good design here, cause it exclude extra rates 
+				// TODO: 2004-09-14 not a good design here, cause it exclude extra rates
 				// from ScanTab. We should report as is. And filter out unsupported
 				// rates in MlmeAux.
 				// Check against the supported rates
@@ -727,7 +727,7 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 				memcpy(ExtRate, pEid->Octet, pEid->Len);
 				*pExtRateLen = pEid->Len;
 
-				// TODO: 2004-09-14 not a good design here, cause it exclude extra rates 
+				// TODO: 2004-09-14 not a good design here, cause it exclude extra rates
 				// from ScanTab. We should report as is. And filter out unsupported
 				// rates in MlmeAux.
 				// Check against the supported rates
@@ -837,10 +837,10 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 
 }
 
-/* 
+/*
     ==========================================================================
     Description:
-        
+
     ==========================================================================
  */
 BOOLEAN GetTimBit(IN CHAR * Ptr,
@@ -914,7 +914,7 @@ UCHAR ChannelSanity(IN PRTMP_ADAPTER pAd, IN UCHAR channel)
 	========================================================================
 	Routine Description:
 		Sanity check NetworkType (11b, 11g or 11a)
-		
+
 	Arguments:
 		pBss - Pointer to BSS table.
 
@@ -922,7 +922,7 @@ UCHAR ChannelSanity(IN PRTMP_ADAPTER pAd, IN UCHAR channel)
         Ndis802_11DS .......(11b)
         Ndis802_11OFDM24....(11g)
         Ndis802_11OFDM5.....(11a)
-        	
+
 	========================================================================
 */
 NDIS_802_11_NETWORK_TYPE NetworkTypeInUseSanity(IN PBSS_ENTRY pBss)
@@ -979,7 +979,7 @@ NDIS_802_11_NETWORK_TYPE NetworkTypeInUseSanity(IN PBSS_ENTRY pBss)
 	========================================================================
 	Routine Description:
 		Sanity check pairwise key on Encryption::Ndis802_11Encryption1Enabled
-		
+
 	Arguments:
 		pAdapter - Pointer to our adapter
 		pBuf 	 - Pointer to NDIS_802_11_KEY structure
@@ -987,7 +987,7 @@ NDIS_802_11_NETWORK_TYPE NetworkTypeInUseSanity(IN PBSS_ENTRY pBss)
 	Return Value:
 		NDIS_STATUS_SUCCESS
 		NDIS_STATUS_FAILURE
-        
+
 	Note:
 		For OID_802_11_ADD_KEY setting, on old wep stuff also need to verify
 		the structure of NIDS_802_11_KEY
@@ -1013,7 +1013,7 @@ NDIS_STATUS RTMPWPAWepKeySanity(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
 	// 1. Check Group / Pairwise Key
 	if (bPairwise)		// Pairwise Key
 	{
-		// 1. Check KeyIdx 
+		// 1. Check KeyIdx
 		// it is a shared key
 		if (KeyIdx > 4)
 			return (NDIS_STATUS_FAILURE);
@@ -1077,13 +1077,13 @@ NDIS_STATUS RTMPWPAWepKeySanity(IN PRTMP_ADAPTER pAd, IN PVOID pBuf)
 	return (Status);
 }
 
-/* 
+/*
     ==========================================================================
     Description:
         MLME message sanity check to get config data from AP
     Return:
         TRUE if all parameters are OK, FALSE otherwise
-        
+
     ==========================================================================
  */
 BOOLEAN BackDoorProbeRspSanity(IN PRTMP_ADAPTER pAd,

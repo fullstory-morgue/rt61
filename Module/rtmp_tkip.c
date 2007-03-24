@@ -34,7 +34,7 @@
 
 #include	"rt_config.h"
 
-// Rotation functions on 32 bit values 
+// Rotation functions on 32 bit values
 #define ROL32( A, n ) \
 	( ((A) << (n)) | ( ((A)>>(32-(n))) & ( (1UL << (n)) - 1 ) ) )
 #define ROR32( A, n ) ROL32( (A), 32-(n) )
@@ -43,16 +43,16 @@
 	========================================================================
 
 	Routine	Description:
-		Convert from UCHAR[] to ULONG in a portable way 
-		
+		Convert from UCHAR[] to ULONG in a portable way
+
 	Arguments:
       pMICKey		pointer to MIC Key
-		
+
 	Return Value:
 		None
 
 	Note:
-		
+
 	========================================================================
 */
 ULONG RTMPTkipGetUInt32(IN PUCHAR pMICKey)
@@ -71,17 +71,17 @@ ULONG RTMPTkipGetUInt32(IN PUCHAR pMICKey)
 	========================================================================
 
 	Routine	Description:
-		Convert from ULONG to UCHAR[] in a portable way 
-		
+		Convert from ULONG to UCHAR[] in a portable way
+
 	Arguments:
       pDst			pointer to destination for convert ULONG to UCHAR[]
       val			the value for convert
-		
+
 	Return Value:
 		None
 
 	Note:
-		
+
 	========================================================================
 */
 VOID RTMPTkipPutUInt32(IN OUT PUCHAR pDst, IN ULONG val)
@@ -99,24 +99,24 @@ VOID RTMPTkipPutUInt32(IN OUT PUCHAR pDst, IN ULONG val)
 
 	Routine	Description:
 		Set the MIC Key.
-		
+
 	Arguments:
       pAdapter		Pointer to our adapter
       pMICKey		pointer to MIC Key
-		
+
 	Return Value:
 		None
 
 	Note:
-		
+
 	========================================================================
 */
 VOID RTMPTkipSetMICKey(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pMICKey)
 {
-	// Set the key 
+	// Set the key
 	pTkip->K0 = RTMPTkipGetUInt32(pMICKey);
 	pTkip->K1 = RTMPTkipGetUInt32(pMICKey + 4);
-	// and reset the message 
+	// and reset the message
 	pTkip->L = pTkip->K0;
 	pTkip->R = pTkip->K1;
 	pTkip->nBytesInM = 0;
@@ -128,24 +128,24 @@ VOID RTMPTkipSetMICKey(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pMICKey)
 
 	Routine	Description:
 		Calculate the MIC Value.
-		
+
 	Arguments:
       pAdapter		Pointer to our adapter
       uChar			Append this uChar
-		
+
 	Return Value:
 		None
 
 	Note:
-		
+
 	========================================================================
 */
 VOID RTMPTkipAppendByte(IN PTKIP_KEY_INFO pTkip, IN UCHAR uChar)
 {
-	// Append the byte to our word-sized buffer 
+	// Append the byte to our word-sized buffer
 	pTkip->M |= (uChar << (8 * pTkip->nBytesInM));
 	pTkip->nBytesInM++;
-	// Process the word if it is full. 
+	// Process the word if it is full.
 	if (pTkip->nBytesInM >= 4) {
 		pTkip->L ^= pTkip->M;
 		pTkip->R ^= ROL32(pTkip->L, 17);
@@ -158,7 +158,7 @@ VOID RTMPTkipAppendByte(IN PTKIP_KEY_INFO pTkip, IN UCHAR uChar)
 		pTkip->L += pTkip->R;
 		pTkip->R ^= ROR32(pTkip->L, 2);
 		pTkip->L += pTkip->R;
-		// Clear the buffer 
+		// Clear the buffer
 		pTkip->M = 0;
 		pTkip->nBytesInM = 0;
 	}
@@ -169,22 +169,22 @@ VOID RTMPTkipAppendByte(IN PTKIP_KEY_INFO pTkip, IN UCHAR uChar)
 
 	Routine	Description:
 		Calculate the MIC Value.
-		
+
 	Arguments:
       pAdapter		Pointer to our adapter
       pSrc			Pointer to source data for Calculate MIC Value
       Len			Indicate the length of the source data
-		
+
 	Return Value:
 		None
 
 	Note:
-		
+
 	========================================================================
 */
 VOID RTMPTkipAppend(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pSrc, IN UINT nBytes)
 {
-	// This is simple 
+	// This is simple
 	while (nBytes > 0) {
 		RTMPTkipAppendByte(pTkip, *pSrc++);
 		nBytes--;
@@ -196,10 +196,10 @@ VOID RTMPTkipAppend(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pSrc, IN UINT nBytes)
 
 	Routine	Description:
 		Get the MIC Value.
-		
+
 	Arguments:
       pAdapter		Pointer to our adapter
-		
+
 	Return Value:
 		None
 
@@ -215,11 +215,11 @@ VOID RTMPTkipGetMIC(IN PTKIP_KEY_INFO pTkip)
 	RTMPTkipAppendByte(pTkip, 0);
 	RTMPTkipAppendByte(pTkip, 0);
 	RTMPTkipAppendByte(pTkip, 0);
-	// and then zeroes until the length is a multiple of 4 
+	// and then zeroes until the length is a multiple of 4
 	while (pTkip->nBytesInM != 0) {
 		RTMPTkipAppendByte(pTkip, 0);
 	}
-	// The appendByte function has already computed the result. 
+	// The appendByte function has already computed the result.
 	RTMPTkipPutUInt32(pTkip->MIC, pTkip->L);
 	RTMPTkipPutUInt32(pTkip->MIC + 4, pTkip->R);
 }
@@ -228,20 +228,20 @@ VOID RTMPTkipGetMIC(IN PTKIP_KEY_INFO pTkip)
 	========================================================================
 
 	Routine	Description:
-		Init Tkip function.	
-		
+		Init Tkip function.
+
 	Arguments:
       pAdapter		Pointer to our adapter
 		pTKey       Pointer to the Temporal Key (TK), TK shall be 128bits.
 		KeyId		TK Key ID
 		pTA			Pointer to transmitter address
 		pMICKey		pointer to MIC Key
-		
+
 	Return Value:
 		None
 
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPInitTkipEngine(IN PRTMP_ADAPTER pAdapter,
@@ -270,21 +270,21 @@ VOID RTMPInitTkipEngine(IN PRTMP_ADAPTER pAdapter,
 	========================================================================
 
 	Routine	Description:
-		Init MIC Value calculation function which include set MIC key & 
+		Init MIC Value calculation function which include set MIC key &
 		calculate first 16 bytes (DA + SA + priority +  0)
-		
+
 	Arguments:
       pAdapter		Pointer to our adapter
 		pTKey       Pointer to the Temporal Key (TK), TK shall be 128bits.
 		pDA			Pointer to DA address
 		pSA			Pointer to SA address
 		pMICKey		pointer to MIC Key
-		
+
 	Return Value:
 		None
 
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPInitMICEngine(IN PRTMP_ADAPTER pAdapter,
@@ -309,7 +309,7 @@ VOID RTMPInitMICEngine(IN PRTMP_ADAPTER pAdapter,
 
 	Routine	Description:
 		Compare MIC value of received MSDU
-		
+
 	Arguments:
 		pAdapter	Pointer to our adapter
 		pSrc        Pointer to the received Plain text data
@@ -317,13 +317,13 @@ VOID RTMPInitMICEngine(IN PRTMP_ADAPTER pAdapter,
 		pSA			Pointer to SA address
 		pMICKey		pointer to MIC Key
 		Len         the length of the received plain text data exclude MIC value
-		
+
 	Return Value:
 		TRUE        MIC value matched
 		FALSE       MIC value mismatched
-		
+
 	Note:
-	
+
 	========================================================================
 */
 BOOLEAN RTMPTkipCompareMICValue(IN PRTMP_ADAPTER pAdapter,
@@ -377,7 +377,7 @@ BOOLEAN RTMPTkipCompareMICValue(IN PRTMP_ADAPTER pAdapter,
 
 	Routine	Description:
 		Compare MIC value of received MSDU
-		
+
 	Arguments:
 		pAdapter	Pointer to our adapter
 		pLLC		LLC header
@@ -386,13 +386,13 @@ BOOLEAN RTMPTkipCompareMICValue(IN PRTMP_ADAPTER pAdapter,
 		pSA			Pointer to SA address
 		pMICKey		pointer to MIC Key
 		Len         the length of the received plain text data exclude MIC value
-		
+
 	Return Value:
 		TRUE        MIC value matched
 		FALSE       MIC value mismatched
-		
+
 	Note:
-	
+
 	========================================================================
 */
 BOOLEAN RTMPTkipCompareMICValueWithLLC(IN PRTMP_ADAPTER pAdapter,
@@ -450,20 +450,20 @@ BOOLEAN RTMPTkipCompareMICValueWithLLC(IN PRTMP_ADAPTER pAdapter,
 	========================================================================
 
 	Routine	Description:
-		Copy frame from waiting queue into relative ring buffer and set 
+		Copy frame from waiting queue into relative ring buffer and set
 	appropriate ASIC register to kick hardware transmit function
-		
+
 	Arguments:
 		pAdapter		Pointer	to our adapter
 		PNDIS_PACKET	Pointer to Ndis Packet for MIC calculation
 		pEncap			Pointer to LLC encap data
 		LenEncap		Total encap length, might be 0 which indicates no encap
-		
+
 	Return Value:
 		None
 
 	Note:
-	
+
 	========================================================================
 */
 VOID RTMPCalculateMICValue(IN PRTMP_ADAPTER pAdapter,

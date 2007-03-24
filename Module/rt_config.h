@@ -76,7 +76,6 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
-#include <linux/ethtool.h>
 #include <linux/wireless.h>
 #include <linux/proc_fs.h>
 #include <linux/delay.h>
@@ -152,6 +151,7 @@ typedef union _LARGE_INTEGER {
 #include    "rtmp_type.h"
 #include    "rtmp_def.h"
 #include    "rt2661.h"
+#include	"rt2x00debug.h"
 #include    "rtmp.h"
 #include    "mlme.h"
 #include    "oid.h"

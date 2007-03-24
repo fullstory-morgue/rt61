@@ -30,7 +30,7 @@
  *      --------        -----------     -----------------------------
  *      PaulL           1st  Aug 02     Created
  *      JamesT		6th  Sep 02     Modified (Revise NTCRegTable)
- *      JohnC           6th  Sep 04     Modified for RT2600     
+ *      JohnC           6th  Sep 04     Modified for RT2600
  *      GertjanW        21st Jan 06     Baseline code
  *      Flavio (rt2400) 22nd Jan 06     Elegant irqreturn_t handling
  *      Ivo (rt2400)    28th Jan 06     Debug level switching
@@ -172,7 +172,7 @@ extern int debug;
 }
 
 // Increase TxTsc value for next transmission
-// TODO: 
+// TODO:
 // When i==6, means TSC has done one full cycle, do re-keying stuff follow specs
 // Should send a special event microsoft defined to request re-key
 #define INC_TX_TSC(_tsc)                                \
@@ -473,7 +473,7 @@ typedef struct _RTMP_SCATTER_GATHER_LIST {
 }
 
 // if pData has no LLC/SNAP (neither RFC1042 nor Bridge tunnel), keep it that way.
-// else if the received frame is LLC/SNAP-encaped IPX or APPLETALK, preserve the LLC/SNAP field 
+// else if the received frame is LLC/SNAP-encaped IPX or APPLETALK, preserve the LLC/SNAP field
 // else remove the LLC/SNAP field from the result Ethernet frame
 // Note:
 //     _pData & _DataSize may be altered (remove 8-byte LLC/SNAP) by this MACRO
@@ -735,7 +735,7 @@ typedef struct _RTMP_DMABUF {
 } RTMP_DMABUF, *PRTMP_DMABUF;
 
 //
-// Control block (Descriptor) for all ring descriptor DMA operation, buffer must be 
+// Control block (Descriptor) for all ring descriptor DMA operation, buffer must be
 // contiguous physical memory. NDIS_PACKET stored the binding Rx packet descriptor
 // which won't be released, driver has to wait until upper layer return the packet
 // before giveing up this rx ring descriptor to ASIC. NDIS_BUFFER is assocaited pair
@@ -1042,7 +1042,7 @@ typedef struct _MLME_STRUCT {
 	STATE_MACHINE_FUNC WpaPskFunc[WPA_PSK_FUNC_SIZE];
 
 	ULONG ChannelQuality;	// 0..100, Channel Quality Indication for Roaming
-	ULONG Now32;		// latch the value of NdisGetSystemUpTime() 
+	ULONG Now32;		// latch the value of NdisGetSystemUpTime()
 
 	BOOLEAN bRunning;
 	spinlock_t TaskLock;
@@ -1108,11 +1108,11 @@ typedef struct _PORT_CONFIG {
 	UCHAR RSN_IE[44];
 	UCHAR RSN_IELen;
 
-//#ifdef WPA_SUPPLICANT_SUPPORT 
-	BOOLEAN IEEE8021X;	// Enable or disable IEEE 802.1x 
-	CIPHER_KEY DesireSharedKey[4];	// Record user desired WEP keys 
+//#ifdef WPA_SUPPLICANT_SUPPORT
+	BOOLEAN IEEE8021X;	// Enable or disable IEEE 802.1x
+	CIPHER_KEY DesireSharedKey[4];	// Record user desired WEP keys
 	BOOLEAN IEEE8021x_required_keys;	// Enable or disable dynamic wep key updating
-	BOOLEAN WPA_Supplicant;	// Enable or disable WPA_SUPPLICANT 
+	BOOLEAN WPA_Supplicant;	// Enable or disable WPA_SUPPLICANT
 //#endif
 
 	// For WPA countermeasures
@@ -1132,7 +1132,7 @@ typedef struct _PORT_CONFIG {
 	// MIB:ieee802dot11.dot11mac(2).dot11OperationTable(1)
 	USHORT RtsThreshold;	// in unit of BYTE
 	USHORT FragmentThreshold;	// in unit of BYTE
-	BOOLEAN bFragmentZeroDisable;	// Microsoft use 0 as disable 
+	BOOLEAN bFragmentZeroDisable;	// Microsoft use 0 as disable
 
 	// MIB:ieee802dot11.dot11phy(4).dot11PhyTxPowerTable(3)
 	UCHAR TxPower;		// in unit of mW
@@ -1239,7 +1239,7 @@ typedef struct _PORT_CONFIG {
 	BOOLEAN bFastRoaming;	// 0: disable, 1: enable Fast Roaming
 	ULONG dBmToRoam:8;	// fast roaming offset value
 
-	// a bitmap of BOOLEAN flags. each bit represent an operation status of a particular 
+	// a bitmap of BOOLEAN flags. each bit represent an operation status of a particular
 	// BOOLEAN control, either ON or OFF. These flags should always be accessed via
 	// OPSTATUS_TEST_FLAG(), OPSTATUS_SET_FLAG(), OP_STATUS_CLEAR_FLAG() macros.
 	// see fOP_STATUS_xxx in RTMP_DEF.C for detail bit definition
@@ -1262,7 +1262,7 @@ typedef struct _PORT_CONFIG {
 
 // This data structure keep the current active BSS/IBSS's configuration that this STA
 // had agreed upon joining the network. Which means these parameters are usually decided
-// by the BSS/IBSS creator instead of user configuration. Data in this data structurre 
+// by the BSS/IBSS creator instead of user configuration. Data in this data structurre
 // is valid only when either ADHOC_ON(pAd) or INFRA_ON(pAd) is TRUE.
 // Normally, after SCAN or failed roaming attempts, we need to recover back to
 // the current active settings.
@@ -1290,12 +1290,14 @@ typedef struct _RTMP_ADAPTER {
 	struct net_device *net_dev;
 	ULONG VendorDesc;	// VID/PID
 
+	struct rt2x00debug debug;
+
 #if WIRELESS_EXT >= 12
 	struct iw_statistics iw_stats;
 #endif
 	struct net_device_stats stats;
 
-	CHAR nickn[IW_ESSID_MAX_SIZE + 1];	// nickname, only used in the iwconfig i/f 
+	CHAR nickn[IW_ESSID_MAX_SIZE + 1];	// nickname, only used in the iwconfig i/f
 	INT chip_id;
 	void __iomem *CSRBaseAddress;
 
@@ -1317,7 +1319,7 @@ typedef struct _RTMP_ADAPTER {
 	spinlock_t RxRingLock;	// Rx Ring spinlock
 	spinlock_t TxSwQueueLock;	// TxSwQueue spinlock
 
-	// outgoing BEACON frame buffer and corresponding TXD 
+	// outgoing BEACON frame buffer and corresponding TXD
 	TXD_STRUC BeaconTxD;
 	CHAR BeaconBuf[256];	// NOTE: BeaconBuf should be 4-byte aligned
 
@@ -1362,7 +1364,7 @@ typedef struct _RTMP_ADAPTER {
 	// RX re-assembly buffer for fragmentation
 	FRAGMENT_FRAME FragFrame;	// Frame storage for fragment frame
 
-	// various Counters 
+	// various Counters
 	COUNTER_802_3 Counters8023;	// 802.3 counters
 	COUNTER_802_11 WlanCounters;	// 802.11 MIB counters
 	COUNTER_RALINK RalinkCounters;	// Ralink propriety counters
@@ -1418,19 +1420,19 @@ typedef struct _RTMP_ADAPTER {
 	UCHAR Bbp94;
 	BOOLEAN BbpForCCK;
 
-	// This soft Rx Antenna Diversity mechanism is used only when user set 
+	// This soft Rx Antenna Diversity mechanism is used only when user set
 	// RX Antenna = DIVERSITY ON
 	SOFT_RX_ANT_DIVERSITY RxAnt;
 
 	BOOLEAN bAutoTxAgcA;	// Enable driver auto Tx Agc control
-	UCHAR TssiRefA;		// Store Tssi reference value as 25 tempature.  
+	UCHAR TssiRefA;		// Store Tssi reference value as 25 tempature.
 	UCHAR TssiPlusBoundaryA[5];	// Tssi boundary for increase Tx power to compensate.
 	UCHAR TssiMinusBoundaryA[5];	// Tssi boundary for decrease Tx power to compensate.
 	UCHAR TxAgcStepA;	// Store Tx TSSI delta increment / decrement value
 	CHAR TxAgcCompensateA;	// Store the compensation (TxAgcStep * (idx-1))
 
 	BOOLEAN bAutoTxAgcG;	// Enable driver auto Tx Agc control
-	UCHAR TssiRefG;		// Store Tssi reference value as 25 tempature.  
+	UCHAR TssiRefG;		// Store Tssi reference value as 25 tempature.
 	UCHAR TssiPlusBoundaryG[5];	// Tssi boundary for increase Tx power to compensate.
 	UCHAR TssiMinusBoundaryG[5];	// Tssi boundary for decrease Tx power to compensate.
 	UCHAR TxAgcStepG;	// Store Tx TSSI delta increment / decrement value
@@ -1439,7 +1441,7 @@ typedef struct _RTMP_ADAPTER {
 	UCHAR IoctlIF;
 
 	CHAR BGRssiOffset1;	// Store B/G RSSI#1 Offset value on EEPROM 0x9Ah
-	CHAR BGRssiOffset2;	// Store B/G RSSI#2 Offset value 
+	CHAR BGRssiOffset2;	// Store B/G RSSI#2 Offset value
 	CHAR ARssiOffset1;	// Store A RSSI#1 Offset value on EEPROM 0x9Ch
 	CHAR ARssiOffset2;
 
@@ -1551,7 +1553,7 @@ typedef struct _MAC_TABLE_ENTRY {
 	BOOLEAN fNoisyEnvironment;
 	UCHAR LastSecTxRateChangeAction;	// 0: no change, 1:rate UP, 2:rate down
 
-	// a bitmap of BOOLEAN flags. each bit represent an operation status of a particular 
+	// a bitmap of BOOLEAN flags. each bit represent an operation status of a particular
 	// BOOLEAN control, either ON or OFF. These flags should always be accessed via
 	// CLIENT_STATUS_TEST_FLAG(), CLIENT_STATUS_SET_FLAG(), CLIENT_STATUS_CLEAR_FLAG() macros.
 	// see fOP_STATUS_xxx in RTMP_DEF.C for detail bit definition
@@ -2628,7 +2630,7 @@ static inline VOID RTMPWriteTXRXCsr0(IN PRTMP_ADAPTER pAd,
 
 	if (pAd->PortCfg.BssType != BSS_MONITOR
 	    && pAd->bAcceptPromiscuous == FALSE) {
-		val |= 0x00300000;	//Disable monitor if not in monitor mode and not accepting promisc 
+		val |= 0x00300000;	//Disable monitor if not in monitor mode and not accepting promisc
 	} else if (pAd->bAcceptPromiscuous == TRUE) {
 		val |= 0x00200000;
 	}

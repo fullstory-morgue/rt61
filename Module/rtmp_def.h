@@ -425,7 +425,7 @@
 
 //
 // STA's WPA-PSK State machine: states, events, total function #
-// 
+//
 #define WPA_PSK_IDLE					0
 #define MAX_WPA_PSK_STATE				1
 

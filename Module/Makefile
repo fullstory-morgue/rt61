@@ -108,6 +108,13 @@ debug:
 		exit 1; \
 	fi
 
+debugfs:
+	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=$(EXTRA_CFLAGS) -DRT61_DBG -DRT2X00DEBUGFS' modules; \
+	if ! [ -f $(MODULE_OBJECT) ]; then \
+	echo "$(MODULE_OBJECT) failed to build!"; \
+	exit 1; \
+	fi
+
 clean:
 	@rm -f $(RESMAN_GLUE_OBJS) $(RESMAN_CORE_OBJS) .*.{cmd,flags}
 	@rm -f $(MODULE_NAME).{o,ko,mod.{o,c}} built-in.o $(VERSION_HEADER) *~
