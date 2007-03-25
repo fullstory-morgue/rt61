@@ -1,15 +1,13 @@
-rt61 (1.1.0.dfsg.2+cvs20070324-1) unstable; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070325-1) unstable; urgency=low
 
-  * New upstream CVS snapshot.
+  [ Kel Modderman ]
   * Rework get-orig-source target. [debian/rules]
 
- -- Kel Modderman <kel@otaku42.de>  Sat, 24 Mar 2007 22:03:09 +1000
+  [ Stefan Lippers-Hollmann ]
+  * New upstream CVS snapshot:
+    - Fix SIOCSIWAP handler, mac address copy.
 
-rt61 (1.1.0.dfsg.1.dfsg.1+cvs20070110-2) UNRELEASED; urgency=low
-
-  * NOT RELEASED YET
-
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Thu, 11 Jan 2007 00:17:56 +0100
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sun, 25 Mar 2007 15:26:13 +0200
 
 rt61 (1.1.0.dfsg.1.dfsg.1+cvs20070110-1) unstable; urgency=low
 

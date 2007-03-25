@@ -3338,12 +3338,8 @@ INT RT61_ioctl(IN struct net_device * net_dev,
 		RTMPSetDesiredRates(pAd, wrq->u.bitrate.value);
 		break;
 	case SIOCSIWAP:	//set access point MAC addresses
-		if (copy_from_user
-		    (&Bssid, &wrq->u.ap_addr.sa_data,
-		     sizeof(NDIS_802_11_MAC_ADDRESS))) {
-			Status = -EFAULT;
-			break;
-		}
+		memcpy(&Bssid, &wrq->u.ap_addr.sa_data,
+			sizeof(NDIS_802_11_MAC_ADDRESS));
 
 		if (!RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_INTERRUPT_IN_USE))
 			break;
