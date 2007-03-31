@@ -1,8 +1,13 @@
-rt61 (1.1.0.dfsg.2+cvs20070325-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070331-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - Fix handling of DHCP packets - patch by Gerrit Hannaert.
+    - Roll latest rt2500 Makefile changes into other legacy drivers.
+    - Patch to allow change of MAC in rt61 (patch from djinnn).
+    - Bug 1689965 - Change all char definitions to signed char to resolve ARM
+      compile issue.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sun, 25 Mar 2007 15:28:20 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 31 Mar 2007 04:27:03 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070325-1) unstable; urgency=low
 
