@@ -4378,11 +4378,24 @@ BOOLEAN RTMPCheckDHCPFrame(IN PRTMP_ADAPTER pAd, IN struct sk_buff *pSkb)
 	}
 	// Check foe DHCP & BOOTP protocol
 	if (SrcLen >= 37) {
-		if ((pSrc[35] == 0x43) && (pSrc[37] == 0x44)) {
+		if ((pSrc[12] == 0x08) && (pSrc[13] == 0x00) && // It's an IP packet
+		    ((pSrc[14] & 0xf0) == 0x40) && // It's IPv4
+		    (pSrc[23] == 17) && // It's UDP
+		    ((pSrc[36] == 0x00) && ((pSrc[37] == 0x43) || (pSrc[37] == 0x44))) ) // dest port is a DHCP port
+		{
 			DBGPRINT(RT_DEBUG_INFO,
 				 "RTMPCheckDHCPFrame - DHCP packet\n");
 			return TRUE;
 		}
+		else
+		{
+			int is_ip = ((pSrc[12] == 0x08) && (pSrc[13] == 0x00));
+			int is_ipv4 = ((pSrc[14] & 0xf0) == 0x40);
+			int is_udp = (pSrc[23] == 17);
+			int dest_port = (pSrc[36] << 8) | pSrc[37];
+			DBGPRINT(RT_DEBUG_INFO,"RTMPCheckDHCPFrame - not DHCP, ip %d ipv4 %d udp %d destport %d\n",
+				 is_ip, is_ipv4, is_udp, dest_port );
+		}	
 	}
 
 	return FALSE;

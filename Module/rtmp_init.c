@@ -3441,6 +3441,8 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 	// MAC address registers according to E2PROM setting
 	{
 		USHORT Addr01, Addr23, Addr45;
+		MAC_CSR2_STRUC csr2;
+		MAC_CSR3_STRUC csr3;
 
 		Addr01 = RTMP_EEPROM_READ16(pAd, 0x04);
 		Addr23 = RTMP_EEPROM_READ16(pAd, 0x06);
@@ -3454,21 +3456,20 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 		pAd->PermanentAddress[5] = (UCHAR) (Addr45 >> 8);
 
 		if (pAd->bLocalAdminMAC == FALSE) {
-			MAC_CSR2_STRUC csr2;
-			MAC_CSR3_STRUC csr3;
 			memcpy(pAd->CurrentAddress, pAd->PermanentAddress,
 			       ETH_ALEN);
-			csr2.field.Byte0 = pAd->CurrentAddress[0];
-			csr2.field.Byte1 = pAd->CurrentAddress[1];
-			csr2.field.Byte2 = pAd->CurrentAddress[2];
-			csr2.field.Byte3 = pAd->CurrentAddress[3];
-			RTMP_IO_WRITE32(pAd, MAC_CSR2, csr2.word);
-			csr3.word = 0;
-			csr3.field.Byte4 = pAd->CurrentAddress[4];
-			csr3.field.Byte5 = pAd->CurrentAddress[5];
-			csr3.field.U2MeMask = 0xff;
-			RTMP_IO_WRITE32(pAd, MAC_CSR3, csr3.word);
 		}
+		csr2.field.Byte0 = pAd->CurrentAddress[0];
+		csr2.field.Byte1 = pAd->CurrentAddress[1];
+		csr2.field.Byte2 = pAd->CurrentAddress[2];
+		csr2.field.Byte3 = pAd->CurrentAddress[3];
+		RTMP_IO_WRITE32(pAd, MAC_CSR2, csr2.word);
+		csr3.word = 0;
+		csr3.field.Byte4 = pAd->CurrentAddress[4];
+		csr3.field.Byte5 = pAd->CurrentAddress[5];
+		csr3.field.U2MeMask = 0xff;
+		RTMP_IO_WRITE32(pAd, MAC_CSR3, csr3.word);
+		
 	}
 	DBGPRINT(RT_DEBUG_TRACE, "E2PROM: MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
 		 pAd->PermanentAddress[0], pAd->PermanentAddress[1],
@@ -4058,8 +4059,10 @@ VOID NICIssueReset(IN PRTMP_ADAPTER pAdapter)
 		StaMacReg0.field.Byte1 = pAdapter->PermanentAddress[1];
 		StaMacReg0.field.Byte2 = pAdapter->PermanentAddress[2];
 		StaMacReg0.field.Byte3 = pAdapter->PermanentAddress[3];
+		StaMacReg1.word = 0;
 		StaMacReg1.field.Byte4 = pAdapter->PermanentAddress[4];
 		StaMacReg1.field.Byte5 = pAdapter->PermanentAddress[5];
+		StaMacReg1.field.U2MeMask = 0xff;
 		RTMP_IO_WRITE32(pAdapter, MAC_CSR2, StaMacReg0.word);
 		RTMP_IO_WRITE32(pAdapter, MAC_CSR3, StaMacReg1.word);
 	}
@@ -5279,6 +5282,24 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 						DBGPRINT(RT_DEBUG_TRACE,
 							 "%s::(RoamThreshold=%d)\n",
 							 __FUNCTION__, ulInfo);
+					}
+					//LocalAdminMac
+					if (RTMPGetKeyParameter("LocalAdminMac", tmpbuf, 17, buffer)) {
+						UCHAR LocalAdminMac[ETH_ALEN];
+						if ( (sscanf (tmpbuf, 
+									"%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx", 
+									&LocalAdminMac[0], &LocalAdminMac[1],
+									&LocalAdminMac[2], &LocalAdminMac[3], 
+									&LocalAdminMac[4], &LocalAdminMac[5]) == 6) 
+								&& is_valid_ether_addr(LocalAdminMac) ) {
+							memcpy(pAd->CurrentAddress, LocalAdminMac, ETH_ALEN);
+							pAd->bLocalAdminMAC = TRUE;
+						} else {
+							DBGPRINT(RT_DEBUG_ERROR,
+									"%s::(LocalAdminMac is not a valid MAC address: %s)\n",
+									__FUNCTION__,
+									tmpbuf);
+						}
 					}
 					//AuthMode
 					if (RTMPGetKeyParameter

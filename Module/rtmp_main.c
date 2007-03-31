@@ -720,6 +720,7 @@ int rt61_set_mac_address(struct net_device *net_dev, void *addr)
 
 	memcpy(net_dev->dev_addr, mac->sa_data, ETH_ALEN);
 	memcpy(pAd->CurrentAddress, mac->sa_data, ETH_ALEN);
+	pAd->bLocalAdminMAC = TRUE;
 
 	memset(&set_mac, 0x00, sizeof(INT));
 	set_mac =

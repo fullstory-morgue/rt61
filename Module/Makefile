@@ -120,17 +120,14 @@ clean:
 	@rm -f $(MODULE_NAME).{o,ko,mod.{o,c}} built-in.o $(VERSION_HEADER) *~
 	@rm -fr .tmp_versions Module.symvers
 
-modules_install:
+modules_install: module
 ifeq ($(PATCHLEVEL),4)
-	if ! [ -f $(MODULE_OBJECT) ]; then \
-		module; \
-	fi
 	@echo "install '$(MODULE_OBJECT)' to $(MODULE_ROOT)"
 	install -m 755 -o 0 -g 0 -d $(MODULE_ROOT)
 	install -m 644 -o 0 -g 0 $(MODULE_OBJECT) $(MODULE_ROOT)
 	/sbin/depmod -a
 else
-	echo "2.6 module install"
+	@echo "2.6 module install"
 	make $(KBUILD_PARAMS) modules_install
 	/sbin/depmod -a
 endif
