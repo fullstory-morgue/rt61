@@ -2972,7 +2972,6 @@ NDIS_STATUS RTMPAllocAdapterBlock(IN PRTMP_ADAPTER pAdapter)
 		spin_lock_init(&pAdapter->TxRingLock);
 		spin_lock_init(&pAdapter->MgmtRingLock);
 		spin_lock_init(&pAdapter->RxRingLock);
-		spin_lock_init(&pAdapter->TxSwQueueLock);
 	} while (FALSE);
 
 	DBGPRINT(RT_DEBUG_TRACE, "<-- RTMPAllocAdapterBlock\n");
@@ -5287,7 +5286,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					if (RTMPGetKeyParameter("LocalAdminMac", tmpbuf, 17, buffer)) {
 						UCHAR LocalAdminMac[ETH_ALEN];
 						if ( (sscanf (tmpbuf, 
-									"%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx", 
+									"%02x:%02x:%02x:%02x:%02x:%02x", 
 									&LocalAdminMac[0], &LocalAdminMac[1],
 									&LocalAdminMac[2], &LocalAdminMac[3], 
 									&LocalAdminMac[4], &LocalAdminMac[5]) == 6) 
@@ -6111,13 +6110,13 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 	PRXD_STRUC pDestRxD;
 	RXD_STRUC RxD;
 #endif
+#if SL_IRQSAVE
+	ULONG IrqFlags;
+#endif
 
 	struct sk_buff *pSkb;
 	INT i;
 	PRTMP_TX_RING pTxRing;
-#if SL_IRQSAVE
-	ULONG IrqFlags;
-#endif
 
 	DBGPRINT(RT_DEBUG_TRACE, "RTMPRingCleanUp(RingIdx=%d, p-NDIS=%d)\n",
 		 RingType, pAdapter->RalinkCounters.PendingNdisPacketCount);
@@ -6184,24 +6183,14 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 		spin_unlock_bh(&pAdapter->TxRingLock);
 #endif
 
-#if SL_IRQSAVE
-		spin_lock_irqsave(&pAdapter->TxSwQueueLock, IrqFlags);
-#else
-		spin_lock_bh(&pAdapter->TxSwQueueLock);
-#endif
-
-		while (!skb_queue_empty(&pAdapter->TxSwQueue[RingType])) {
+		while (TRUE) {
 			pSkb = skb_dequeue(&pAdapter->TxSwQueue[RingType]);
+			if (!pSkb)
+				break;
 			RELEASE_NDIS_PACKET(pAdapter, pSkb);
 			DBGPRINT(RT_DEBUG_TRACE,
 				 "Release 1 skb buffer from s/w backlog queue\n");
 		}
-#if SL_IRQSAVE
-		spin_unlock_irqrestore(&pAdapter->TxSwQueueLock,
-				       (unsigned long)IrqFlags);
-#else
-		spin_unlock_bh(&pAdapter->TxSwQueueLock);
-#endif
 		break;
 
 	case QID_MGMT:

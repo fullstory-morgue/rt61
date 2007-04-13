@@ -539,14 +539,14 @@ INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
 
 #ifdef RALINK_ATE
 	if (pAdapter->ate.Mode != ATE_STASTART) {
-		dev_kfree_skb_irq(pSkb);
+		dev_kfree_skb(pSkb);
 		return 0;
 	}
 #endif
 
 	if (pAdapter->PortCfg.BssType == BSS_MONITOR
 	    && pAdapter->PortCfg.RFMONTX != TRUE) {
-		dev_kfree_skb_irq(pSkb);
+		dev_kfree_skb(pSkb);
 		return 0;
 	}
 	// Drop packets if no associations
@@ -555,35 +555,27 @@ INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
 		// Drop send request since there are no physical connection yet
 		// Check the association status for infrastructure mode
 		// And Mibss for Ad-hoc mode setup
-		dev_kfree_skb_irq(pSkb);
-	} else if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
+		dev_kfree_skb(pSkb);
+		return 0;
+	}
+	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
 		   RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
 		// Drop send request since hardware is in reset state
-		dev_kfree_skb_irq(pSkb);
-	} else {
-		// initial pSkb->data_len=0, we will use this variable to store data size when fragment(in TKIP)
-		// and pSkb->len is actual data len
-		pSkb->data_len = pSkb->len;
-
-		// Record that orignal packet source is from protocol layer,so that
-		// later on driver knows how to release this skb buffer
-		RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_NDIS);
-		pAdapter->RalinkCounters.PendingNdisPacketCount++;
-		RTMPSendPacket(pAdapter, pSkb);
+		dev_kfree_skb(pSkb);
+		return 0;
 	}
 
-	// Dequeue one frame from TxSwQueue[] and process it
-//    if ((!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS)) &&
-//              (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS)) &&
-//              (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)))
-	{
-		// let the subroutine select the right priority Tx software queue
-		for (Index = 0; Index < 5; Index++) {
-			if (!skb_queue_empty(&pAdapter->TxSwQueue[Index]))
-				RTMPDeQueuePacket(pAdapter, Index);
-		}
-	}
+	// initial pSkb->data_len=0, we will use this variable to store data size when fragment(in TKIP)
+	// and pSkb->len is actual data len
+	pSkb->data_len = pSkb->len;
 
+	// Record that orignal packet source is from protocol layer,so that
+	// later on driver knows how to release this skb buffer
+	RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_NDIS);
+	pAdapter->RalinkCounters.PendingNdisPacketCount++;
+	RTMPSendPacket(pAdapter, pSkb);
+	for (Index = 0; Index < 5; Index++)
+		RTMPDeQueuePacket(pAdapter, Index);
 	return 0;
 }
 
@@ -614,26 +606,34 @@ irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance)
 	PRTMP_ADAPTER pAdapter = net_dev->priv;
 	INT_SOURCE_CSR_STRUC IntSource;
 	MCU_INT_SOURCE_STRUC McuIntSource;
+	BOOLEAN InterruptDisabled = FALSE;
 	int ret = 0;
 
 	DBGPRINT(RT_DEBUG_INFO, "====> RTMPHandleInterrupt\n");
-	//
-	// Inital the Interrupt source.
-	//
-	IntSource.word = 0x00000000L;
-	McuIntSource.word = 0x00000000L;
 
 	// 1. Disable interrupt
 	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE)
 	    && RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_ACTIVE)) {
 		NICDisableInterrupt(pAdapter);
+	    InterruptDisabled = TRUE;
 	}
+
+	//
+	// Init the Interrupt source.
+	//
+	IntSource.word = 0x00000000L;
+	McuIntSource.word = 0x00000000L;
 	//
 	// Get the interrupt sources & saved to local variable
 	//
 	RTMP_IO_READ32(pAdapter, MCU_INT_SOURCE_CSR, &McuIntSource.word);
-	RTMP_IO_WRITE32(pAdapter, MCU_INT_SOURCE_CSR, McuIntSource.word);
 	RTMP_IO_READ32(pAdapter, INT_SOURCE_CSR, &IntSource.word);
+	if (!McuIntSource.word && !IntSource.word) {
+		if (InterruptDisabled)
+			NICEnableInterrupt(pAdapter);
+        return IRQ_NONE;
+	}
+	RTMP_IO_WRITE32(pAdapter, MCU_INT_SOURCE_CSR, McuIntSource.word);
 	RTMP_IO_WRITE32(pAdapter, INT_SOURCE_CSR, IntSource.word);	// write 1 to clear
 
 	//
@@ -694,7 +694,8 @@ irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance)
 	//
 	// Re-enable the interrupt (disabled in RTMPIsr)
 	//
-	NICEnableInterrupt(pAdapter);
+	if (InterruptDisabled)
+		NICEnableInterrupt(pAdapter);
 
 	DBGPRINT(RT_DEBUG_INFO, "<==== RTMPHandleInterrupt\n");
       out:
