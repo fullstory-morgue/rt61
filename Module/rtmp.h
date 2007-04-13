@@ -1317,7 +1317,6 @@ typedef struct _RTMP_ADAPTER {
 	spinlock_t TxRingLock;	// Tx Ring spinlock
 	spinlock_t MgmtRingLock;	// Prio Ring spinlock
 	spinlock_t RxRingLock;	// Rx Ring spinlock
-	spinlock_t TxSwQueueLock;	// TxSwQueue spinlock
 
 	// outgoing BEACON frame buffer and corresponding TXD
 	TXD_STRUC BeaconTxD;
@@ -1835,10 +1834,6 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 BOOLEAN MlmeDequeue(IN MLME_QUEUE * Queue, OUT MLME_QUEUE_ELEM ** Elem);
 
 VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd);
-
-BOOLEAN MlmeQueueEmpty(IN MLME_QUEUE * Queue);
-
-BOOLEAN MlmeQueueFull(IN MLME_QUEUE * Queue);
 
 VOID MlmeQueueDestroy(IN MLME_QUEUE * pQueue);
 

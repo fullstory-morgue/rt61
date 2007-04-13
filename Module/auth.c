@@ -130,8 +130,9 @@ VOID MlmeAuthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	} else
 	    if (MlmeAuthReqSanity
 		(pAd, Elem->Msg, Elem->MsgLen, Addr, &Timeout, &Alg)) {
-		// reset timer
-		del_timer_sync(&pAd->MlmeAux.AuthTimer);
+		// reset timer if caller isn't the timer function itself
+		if (timer_pending(&pAd->MlmeAux.AuthTimer))
+			del_timer_sync(&pAd->MlmeAux.AuthTimer);
 
 		memcpy(pAd->MlmeAux.Bssid, Addr, ETH_ALEN);
 		pAd->MlmeAux.Alg = Alg;

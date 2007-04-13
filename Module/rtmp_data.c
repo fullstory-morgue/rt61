@@ -1961,9 +1961,6 @@ NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff * pSkb)
 	UCHAR NumberOfFrag;
 	UCHAR RTSRequired;
 	UCHAR QueIdx, UserPriority;
-#if SL_IRQSAVE
-	ULONG IrqFlags;
-#endif
 
 	DBGPRINT(RT_DEBUG_INFO, "====> RTMPSendPacket\n");
 
@@ -2076,22 +2073,7 @@ NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff * pSkb)
 
 	RTMP_SET_PACKET_UP(pSkb, UserPriority);
 
-#if SL_IRQSAVE
-	spin_lock_irqsave(&pAd->TxSwQueueLock, IrqFlags);
-#else
-	spin_lock_bh(&pAd->TxSwQueueLock);
-#endif
-
-	pAd->RalinkCounters.OneSecOsTxCount[QueIdx]++;
-
-//      if(pAd->TxSwQueue[QueIdx].Number<=100)
 	skb_queue_tail(&pAd->TxSwQueue[QueIdx], pSkb);
-
-#if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->TxSwQueueLock, (unsigned long)IrqFlags);
-#else
-	spin_unlock_bh(&pAd->TxSwQueueLock);
-#endif
 
 	pAd->RalinkCounters.OneSecOsTxCount[QueIdx]++;	// TODO: for debug only. to be removed
 	return NDIS_STATUS_SUCCESS;
@@ -2642,32 +2624,35 @@ static inline
 	// NOTE: 1.) aggregation not applicable when CKIP inused. because it's difficult for driver
 	//       to calculate CMIC on the aggregated MSDU
 	//       2.) used Aggregation if packet didn't be fragment, that means MpduRequired must be 1.
-	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_AGGREGATION_INUSED) &&
-	    (!skb_queue_empty(&pAd->TxSwQueue[QueIdx])) &&
-	    (TxRate >= RATE_6) &&
-	    (MpduRequired == 1) &&
-	    TxFrameIsAggregatible(pAd, NULL, pSrcBufVA)) {
-		PUCHAR pNextPacketBufVA;
-
-		DBGPRINT(RT_DEBUG_INFO,
-			 "AGGRE: 1st MSDU aggregatible(len=%d)\n", pSkb->len);
-
-		pNextSkb = skb_dequeue(&pAd->TxSwQueue[QueIdx]);
-
-		pNextPacketBufVA = (PVOID) pNextSkb->data;
-		NextPacketBufLen = pNextSkb->len;
-
-		if (TxFrameIsAggregatible(pAd, pSrcBufVA, pNextPacketBufVA)) {
-			// need to clone pNextSkb to assure it uses only 1 scatter buffer
+	do {
+		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_AGGREGATION_INUSED) &&
+		    (TxRate >= RATE_6) &&
+		    (MpduRequired == 1) &&
+		    TxFrameIsAggregatible(pAd, NULL, pSrcBufVA)) {
+			PUCHAR pNextPacketBufVA;
+	
+			pNextSkb = skb_dequeue(&pAd->TxSwQueue[QueIdx]);
+			if (!pNextSkb)
+				break;
+	
 			DBGPRINT(RT_DEBUG_INFO,
-				 "AGGRE: 2nd MSDU aggregatible(len=%d)\n",
-				 NextPacketBufLen);
-		} else {
-			// can't aggregate. put next packe back to TxSwQueue
-			skb_queue_head(&pAd->TxSwQueue[QueIdx], pNextSkb);
-			pNextSkb = NULL;
+				 "AGGRE: 1st MSDU aggregatible(len=%d)\n", pSkb->len);
+	
+			pNextPacketBufVA = (PVOID) pNextSkb->data;
+			NextPacketBufLen = pNextSkb->len;
+	
+			if (TxFrameIsAggregatible(pAd, pSrcBufVA, pNextPacketBufVA)) {
+				// need to clone pNextSkb to assure it uses only 1 scatter buffer
+				DBGPRINT(RT_DEBUG_INFO,
+					 "AGGRE: 2nd MSDU aggregatible(len=%d)\n",
+					 NextPacketBufLen);
+			} else {
+				// can't aggregate. put next packe back to TxSwQueue
+				skb_queue_head(&pAd->TxSwQueue[QueIdx], pNextSkb);
+				pNextSkb = NULL;
+			}
 		}
-	}
+	} while (FALSE);
 #else
 	pNextSkb = NULL;
 #endif
@@ -3363,9 +3348,6 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
 	struct sk_buff_head *pQueue;
 	//ULONG                 Number;
 	UCHAR QueIdx, FreeNumber;
-#if SL_IRQSAVE
-	ULONG IrqFlags;
-#endif
 
 // Reset is in progress, stop immediately
 	if ((RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS)) ||
@@ -3374,16 +3356,10 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
 	    (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)))
 		return;
 
-	// Make sure SendTxWait queue resource won't be used by other threads
-#if SL_IRQSAVE
-	spin_lock_irqsave(&pAdapter->TxSwQueueLock, IrqFlags);
-#else
-	spin_lock_bh(&pAdapter->TxSwQueueLock);
-#endif
 	QueIdx = QueueIdx;
 	pQueue = &pAdapter->TxSwQueue[QueIdx];
 
-	while (!skb_queue_empty(pQueue) && (Count < MAX_TX_PROCESS)) {
+	while (Count < MAX_TX_PROCESS) {
 		// Dequeue the first entry from head of queue list
 		pSkb = skb_dequeue(pQueue);
 		if (!pSkb)
@@ -3398,10 +3374,6 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
 		if (RTMPFreeTXDRequest
 		    (pAdapter, QueIdx, MpduRequired,
 		     &FreeNumber) == NDIS_STATUS_SUCCESS) {
-			if (FreeNumber != TX_RING_SIZE) {
-				skb_queue_head(pQueue, pSkb);
-				break;
-			}
 			// 2004-10-12 if HardTransmit returns SUCCESS, then the skb buffer should be
 			//            released in later on DMADoneIsr. If HardTransmit returns FAIL, the
 			//            the skb buffer should already be released inside RTMPHardTransmit
@@ -3420,15 +3392,6 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueueIdx)
 		}
 		Count++;
 	}
-
-	// Release TxSwQueue resources
-
-#if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAdapter->TxSwQueueLock,
-			       (unsigned long)IrqFlags);
-#else
-	spin_unlock_bh(&pAdapter->TxSwQueueLock);
-#endif
 
 }
 
@@ -3989,46 +3952,6 @@ NDIS_STATUS RTMPApplyPacketFilter(IN PRTMP_ADAPTER pAd,
 		return (NDIS_STATUS_FAILURE);
 
 	return (NDIS_STATUS_SUCCESS);
-}
-
-/*
-	========================================================================
-
-	Routine	Description:
-		Check and fine the packet waiting in SW queue with highest priority
-
-	Arguments:
-		pAdapter	Pointer	to our adapter
-
-	Return Value:
-		pQueue		Pointer to Waiting Queue
-
-	Note:
-
-	========================================================================
-*/
-struct sk_buff_head *RTMPCheckTxSwQueue(IN PRTMP_ADAPTER pAdapter,
-					OUT PUCHAR pQueIdx)
-{
-	if (!skb_queue_empty(&pAdapter->TxSwQueue[QID_AC_VO])) {
-		*pQueIdx = QID_AC_VO;
-		return (&pAdapter->TxSwQueue[QID_AC_VO]);
-	} else if (!skb_queue_empty(&pAdapter->TxSwQueue[QID_AC_VI])) {
-		*pQueIdx = QID_AC_VI;
-		return (&pAdapter->TxSwQueue[QID_AC_VI]);
-	} else if (!skb_queue_empty(&pAdapter->TxSwQueue[QID_AC_BE])) {
-		*pQueIdx = QID_AC_BE;
-		return (&pAdapter->TxSwQueue[QID_AC_BE]);
-	} else if (!skb_queue_empty(&pAdapter->TxSwQueue[QID_AC_BK])) {
-		*pQueIdx = QID_AC_BK;
-		return (&pAdapter->TxSwQueue[QID_AC_BK]);
-	} else if (!skb_queue_empty(&pAdapter->TxSwQueue[QID_HCCA])) {
-		*pQueIdx = QID_HCCA;
-		return (&pAdapter->TxSwQueue[QID_HCCA]);
-	}
-	// No packet pending in Tx Sw queue
-	*pQueIdx = QID_AC_BK;
-	return (NULL);
 }
 
 //#ifdef WPA_SUPPLICANT_SUPPORT

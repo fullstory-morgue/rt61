@@ -34,6 +34,7 @@
 	* Fix essid truncation on kernels >= 2.6.19.
 	* Fix rejection of WEP keys that do not have the exact correct length.
 	* Fix to allow change of MAC address (patch from djinnn)
+	* Fixes to support SMP and PREEMPT kernels
 
  Version: 1.1.0-beta1 
 	* Initial baseline code from Ralink (1.0.3.0)

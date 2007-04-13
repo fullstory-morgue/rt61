@@ -2131,9 +2131,7 @@ VOID RTMPToWirelessSta(IN PRTMP_ADAPTER pAd, IN PUCHAR pFrame, IN UINT FrameLen)
 			    (!RTMP_TEST_FLAG
 			     (pAd, fRTMP_ADAPTER_RESET_IN_PROGRESS))) {
 				for (Index = 0; Index < 5; Index++)
-					if (!skb_queue_empty
-					    (&pAd->TxSwQueue[Index]))
-						RTMPDeQueuePacket(pAd, Index);
+					RTMPDeQueuePacket(pAd, Index);
 			}
 		} else		// free this packet space
 		{
