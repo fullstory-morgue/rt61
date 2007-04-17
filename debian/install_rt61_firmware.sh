@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-DRIVER="RT61_Linux_STA_Drv1.1.0.0.tar.gz"
-URL="http://www.ralinktech.com/ralink/data/$DRIVER"
+DRIVER="RT61_Firmware_V1.2.zip"
+URL="http://www.ralinktech.com.tw/data/$DRIVER"
 
 bailout()
 {

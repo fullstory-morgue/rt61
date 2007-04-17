@@ -1,8 +1,8 @@
-rt61 (1.1.0.dfsg.2+cvs20070414-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070414-2) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * fix download URL for rt61 firmware.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 14 Apr 2007 01:44:42 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 17 Apr 2007 15:19:07 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070414-1) unstable; urgency=low
 
