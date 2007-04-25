@@ -36,98 +36,6 @@
 
 #include "rt_config.h"
 
-/**
- * md5_mac:
- * @key: pointer to the key used for MAC generation
- * @key_len: length of the key in bytes
- * @data: pointer to the data area for which the MAC is generated
- * @data_len: length of the data in bytes
- * @mac: pointer to the buffer holding space for the MAC; the buffer should
- * have space for 128-bit (16 bytes) MD5 hash value
- *
- * md5_mac() determines the message authentication code by using secure hash
- * MD5(key | data | key).
- */
-void md5_mac(u8 * key, size_t key_len, u8 * data, size_t data_len, u8 * mac)
-{
-	MD5_CTX context;
-
-	MD5Init(&context);
-	MD5Update(&context, key, key_len);
-	MD5Update(&context, data, data_len);
-	MD5Update(&context, key, key_len);
-	MD5Final(mac, &context);
-}
-
-/**
- * hmac_md5:
- * @key: pointer to the key used for MAC generation
- * @key_len: length of the key in bytes
- * @data: pointer to the data area for which the MAC is generated
- * @data_len: length of the data in bytes
- * @mac: pointer to the buffer holding space for the MAC; the buffer should
- * have space for 128-bit (16 bytes) MD5 hash value
- *
- * hmac_md5() determines the message authentication code using HMAC-MD5.
- * This implementation is based on the sample code presented in RFC 2104.
- */
-void hmac_md5(u8 * key, size_t key_len, u8 * data, size_t data_len, u8 * mac)
-{
-	MD5_CTX context;
-	u8 k_ipad[65];		/* inner padding - key XORd with ipad */
-	u8 k_opad[65];		/* outer padding - key XORd with opad */
-	u8 tk[16];
-	int i;
-
-	//assert(key != NULL && data != NULL && mac != NULL);
-
-	/* if key is longer than 64 bytes reset it to key = MD5(key) */
-	if (key_len > 64) {
-		MD5_CTX ttcontext;
-
-		MD5Init(&ttcontext);
-		MD5Update(&ttcontext, key, key_len);
-		MD5Final(tk, &ttcontext);
-		//key=(PUCHAR)ttcontext.buf;
-		key = tk;
-		key_len = 16;
-	}
-
-	/* the HMAC_MD5 transform looks like:
-	 *
-	 * MD5(K XOR opad, MD5(K XOR ipad, text))
-	 *
-	 * where K is an n byte key
-	 * ipad is the byte 0x36 repeated 64 times
-	 * opad is the byte 0x5c repeated 64 times
-	 * and text is the data being protected */
-
-	/* start out by storing key in pads */
-	memset(k_ipad, 0, sizeof(k_ipad));
-	memset(k_opad, 0, sizeof(k_opad));
-	//assert(key_len < sizeof(k_ipad));
-	memcpy(k_ipad, key, key_len);
-	memcpy(k_opad, key, key_len);
-
-	/* XOR key with ipad and opad values */
-	for (i = 0; i < 64; i++) {
-		k_ipad[i] ^= 0x36;
-		k_opad[i] ^= 0x5c;
-	}
-
-	/* perform inner MD5 */
-	MD5Init(&context);	/* init context for 1st pass */
-	MD5Update(&context, k_ipad, 64);	/* start with inner pad */
-	MD5Update(&context, data, data_len);	/* then text of datagram */
-	MD5Final(mac, &context);	/* finish up 1st pass */
-
-	/* perform outer MD5 */
-	MD5Init(&context);	/* init context for 2nd pass */
-	MD5Update(&context, k_opad, 64);	/* start with outer pad */
-	MD5Update(&context, mac, 16);	/* then results of 1st hash */
-	MD5Final(mac, &context);	/* finish up 2nd pass */
-}
-
 /* ===== start - public domain MD5 implementation ===== */
 /*
  * This code implements the MD5 message-digest algorithm.
@@ -159,116 +67,9 @@ void byteReverse(unsigned char *buf, unsigned longs)
 }
 #endif
 
-/*
- * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
- * initialization constants.
- */
-void MD5Init(struct MD5Context *ctx)
-{
-	ctx->buf[0] = 0x67452301;
-	ctx->buf[1] = 0xefcdab89;
-	ctx->buf[2] = 0x98badcfe;
-	ctx->buf[3] = 0x10325476;
-
-	ctx->bits[0] = 0;
-	ctx->bits[1] = 0;
-}
-
-/*
- * Update context to reflect the concatenation of another buffer full
- * of bytes.
- */
-void MD5Update(struct MD5Context *ctx, unsigned char *buf, unsigned len)
-{
-	u32 t;
-
-	/* Update bitcount */
-
-	t = ctx->bits[0];
-	if ((ctx->bits[0] = t + ((u32) len << 3)) < t)
-		ctx->bits[1]++;	/* Carry from low to high */
-	ctx->bits[1] += len >> 29;
-
-	t = (t >> 3) & 0x3f;	/* Bytes already in shsInfo->data */
-
-	/* Handle any leading odd-sized chunks */
-
-	if (t) {
-		unsigned char *p = (unsigned char *)ctx->in + t;
-
-		t = 64 - t;
-		if (len < t) {
-			memcpy(p, buf, len);
-			return;
-		}
-		memcpy(p, buf, t);
-		byteReverse(ctx->in, 16);
-		MD5Transform(ctx->buf, (u32 *) ctx->in);
-		buf += t;
-		len -= t;
-	}
-	/* Process data in 64-byte chunks */
-
-	while (len >= 64) {
-		memcpy(ctx->in, buf, 64);
-		byteReverse(ctx->in, 16);
-		MD5Transform(ctx->buf, (u32 *) ctx->in);
-		buf += 64;
-		len -= 64;
-	}
-
-	/* Handle any remaining bytes of data. */
-
-	memcpy(ctx->in, buf, len);
-}
-
-/*
- * Final wrapup - pad to 64-byte boundary with the bit pattern
- * 1 0* (64-bit count of bits processed, MSB-first)
- */
-void MD5Final(unsigned char digest[16], struct MD5Context *ctx)
-{
-	unsigned count;
-	unsigned char *p;
-
-	/* Compute number of bytes mod 64 */
-	count = (ctx->bits[0] >> 3) & 0x3F;
-
-	/* Set the first char of padding to 0x80.  This is safe since there is
-	   always at least one byte free */
-	p = ctx->in + count;
-	*p++ = 0x80;
-
-	/* Bytes of padding needed to make 64 bytes */
-	count = 64 - 1 - count;
-
-	/* Pad out to 56 mod 64 */
-	if (count < 8) {
-		/* Two lots of padding:  Pad the first block to 64 bytes */
-		memset(p, 0, count);
-		byteReverse(ctx->in, 16);
-		MD5Transform(ctx->buf, (u32 *) ctx->in);
-
-		/* Now fill the next block with 56 bytes */
-		memset(ctx->in, 0, 56);
-	} else {
-		/* Pad block to 56 bytes */
-		memset(p, 0, count - 8);
-	}
-	byteReverse(ctx->in, 14);
-
-	/* Append length in bits and transform */
-	((u32 *) ctx->in)[14] = ctx->bits[0];
-	((u32 *) ctx->in)[15] = ctx->bits[1];
-
-	MD5Transform(ctx->buf, (u32 *) ctx->in);
-	byteReverse((unsigned char *)ctx->buf, 4);
-	memcpy(digest, ctx->buf, 16);
-	memset(ctx, 0, sizeof(ctx));	/* In case it's sensitive */
-}
-
-//#ifndef ASM_MD5
-#if 1
+/* This is the central step in the MD5 algorithm. */
+#define MD5STEP(f, w, x, y, z, data, s) \
+    ( w += f(x, y, z) + data,  w =( w<<s | w>>(32-s))&0xffffffff,  w += x )
 
 /* The four core functions - F1 is optimized somewhat */
 
@@ -278,16 +79,12 @@ void MD5Final(unsigned char digest[16], struct MD5Context *ctx)
 #define F3(x, y, z) (x ^ y ^ z)
 #define F4(x, y, z) (y ^ (x | ~z))
 
-/* This is the central step in the MD5 algorithm. */
-#define MD5STEP(f, w, x, y, z, data, s) \
-    ( w += f(x, y, z) + data,  w =( w<<s | w>>(32-s))&0xffffffff,  w += x )
-
 /*
  * The core of the MD5 algorithm, this alters an existing MD5 hash to
  * reflect the addition of 16 longwords of new data.  MD5Update blocks
  * the data and converts bytes into longwords for this routine.
  */
-void MD5Transform(u32 buf[4], u32 in[16])
+static void MD5Transform(u32 buf[4], u32 in[16])
 {
 	register u32 a, b, c, d;
 
@@ -369,7 +166,209 @@ void MD5Transform(u32 buf[4], u32 in[16])
 	buf[2] += c;
 	buf[3] += d;
 }
-#endif
+
+/*
+ * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
+ * initialization constants.
+ */
+static void MD5Init(struct MD5Context *ctx)
+{
+	ctx->buf[0] = 0x67452301;
+	ctx->buf[1] = 0xefcdab89;
+	ctx->buf[2] = 0x98badcfe;
+	ctx->buf[3] = 0x10325476;
+
+	ctx->bits[0] = 0;
+	ctx->bits[1] = 0;
+}
+
+/*
+ * Update context to reflect the concatenation of another buffer full
+ * of bytes.
+ */
+static void MD5Update(struct MD5Context *ctx, unsigned char *buf, unsigned len)
+{
+	u32 t;
+
+	/* Update bitcount */
+
+	t = ctx->bits[0];
+	if ((ctx->bits[0] = t + ((u32) len << 3)) < t)
+		ctx->bits[1]++;	/* Carry from low to high */
+	ctx->bits[1] += len >> 29;
+
+	t = (t >> 3) & 0x3f;	/* Bytes already in shsInfo->data */
+
+	/* Handle any leading odd-sized chunks */
+
+	if (t) {
+		unsigned char *p = (unsigned char *)ctx->in + t;
+
+		t = 64 - t;
+		if (len < t) {
+			memcpy(p, buf, len);
+			return;
+		}
+		memcpy(p, buf, t);
+		byteReverse(ctx->in, 16);
+		MD5Transform(ctx->buf, (u32 *) ctx->in);
+		buf += t;
+		len -= t;
+	}
+	/* Process data in 64-byte chunks */
+
+	while (len >= 64) {
+		memcpy(ctx->in, buf, 64);
+		byteReverse(ctx->in, 16);
+		MD5Transform(ctx->buf, (u32 *) ctx->in);
+		buf += 64;
+		len -= 64;
+	}
+
+	/* Handle any remaining bytes of data. */
+
+	memcpy(ctx->in, buf, len);
+}
+
+/*
+ * Final wrapup - pad to 64-byte boundary with the bit pattern
+ * 1 0* (64-bit count of bits processed, MSB-first)
+ */
+static void MD5Final(unsigned char digest[16], struct MD5Context *ctx)
+{
+	unsigned count;
+	unsigned char *p;
+
+	/* Compute number of bytes mod 64 */
+	count = (ctx->bits[0] >> 3) & 0x3F;
+
+	/* Set the first char of padding to 0x80.  This is safe since there is
+	   always at least one byte free */
+	p = ctx->in + count;
+	*p++ = 0x80;
+
+	/* Bytes of padding needed to make 64 bytes */
+	count = 64 - 1 - count;
+
+	/* Pad out to 56 mod 64 */
+	if (count < 8) {
+		/* Two lots of padding:  Pad the first block to 64 bytes */
+		memset(p, 0, count);
+		byteReverse(ctx->in, 16);
+		MD5Transform(ctx->buf, (u32 *) ctx->in);
+
+		/* Now fill the next block with 56 bytes */
+		memset(ctx->in, 0, 56);
+	} else {
+		/* Pad block to 56 bytes */
+		memset(p, 0, count - 8);
+	}
+	byteReverse(ctx->in, 14);
+
+	/* Append length in bits and transform */
+	((u32 *) ctx->in)[14] = ctx->bits[0];
+	((u32 *) ctx->in)[15] = ctx->bits[1];
+
+	MD5Transform(ctx->buf, (u32 *) ctx->in);
+	byteReverse((unsigned char *)ctx->buf, 4);
+	memcpy(digest, ctx->buf, 16);
+	memset(ctx, 0, sizeof(ctx));	/* In case it's sensitive */
+}
+
+/**
+ * hmac_md5:
+ * @key: pointer to the key used for MAC generation
+ * @key_len: length of the key in bytes
+ * @data: pointer to the data area for which the MAC is generated
+ * @data_len: length of the data in bytes
+ * @mac: pointer to the buffer holding space for the MAC; the buffer should
+ * have space for 128-bit (16 bytes) MD5 hash value
+ *
+ * hmac_md5() determines the message authentication code using HMAC-MD5.
+ * This implementation is based on the sample code presented in RFC 2104.
+ */
+void hmac_md5(u8 * key, size_t key_len, u8 * data, size_t data_len, u8 * mac)
+{
+	MD5_CTX context;
+	u8 k_ipad[65];		/* inner padding - key XORd with ipad */
+	u8 k_opad[65];		/* outer padding - key XORd with opad */
+	u8 tk[16];
+	int i;
+
+	//assert(key != NULL && data != NULL && mac != NULL);
+
+	/* if key is longer than 64 bytes reset it to key = MD5(key) */
+	if (key_len > 64) {
+		MD5_CTX ttcontext;
+
+		MD5Init(&ttcontext);
+		MD5Update(&ttcontext, key, key_len);
+		MD5Final(tk, &ttcontext);
+		//key=(PUCHAR)ttcontext.buf;
+		key = tk;
+		key_len = 16;
+	}
+
+	/* the HMAC_MD5 transform looks like:
+	 *
+	 * MD5(K XOR opad, MD5(K XOR ipad, text))
+	 *
+	 * where K is an n byte key
+	 * ipad is the byte 0x36 repeated 64 times
+	 * opad is the byte 0x5c repeated 64 times
+	 * and text is the data being protected */
+
+	/* start out by storing key in pads */
+	memset(k_ipad, 0, sizeof(k_ipad));
+	memset(k_opad, 0, sizeof(k_opad));
+	//assert(key_len < sizeof(k_ipad));
+	memcpy(k_ipad, key, key_len);
+	memcpy(k_opad, key, key_len);
+
+	/* XOR key with ipad and opad values */
+	for (i = 0; i < 64; i++) {
+		k_ipad[i] ^= 0x36;
+		k_opad[i] ^= 0x5c;
+	}
+
+	/* perform inner MD5 */
+	MD5Init(&context);	/* init context for 1st pass */
+	MD5Update(&context, k_ipad, 64);	/* start with inner pad */
+	MD5Update(&context, data, data_len);	/* then text of datagram */
+	MD5Final(mac, &context);	/* finish up 1st pass */
+
+	/* perform outer MD5 */
+	MD5Init(&context);	/* init context for 2nd pass */
+	MD5Update(&context, k_opad, 64);	/* start with outer pad */
+	MD5Update(&context, mac, 16);	/* then results of 1st hash */
+	MD5Final(mac, &context);	/* finish up 2nd pass */
+}
+
+
+/**
+ * md5_mac:
+ * @key: pointer to the key used for MAC generation
+ * @key_len: length of the key in bytes
+ * @data: pointer to the data area for which the MAC is generated
+ * @data_len: length of the data in bytes
+ * @mac: pointer to the buffer holding space for the MAC; the buffer should
+ * have space for 128-bit (16 bytes) MD5 hash value
+ *
+ * md5_mac() determines the message authentication code by using secure hash
+ * MD5(key | data | key).
+ */
+static inline void md5_mac(u8 * key, size_t key_len, u8 * data, size_t data_len, u8 * mac)
+{
+	MD5_CTX context;
+
+	MD5Init(&context);
+	MD5Update(&context, key, key_len);
+	MD5Update(&context, data, data_len);
+	MD5Update(&context, key, key_len);
+	MD5Final(mac, &context);
+}
+
+//#ifndef ASM_MD5
 
 void SHAInit(SHA_CTX * ctx)
 {
@@ -392,7 +391,7 @@ void SHAInit(SHA_CTX * ctx)
 
 #define SHA_ROTL(X,n) ((((X) << (n)) | ((X) >> (32-(n)))) & 0xffffffffL)
 
-void SHAHashBlock(SHA_CTX * ctx)
+static void SHAHashBlock(SHA_CTX * ctx)
 {
 	int t;
 	unsigned long A, B, C, D, E, TEMP;
@@ -944,7 +943,7 @@ int aes_set_key(aes_context * ctx, uint8 * key, int nbits)
 
 /* AES 128-bit block encryption routine */
 
-void aes_encrypt(aes_context * ctx, uint8 input[16], uint8 output[16])
+static void aes_encrypt(aes_context * ctx, uint8 input[16], uint8 output[16])
 {
 	uint32 *RK, X0, X1, X2, X3, Y0, Y1, Y2, Y3;
 
@@ -1117,7 +1116,7 @@ void aes_decrypt(aes_context * ctx, uint8 input[16], uint8 output[16])
 	PUT_UINT32(X3, output, 12);
 }
 
-void hmac_sha1(unsigned char *text, int text_len, unsigned char *key,
+static void hmac_sha1(unsigned char *text, int text_len, unsigned char *key,
 	       int key_len, unsigned char *digest)
 {
 	SHA_CTX context;
@@ -1179,7 +1178,7 @@ void hmac_sha1(unsigned char *text, int text_len, unsigned char *key,
 * Uc = PRF(P, Uc-1)
 */
 
-void F(char *password, unsigned char *ssid, int ssidlength, int iterations,
+static void F(char *password, unsigned char *ssid, int ssidlength, int iterations,
        int count, unsigned char *output)
 {
 	unsigned char digest[36], digest1[SHA_DIGEST_LEN];

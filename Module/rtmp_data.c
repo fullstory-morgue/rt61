@@ -73,216 +73,1032 @@ UCHAR MapUserPriorityToAccessCategory[8] =
 QID_AC_VO, QID_AC_VO };
 
 // Macro for rx indication
-VOID REPORT_ETHERNET_FRAME_TO_LLC(IN PRTMP_ADAPTER pAd,
-				  IN PUCHAR p8023hdr,
-				  IN PUCHAR pData,
-				  IN ULONG DataSize,
-				  IN struct net_device *net_dev)
+static inline VOID REPORT_ETHERNET_FRAME_TO_LLC(IN PRTMP_ADAPTER pAd,
+				   IN struct sk_buff *skb,
+				   IN PUCHAR p8023hdr)
 {
-	struct sk_buff *pSkb;
+	// Tailor skb for 802.3
+	skb->dev = pAd->net_dev;
+	memcpy(skb_push(skb, LENGTH_802_3), p8023hdr, LENGTH_802_3);
+	skb->protocol = eth_type_trans(skb, pAd->net_dev);
 
-	if ((pSkb =
-	     __dev_alloc_skb(DataSize + LENGTH_802_3 + 2,
-			     MEM_ALLOC_FLAG)) != NULL) {
-		pSkb->dev = net_dev;
-		skb_reserve(pSkb, 2);	// 16 byte align the IP header
-		memcpy(skb_put(pSkb, LENGTH_802_3), p8023hdr, LENGTH_802_3);
-		memcpy(skb_put(pSkb, DataSize), pData, DataSize);
-		pSkb->protocol = eth_type_trans(pSkb, net_dev);
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa =
-		    pci_map_single(pAd->pPci_Dev,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocVa,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocSize, PCI_DMA_FROMDEVICE);
-
-		netif_rx(pSkb);
-
-		pAd->net_dev->last_rx = jiffies;
-		pAd->stats.rx_packets++;
-
-		pAd->Counters8023.GoodReceives++;
-	}
+	netif_rx(skb);
+	pAd->net_dev->last_rx = jiffies;
+	pAd->stats.rx_packets++;
+	pAd->Counters8023.GoodReceives++;
 }
 
 // Macro for rx indication
-VOID REPORT_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP_ADAPTER pAd,
-						IN PUCHAR p8023hdr,
-						IN PUCHAR pData,
-						IN ULONG DataSize,
-						IN struct net_device *net_dev)
-{
-#ifdef NONCOPY_RX
-//      PRXD_STRUC              pRxD;
-	struct sk_buff *pRxSkb =
-	    pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.pSkb;
-	struct sk_buff *pSkb = NULL;
-
-	// allocate a new one and update RxD
-	if ((pSkb =
-	     __dev_alloc_skb(RX_DMA_BUFFER_SIZE, MEM_ALLOC_FLAG)) != NULL) {
-		pRxSkb->dev = net_dev;
-		pRxSkb->data = pData;
-		pRxSkb->len = DataSize;
-		pRxSkb->tail = pRxSkb->data + pRxSkb->len;
-		memcpy(skb_push(pRxSkb, LENGTH_802_3), p8023hdr, LENGTH_802_3);
-
-		pRxSkb->protocol = eth_type_trans(pRxSkb, net_dev);
-
-		netif_rx(pRxSkb);
-
-		pAd->net_dev->last_rx = jiffies;
-		pAd->stats.rx_packets++;
-
-		RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_DRIVER);
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocSize =
-		    RX_DMA_BUFFER_SIZE;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.pSkb = pSkb;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocVa =
-		    pSkb->data;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa =
-		    pci_map_single(pAd->pPci_Dev,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocVa,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocSize, PCI_DMA_FROMDEVICE);
-
-		// Write RxD buffer address & allocated buffer length
-		//pRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
-		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;
-	} else {
-		RTMP_SET_PACKET_SOURCE(pRxSkb, PKTSRC_DRIVER);
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocSize =
-		    RX_DMA_BUFFER_SIZE;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.pSkb = pRxSkb;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocVa =
-		    pRxSkb->data;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa =
-		    pci_map_single(pAd->pPci_Dev,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocVa,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocSize, PCI_DMA_FROMDEVICE);
-
-		// Write RxD buffer address & allocated buffer length
-		//pRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
-		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;
-	}
-#else
-	struct sk_buff *pSkb;
-
-	if ((pSkb =
-	     __dev_alloc_skb(DataSize + LENGTH_802_3 + 2,
-			     MEM_ALLOC_FLAG)) != NULL) {
-		pSkb->dev = net_dev;
-		skb_reserve(pSkb, 2);	// 16 byte align the IP header
-		memcpy(skb_put(pSkb, LENGTH_802_3), p8023hdr, LENGTH_802_3);
-		memcpy(skb_put(pSkb, DataSize), pData, DataSize);
-		pSkb->protocol = eth_type_trans(pSkb, net_dev);
-
-		netif_rx(pSkb);
-
-		pAd->net_dev->last_rx = jiffies;
-		pAd->stats.rx_packets++;
-	}
-#endif
-}
-
-// Macro for rx indication
-VOID REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP_ADAPTER pAd,
+static inline VOID REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP_ADAPTER pAd,
+							  IN struct sk_buff *skb,
 							  IN PUCHAR p8023hdr,
-							  IN PUCHAR pData,
-							  IN ULONG DataSize1,
-							  IN ULONG DataSize2,
-							  IN struct net_device
-							  *net_dev)
+							  IN ULONG DataSize2)
 {
-	struct sk_buff *pRxSkb =
-	    pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.pSkb;
-	struct sk_buff *pSkb1 = NULL;
 	struct sk_buff *pSkb2 = NULL;
-	PUCHAR pData2;
-	PUCHAR phdr;
 
-	pData2 = pData + DataSize1 + LENGTH_802_3;
-	phdr = pData + DataSize1;
-
-	if ((pSkb2 =
-	     __dev_alloc_skb(DataSize2 + LENGTH_802_3 + 2,
-			     MEM_ALLOC_FLAG)) != NULL) {
-		pSkb2->dev = net_dev;
+	// Copy 2d packet from original 802.11 skb
+	if ((pSkb2 = __dev_alloc_skb(DataSize2 + LENGTH_802_3 + 2,
+			     	MEM_ALLOC_FLAG))) {
+		PUCHAR pData2 = skb->tail + LENGTH_802_3;
+		PUCHAR phdr = skb->tail;
+		pSkb2->dev = pAd->net_dev;
 		skb_reserve(pSkb2, 2);	// 16 byte align the IP header
 		memcpy(skb_put(pSkb2, LENGTH_802_3), phdr, LENGTH_802_3);
 		memcpy(skb_put(pSkb2, DataSize2), pData2, DataSize2);
-		pSkb2->protocol = eth_type_trans(pSkb2, net_dev);
-	} else {
-		return;
+		pSkb2->protocol = eth_type_trans(pSkb2, pAd->net_dev);
 	}
+	
+	// Tailor skb for 802.3
+	skb->dev = pAd->net_dev;
+	memcpy(skb_push(skb, LENGTH_802_3), p8023hdr, LENGTH_802_3);
+	skb->protocol = eth_type_trans(skb, pAd->net_dev);
 
-	// allocate a new one and update RxD
-	if ((pSkb1 =
-	     __dev_alloc_skb(RX_DMA_BUFFER_SIZE, MEM_ALLOC_FLAG)) != NULL) {
-		pRxSkb->dev = net_dev;
-		pRxSkb->data = pData;
-		pRxSkb->len = DataSize1;
-		pRxSkb->tail = pRxSkb->data + pRxSkb->len;
-		memcpy(skb_push(pRxSkb, LENGTH_802_3), p8023hdr, LENGTH_802_3);
+	netif_rx(skb);
+	pAd->stats.rx_packets++;
+	pAd->Counters8023.GoodReceives++;
 
-		pRxSkb->protocol = eth_type_trans(pRxSkb, net_dev);
-
-		netif_rx(pRxSkb);
+	if (pSkb2) {
 		netif_rx(pSkb2);
-
-		pAd->net_dev->last_rx = jiffies;
-		pAd->stats.rx_packets += 2;
-
-		RTMP_SET_PACKET_SOURCE(pSkb1, PKTSRC_DRIVER);
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocSize =
-		    RX_DMA_BUFFER_SIZE;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.pSkb = pSkb1;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocVa =
-		    pSkb1->data;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa =
-		    pci_map_single(pAd->pPci_Dev,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocVa,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocSize, PCI_DMA_FROMDEVICE);
-
-		// Write RxD buffer address & allocated buffer length
-		//pRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
-		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;
-	} else {
-		RTMP_SET_PACKET_SOURCE(pRxSkb, PKTSRC_DRIVER);
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocSize =
-		    RX_DMA_BUFFER_SIZE;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.pSkb = pRxSkb;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocVa =
-		    pRxSkb->data;
-		pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa =
-		    pci_map_single(pAd->pPci_Dev,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocVa,
-				   pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				   DmaBuf.AllocSize, PCI_DMA_FROMDEVICE);
-		dev_kfree_skb_any(pSkb2);
-		return;
-		// Write RxD buffer address & allocated buffer length
-		//pRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
-		//pRxD->BufPhyAddr = pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf.AllocPa;
+		pAd->stats.rx_packets++;
+		pAd->Counters8023.GoodReceives++;
 	}
+
+	pAd->net_dev->last_rx = jiffies;
 }
 
 // Enqueue this frame to MLME engine
 // We need to enqueue the whole frame because MLME need to pass data type
 // information from 802.11 header
-#define REPORT_MGMT_FRAME_TO_MLME(_pAd, _pFrame, _FrameSize, _Rssi, _PlcpSignal)        \
-{                                                                                       \
-    ULONG High32TSF, Low32TSF;                                                          \
-    RTMP_IO_READ32(_pAd, TXRX_CSR13, &High32TSF);                                       \
-    RTMP_IO_READ32(_pAd, TXRX_CSR12, &Low32TSF);                                        \
-    MlmeEnqueueForRecv(_pAd, High32TSF, Low32TSF, (UCHAR)_Rssi, _FrameSize, _pFrame, (UCHAR)_PlcpSignal);   \
+static inline VOID REPORT_MGMT_FRAME_TO_MLME(IN PRTMP_ADAPTER pAd,
+										IN struct sk_buff *skb)
+{
+    ULONG High32TSF, Low32TSF;
+	PRXD_STRUC pRxD = (PRXD_STRUC) &skb->cb;
+	RTMP_IO_READ32(pAd, TXRX_CSR13, &High32TSF);
+	RTMP_IO_READ32(pAd, TXRX_CSR12, &Low32TSF);
+	MlmeEnqueueForRecv(pAd, High32TSF, Low32TSF, pRxD->PlcpRssi,
+								skb->len, skb->data, pRxD->PlcpSignal);
 }
+
+/*
+	========================================================================
+
+	Routine	Description:
+		Search tuple cache for receive duplicate frame from unicast frames.
+
+	Arguments:
+		pAdapter		Pointer	to our adapter
+		pHeader			802.11 header of receiving frame
+
+	Return Value:
+		TRUE			found matched tuple cache
+		FALSE			no matched found
+
+	Note:
+
+	========================================================================
+*/
+static inline BOOLEAN RTMPSearchTupleCache(IN PRTMP_ADAPTER pAdapter,
+			     IN PHEADER_802_11 pHeader)
+{
+	INT Index;
+
+	for (Index = 0; Index < MAX_CLIENT; Index++) {
+		if (pAdapter->TupleCache[Index].Valid == FALSE)
+			continue;
+
+		if ((memcmp
+		     (pAdapter->TupleCache[Index].MacAddress, pHeader->Addr2,
+		      ETH_ALEN) == 0)
+		    && (pAdapter->TupleCache[Index].Sequence ==
+			pHeader->Sequence)
+		    && (pAdapter->TupleCache[Index].Frag == pHeader->Frag)) {
+//                      DBGPRINT(RT_DEBUG_TRACE,"DUPCHECK - duplicate frame hit entry %d\n", Index);
+			return (TRUE);
+		}
+	}
+	return (FALSE);
+}
+
+/*
+	========================================================================
+
+	Routine	Description:
+		Update tuple cache for new received unicast frames.
+
+	Arguments:
+		pAdapter		Pointer	to our adapter
+		pHeader			802.11 header of receiving frame
+
+	Return Value:
+		None
+
+	Note:
+
+	========================================================================
+*/
+static inline VOID RTMPUpdateTupleCache(IN PRTMP_ADAPTER pAdapter,
+										IN PHEADER_802_11 pHeader)
+{
+	UCHAR Index;
+
+	for (Index = 0; Index < MAX_CLIENT; Index++) {
+		if (pAdapter->TupleCache[Index].Valid == FALSE) {
+			// Add new entry
+			memcpy(pAdapter->TupleCache[Index].MacAddress,
+			       pHeader->Addr2, ETH_ALEN);
+			pAdapter->TupleCache[Index].Sequence =
+			    pHeader->Sequence;
+			pAdapter->TupleCache[Index].Frag = pHeader->Frag;
+			pAdapter->TupleCache[Index].Valid = TRUE;
+			pAdapter->TupleCacheLastUpdateIndex = Index;
+			DBGPRINT(RT_DEBUG_INFO,
+				 "DUPCHECK - Add Entry %d, MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
+				 Index,
+				 pAdapter->TupleCache[Index].MacAddress[0],
+				 pAdapter->TupleCache[Index].MacAddress[1],
+				 pAdapter->TupleCache[Index].MacAddress[2],
+				 pAdapter->TupleCache[Index].MacAddress[3],
+				 pAdapter->TupleCache[Index].MacAddress[4],
+				 pAdapter->TupleCache[Index].MacAddress[5]);
+			return;
+		} else
+		    if (memcmp
+			(pAdapter->TupleCache[Index].MacAddress, pHeader->Addr2,
+			 ETH_ALEN) == 0) {
+			// Update old entry
+			pAdapter->TupleCache[Index].Sequence =
+			    pHeader->Sequence;
+			pAdapter->TupleCache[Index].Frag = pHeader->Frag;
+			return;
+		}
+	}
+
+	// tuple cache full, replace the first inserted one (even though it may not be
+	// least referenced one)
+	if (Index == MAX_CLIENT) {
+		pAdapter->TupleCacheLastUpdateIndex++;
+		if (pAdapter->TupleCacheLastUpdateIndex >= MAX_CLIENT)
+			pAdapter->TupleCacheLastUpdateIndex = 0;
+		Index = pAdapter->TupleCacheLastUpdateIndex;
+
+		// replace with new entry
+		memcpy(pAdapter->TupleCache[Index].MacAddress, pHeader->Addr2,
+		       ETH_ALEN);
+		pAdapter->TupleCache[Index].Sequence = pHeader->Sequence;
+		pAdapter->TupleCache[Index].Frag = pHeader->Frag;
+		pAdapter->TupleCache[Index].Valid = TRUE;
+		DBGPRINT(RT_DEBUG_INFO,
+			 "DUPCHECK - replace Entry %d, MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
+			 Index, pAdapter->TupleCache[Index].MacAddress[0],
+			 pAdapter->TupleCache[Index].MacAddress[1],
+			 pAdapter->TupleCache[Index].MacAddress[2],
+			 pAdapter->TupleCache[Index].MacAddress[3],
+			 pAdapter->TupleCache[Index].MacAddress[4],
+			 pAdapter->TupleCache[Index].MacAddress[5]);
+	}
+}
+
+
+//#ifdef WPA_SUPPLICANT_SUPPORT
+static void ralink_michael_mic_failure(struct net_device *dev,
+				       PCIPHER_KEY pWpaKey)
+{
+	union iwreq_data wrqu;
+	char buf[128];
+
+	/* TODO: needed parameters: count, keyid, key type, TSC */
+
+	//Check for Group or Pairwise MIC error
+	if (pWpaKey->Type == PAIRWISE_KEY)
+		sprintf(buf, "MLME-MICHAELMICFAILURE.indication unicast");
+	else
+		sprintf(buf, "MLME-MICHAELMICFAILURE.indication broadcast");
+	memset(&wrqu, 0, sizeof(wrqu));
+	wrqu.data.length = strlen(buf);
+	//send mic error event to wpa_supplicant
+	wireless_send_event(dev, IWEVCUSTOM, &wrqu, buf);
+}
+
+//#endif
+
+
+/*
+	========================================================================
+
+	Routine	Description:
+		Process MIC error indication and record MIC error timer.
+
+	Arguments:
+		pAd		Pointer	to our adapter
+		pWpaKey			Pointer	to the WPA key structure
+
+	Return Value:
+		None
+
+	Note:
+
+	========================================================================
+*/
+static inline VOID RTMPReportMicError(IN PRTMP_ADAPTER pAd, IN PCIPHER_KEY pWpaKey)
+{
+	unsigned long Now;
+	struct {
+		NDIS_802_11_STATUS_INDICATION Status;
+		NDIS_802_11_AUTHENTICATION_REQUEST Request;
+	} Report;
+
+//#ifdef WPA_SUPPLICANT_SUPPORT
+	if (pAd->PortCfg.WPA_Supplicant == TRUE) {
+		//report mic error to wpa_supplicant
+		ralink_michael_mic_failure(pAd->net_dev, pWpaKey);
+	}
+//#endif
+
+	// 0. Set Status to indicate auth error
+	Report.Status.StatusType = Ndis802_11StatusType_Authentication;
+
+	// 1. Check for Group or Pairwise MIC error
+	if (pWpaKey->Type == PAIRWISE_KEY)
+		Report.Request.Flags = NDIS_802_11_AUTH_REQUEST_PAIRWISE_ERROR;
+	else
+		Report.Request.Flags = NDIS_802_11_AUTH_REQUEST_GROUP_ERROR;
+
+	// 2. Copy AP MAC address
+	memcpy(Report.Request.Bssid, pWpaKey->BssId, ETH_ALEN);
+
+	// 3. Calculate length
+	Report.Request.Length = sizeof(NDIS_802_11_AUTHENTICATION_REQUEST);
+
+	// 4. Record Last MIC error time and count
+	Now = jiffies;
+	if (pAd->PortCfg.MicErrCnt == 0) {
+		pAd->PortCfg.MicErrCnt++;
+		pAd->PortCfg.LastMicErrorTime = Now;
+	} else if (pAd->PortCfg.MicErrCnt == 1) {
+		if ((pAd->PortCfg.LastMicErrorTime + (60 * 1000)) < Now) {
+			// Update Last MIC error time, this did not violate two MIC errors within 60 seconds
+			pAd->PortCfg.LastMicErrorTime = Now;
+		} else {
+			pAd->PortCfg.LastMicErrorTime = Now;
+			// Violate MIC error counts, MIC countermeasures kicks in
+			pAd->PortCfg.MicErrCnt++;
+			// We shall block all reception
+			// We shall clean all Tx ring and disassoicate from AP after next EAPOL frame
+			RTMPRingCleanUp(pAd, QID_AC_BK);
+			RTMPRingCleanUp(pAd, QID_AC_BE);
+			RTMPRingCleanUp(pAd, QID_AC_VI);
+			RTMPRingCleanUp(pAd, QID_AC_VO);
+			RTMPRingCleanUp(pAd, QID_HCCA);
+		}
+	} else {
+		// MIC error count >= 2
+		// This should not happen
+		;
+	}
+}
+
+/*
+	========================================================================
+
+	Routine	Description:
+		Check Rx descriptor, return NDIS_STATUS_FAILURE if any error dound
+
+	Arguments:
+		pRxD		Pointer	to the Rx descriptor
+
+	Return Value:
+		NDIS_STATUS_SUCCESS		No err
+		NDIS_STATUS_FAILURE		Error
+
+	Note:
+
+	========================================================================
+*/
+static inline NDIS_STATUS RTMPCheckRxError(IN PRTMP_ADAPTER pAd,
+			     IN PHEADER_802_11 pHeader, IN PRXD_STRUC pRxD)
+{
+	PCIPHER_KEY pWpaKey;
+
+	// Drop ToDs promiscous frame, it is opened due to CCX 2 channel load statistics
+	if (pHeader->FC.ToDs)
+		return (NDIS_STATUS_FAILURE);
+
+	// Drop not U2M frames, cant's drop here because we will drop beacon in this case
+	// I am kind of doubting the U2M bit operation
+	// if (pRxD->U2M == 0)
+	//      return(NDIS_STATUS_FAILURE);
+
+	// drop decyption fail frame
+	if (pRxD->CipherErr) {
+		UINT i;
+		PUCHAR ptr = (PUCHAR) pHeader;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "ERROR: CRC ok but CipherErr %d (len = %d, Mcast=%d, Cipher=%s, KeyId=%d)\n",
+			 pRxD->CipherErr, pRxD->DataByteCnt,
+			 pRxD->Mcast | pRxD->Bcast, CipherName[pRxD->CipherAlg],
+			 pRxD->KeyIndex);
+#if 1
+		for (i = 0; i < 64; i += 16) {
+			DBGPRINT_RAW(RT_DEBUG_TRACE,
+				     "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x - %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
+				     *ptr, *(ptr + 1), *(ptr + 2), *(ptr + 3),
+				     *(ptr + 4), *(ptr + 5), *(ptr + 6),
+				     *(ptr + 7), *(ptr + 8), *(ptr + 9),
+				     *(ptr + 10), *(ptr + 11), *(ptr + 12),
+				     *(ptr + 13), *(ptr + 14), *(ptr + 15));
+			ptr += 16;
+		}
+#endif
+
+		//
+		// MIC Error
+		//
+		if (pRxD->CipherErr == 2) {
+			pWpaKey = &pAd->SharedKey[pRxD->KeyIndex];
+			RTMPReportMicError(pAd, pWpaKey);
+			DBGPRINT(RT_DEBUG_ERROR, "Rx MIC Value error\n");
+		}
+
+		return (NDIS_STATUS_FAILURE);
+	}
+
+	return (NDIS_STATUS_SUCCESS);
+}
+
+/*
+	========================================================================
+
+	Routine	Description:
+		Apply packet filter policy, return NDIS_STATUS_FAILURE if this frame
+		should be dropped.
+
+	Arguments:
+		pAd		Pointer	to our adapter
+		pRxD			Pointer	to the Rx descriptor
+		pHeader			Pointer to the 802.11 frame header
+
+	Return Value:
+		NDIS_STATUS_SUCCESS		Accept frame
+		NDIS_STATUS_FAILURE		Drop Frame
+
+	Note:
+		Maganement frame should bypass this filtering rule.
+
+	========================================================================
+*/
+static inline NDIS_STATUS RTMPApplyPacketFilter(IN PRTMP_ADAPTER pAd,
+				  IN PRXD_STRUC pRxD, IN PHEADER_802_11 pHeader)
+{
+	UCHAR i;
+
+	// 0. Management frame should bypass all these filtering rules.
+	if (pHeader->FC.Type == BTYPE_MGMT)
+		return (NDIS_STATUS_SUCCESS);
+
+	// 0.1  Drop all Rx frames if MIC countermeasures kicks in
+	if (pAd->PortCfg.MicErrCnt >= 2) {
+		DBGPRINT(RT_DEBUG_TRACE, "Rx dropped by MIC countermeasure\n");
+		return (NDIS_STATUS_FAILURE);
+	}
+	// 1. Drop unicast to me packet if NDIS_PACKET_TYPE_DIRECTED is FALSE
+	if (pRxD->U2M) {
+		if (pAd->bAcceptDirect == FALSE) {
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "Rx U2M dropped by RX_FILTER\n");
+			return (NDIS_STATUS_FAILURE);
+		}
+	}
+	// 2. Drop broadcast packet if NDIS_PACKET_TYPE_BROADCAST is FALSE
+	else if (pRxD->Bcast) {
+		if (pAd->bAcceptBroadcast == FALSE) {
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "Rx BCAST dropped by RX_FILTER\n");
+			return (NDIS_STATUS_FAILURE);
+		}
+	}
+	// 3. Drop (non-Broadcast) multicast packet if NDIS_PACKET_TYPE_ALL_MULTICAST is false
+	//    and NDIS_PACKET_TYPE_MULTICAST is false.
+	//    If NDIS_PACKET_TYPE_MULTICAST is true, but NDIS_PACKET_TYPE_ALL_MULTICAST is false.
+	//    We have to deal with multicast table lookup & drop not matched packets.
+	else if (pRxD->Mcast) {
+		if (pAd->bAcceptAllMulticast == FALSE) {
+			if (pAd->bAcceptMulticast == FALSE) {
+				DBGPRINT(RT_DEBUG_INFO,
+					 "Rx MCAST dropped by RX_FILTER\n");
+				return (NDIS_STATUS_FAILURE);
+			} else {
+				// Selected accept multicast packet based on multicast table
+				for (i = 0; i < pAd->NumberOfMcastAddresses;
+				     i++) {
+					if (memcmp
+					    (pHeader->Addr1, pAd->McastTable[i],
+					     ETH_ALEN) == 0)
+						break;	// Matched
+				}
+
+				// Not matched
+				if (i == pAd->NumberOfMcastAddresses) {
+					DBGPRINT(RT_DEBUG_INFO,
+						 "Rx MCAST %02x:%02x:%02x:%02x:%02x:%02x dropped by RX_FILTER\n",
+						 pHeader->Addr1[0],
+						 pHeader->Addr1[1],
+						 pHeader->Addr1[2],
+						 pHeader->Addr1[3],
+						 pHeader->Addr1[4],
+						 pHeader->Addr1[5]);
+					return (NDIS_STATUS_FAILURE);
+				} else {
+					DBGPRINT(RT_DEBUG_INFO,
+						 "Accept multicast %02x:%02x:%02x:%02x:%02x:%02x\n",
+						 pHeader->Addr1[0],
+						 pHeader->Addr1[1],
+						 pHeader->Addr1[2],
+						 pHeader->Addr1[3],
+						 pHeader->Addr1[4],
+						 pHeader->Addr1[5]);
+				}
+			}
+		}
+	}
+	// 4. Not U2M, not Mcast, not Bcast, must be unicast to other DA.
+	//    Since we did not implement promiscuous mode, just drop this kind of packet for now.
+	else if (pAd->bAcceptPromiscuous == FALSE)
+		return (NDIS_STATUS_FAILURE);
+
+	return (NDIS_STATUS_SUCCESS);
+}
+
+
+static inline UCHAR RxFrameCheck (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
+{
+	PHEADER_802_11 pHeader = (PHEADER_802_11) skb->data;
+	// WARNING: only 24 first bytes of RxD here. Don't use further bytes !!!
+	PRXD_STRUC pRxD = (PRXD_STRUC) &skb->cb;
+	
+	// Check for all RxD errors
+	if (RTMPCheckRxError(pAd, pHeader, pRxD) != NDIS_STATUS_SUCCESS) {
+		DBGPRINT(RT_DEBUG_INFO, "RxDone - drop error frame (len=%d)\n",
+			 											pRxD->DataByteCnt);
+		pAd->Counters8023.RxErrors++;
+		return NDIS_STATUS_FAILURE;	// give up this frame
+	}
+	// Apply packet filtering rule based on microsoft requirements.
+	if (RTMPApplyPacketFilter(pAd, pRxD, pHeader) != NDIS_STATUS_SUCCESS) {
+		DBGPRINT(RT_DEBUG_INFO, "RxDone - frame filtered out (len=%d)\n",
+			 											pRxD->DataByteCnt);
+		pAd->Counters8023.RxErrors++;
+		return NDIS_STATUS_FAILURE;	// give up this frame
+	}
+	// Increase 802.11 counters & general receive counters
+	INC_COUNTER64(pAd->WlanCounters.ReceivedFragmentCount);
+	pAd->RalinkCounters.OneSecRxOkCnt++;
+
+#ifdef RALINK_ATE
+	if ((!pRxD->U2M) && pAd->ate.Mode != ATE_STASTART) {
+		CHAR RealRssi;
+
+		RealRssi = ConvertToRssi(pAd, (UCHAR) pRxD->PlcpRssi, RSSI_NO_1);
+		pAd->PortCfg.LastRssi = RealRssi + pAd->BbpRssiToDbmDelta;
+		pAd->PortCfg.AvgRssiX8 = (pAd->PortCfg.AvgRssiX8
+								-pAd->PortCfg.AvgRssi) + pAd->PortCfg.LastRssi;
+		pAd->PortCfg.AvgRssi = pAd->PortCfg.AvgRssiX8 >> 3;
+
+		if ((pAd->RfIcType == RFIC_5325) || (pAd->RfIcType == RFIC_2529)) {
+			pAd->PortCfg.LastRssi2 = ConvertToRssi(pAd,
+											(UCHAR) pRxD->PlcpSignal, RSSI_NO_2)
+											+ pAd->BbpRssiToDbmDelta;
+		}
+	}
+#endif				// RALINK_ATE
+
+	// DUPLICATE FRAME CHECK:
+	//   Check retry bit. If this bit is on, search the cache with SA & sequence
+	//   as index, if matched, discard this frame, otherwise, update cache
+	//   This check only apply to unicast data & management frames
+	if ((pRxD->U2M) && (pHeader->FC.Retry) &&
+	    					(RTMPSearchTupleCache(pAd, pHeader) == TRUE)) {
+		DBGPRINT(RT_DEBUG_INFO, "RxDone- drop DUPLICATE frame(len=%d)\n",
+			 				pRxD->DataByteCnt);
+		INC_COUNTER64(pAd->WlanCounters.FrameDuplicateCount);
+		return NDIS_STATUS_FAILURE;	// give up this frame
+	} else	// Update Tuple Cache
+		RTMPUpdateTupleCache(pAd, pHeader);
+
+	if ((pRxD->U2M) || ((pHeader->FC.SubType == SUBTYPE_BEACON)
+			&& (memcmp(&pAd->PortCfg.Bssid, &pHeader->Addr2, ETH_ALEN) == 0))) {
+		if (((pAd->Antenna.field.NumOfAntenna == 0)
+					&& (pAd->NicConfig2.field.Enable4AntDiversity == 1))
+		    		|| ((pAd->Antenna.field.NumOfAntenna == 2)
+					&& (pAd->Antenna.field.TxDefaultAntenna == 0)
+					&& (pAd->Antenna.field.RxDefaultAntenna == 0))) {
+			if (pAd->RxAnt.EvaluatePeriod != 2) {
+				COLLECT_RX_ANTENNA_AVERAGE_RSSI(pAd, ConvertToRssi(pAd,
+						(UCHAR) pRxD->PlcpRssi, RSSI_NO_1),
+				     	ConvertToRssi(pAd, (UCHAR) pRxD->PlcpSignal,RSSI_NO_2));
+			}
+			pAd->PortCfg.NumOfAvgRssiSample++;
+		}
+	}
+#ifdef RALINK_ATE
+	if (pAd->ate.Mode != ATE_STASTART) {
+		return NDIS_STATUS_FAILURE;
+	}
+#endif
+
+	return NDIS_STATUS_SUCCESS;
+}
+
+
+static inline UCHAR RxMonitorFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
+{
+	PRXD_STRUC pRxD = (IN PRXD_STRUC) &skb->cb;
+	wlan_ng_prism2_header *ph;
+
+	if (!pAd->PortCfg.RFMONTX) {
+		/* Set up the wlan-ng prismheader */
+		if (skb_headroom(skb) < sizeof(wlan_ng_prism2_header))
+			pskb_expand_head(skb, sizeof(wlan_ng_prism2_header), 0, GFP_ATOMIC);
+
+		ph = (wlan_ng_prism2_header *) skb_push(skb,
+												sizeof(wlan_ng_prism2_header));
+		memset(ph, 0, sizeof(wlan_ng_prism2_header));
+
+		ph->msgcode = DIDmsg_lnxind_wlansniffrm;
+		ph->msglen = sizeof(wlan_ng_prism2_header);
+		strcpy(ph->devname, pAd->net_dev->name);
+
+		ph->hosttime.did = DIDmsg_lnxind_wlansniffrm_hosttime;
+		ph->hosttime.len = 4;
+		ph->hosttime.data = jiffies;
+
+		ph->mactime.did = DIDmsg_lnxind_wlansniffrm_mactime;
+		ph->mactime.len = 4;
+
+		ph->channel.did = DIDmsg_lnxind_wlansniffrm_channel;
+		ph->channel.len = 4;
+		ph->channel.data = pAd->PortCfg.Channel;
+
+		ph->signal.did = DIDmsg_lnxind_wlansniffrm_signal;
+		ph->signal.len = 4;
+		ph->signal.data = pRxD->PlcpRssi;
+
+		ph->noise.did = DIDmsg_lnxind_wlansniffrm_noise;
+		ph->noise.len = 4;
+		ph->noise.data = pAd->BbpWriteLatch[17];
+
+		ph->rssi.did = DIDmsg_lnxind_wlansniffrm_rssi;
+		ph->rssi.len = 4;
+		ph->rssi.data = ph->signal.data -ph->noise.data;
+
+		ph->rate.did = DIDmsg_lnxind_wlansniffrm_rate;
+		ph->rate.len = 4;
+		if (pRxD->Ofdm == 1) {
+			int i;
+			for (i = 4; i < 12; i++)
+				if (pRxD->PlcpSignal == RateIdToPlcpSignal[i])
+					ph->rate.data = _11G_RATES[i] * 2;
+		} else
+			ph->rate.data = pRxD->PlcpSignal / 5;
+
+		ph->istx.did = DIDmsg_lnxind_wlansniffrm_istx;
+		ph->istx.len = 4;
+
+		ph->frmlen.did = DIDmsg_lnxind_wlansniffrm_frmlen;
+		ph->frmlen.len = 4;
+		ph->frmlen.data = pRxD->DataByteCnt;
+		/* end prismheader setup */
+	}
+
+	skb->dev = pAd->net_dev;
+	skb->mac.raw = skb->data;
+	skb->pkt_type = PACKET_OTHERHOST;
+	skb->protocol = htons(ETH_P_802_2);
+	skb->ip_summed = CHECKSUM_NONE;
+	netif_rx(skb);
+	
+	return NDIS_STATUS_SUCCESS; 
+}
+
+
+static inline UCHAR RxFirstFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb,
+								IN OUT PUCHAR Header802_3,
+								IN PUCHAR pDA, IN PUCHAR pSA,
+								IN USHORT Msdu2Size)
+{
+	PHEADER_802_11 pHeader = (PHEADER_802_11) skb->data;
+	PUCHAR pRemovedLLCSNAP;
+
+	CONVERT_TO_802_3(Header802_3, pDA, pSA, skb, pRemovedLLCSNAP);
+	pAd->FragFrame.Flags &= 0xFFFFFFFE;
+
+	// First Fragment: LLC/SNAP needs to be removed. Store it for later
+	// TKIP MIC verification.
+	if (pHeader->FC.MoreFrag && pRemovedLLCSNAP) {
+		memcpy(pAd->FragFrame.Header_LLC, pRemovedLLCSNAP, LENGTH_802_1_H);
+		skb_pull(skb, LENGTH_802_1_H);
+		pAd->FragFrame.Flags |= 0x01;
+	}
+	
+	//
+	// Fragmented frame? Store this one, prepare for the next
+	//
+	if (pHeader->FC.MoreFrag) {
+		// Prepare re-assembly buffer
+#ifndef NONCOPY_RX
+		// COPY_RX: Current skbuff is too small to host next incoming fragments.
+		// We need to allocate a larger fragments re-assembly skbuff
+		struct sk_buff *fskb;
+		if (!(fskb = dev_alloc_skb(LENGTH_802_3 + 2 + MAX_FRAME_SIZE)))
+			return NDIS_STATUS_FAILURE; 	// Can't allocate. Drop whole stuff
+		// Store first fragment data
+		skb_reserve(fskb, LENGTH_802_3 + 2);
+		memcpy(skb_put(fskb, skb->len), skb->data, skb->len);
+		skb = fskb;
+#endif
+		// Init re-assembly buffer
+		pAd->FragFrame.skb = skb;
+		memcpy(pAd->FragFrame.Header802_3, Header802_3, LENGTH_802_3);
+		pAd->FragFrame.Sequence = pHeader->Sequence;
+		pAd->FragFrame.LastFrag = pHeader->Frag;		// Should be 0
+#ifdef NONCOPY_RX	// We keep the skb for re-assembly, don't touch it
+		return NDIS_STATUS_SUCCESS;
+#else		// We copied skb data, you can release it
+		return NDIS_STATUS_FAILURE; 
+#endif
+	}
+
+	//	
+	// Packet is complete...
+	//
+	// Is this an aggregation?
+	if ((pHeader->FC.Order == 1) && (Msdu2Size > 0)) {
+		USHORT Payload2Size;
+#ifndef NONCOPY_RX
+		PUCHAR pData2;
+#endif
+		pAd->RalinkCounters.OneSecRxAggregationCount++;
+		skb->len -= Msdu2Size;
+		skb->tail = skb->data + skb->len;
+		Payload2Size = Msdu2Size - LENGTH_802_3;
+#ifndef NONCOPY_RX
+		// Report first packet to upper layer
+		REPORT_ETHERNET_FRAME_TO_LLC(pAd, skb, Header802_3);
+		DBGPRINT_RAW(RT_DEBUG_INFO,
+		     "!!! report agregated MSDU1 to LLC (len=%d, proto=%02x:%02x) %02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x\n",
+		     LENGTH_802_3 + Payload1Size,
+		     Header802_3 [12], Header802_3 [13],
+		     *skb->data, *(skb->data + 1), *(skb->data + 2), *(skb->data + 3),
+		     *(skb->data + 4), *(skb->data + 5), *(skb->data + 6), *(skb->data + 7));
+		// Report second packet to upper layer
+		pData2 = skb->tail; 
+		skb->data = skb->tail + LENGTH_802_3;
+		skb->len = Payload2Size;
+		skb->tail = skb->data + skb->len;
+		REPORT_ETHERNET_FRAME_TO_LLC(pAd, skb, pData2);
+		DBGPRINT_RAW (RT_DEBUG_INFO,
+			    "!!! report agregated MSDU2 to LLC (len=%d, proto=%02x:%02x) %02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x\n",
+			    LENGTH_802_3 + Payload2Size,
+			    *(pData2 - 2), *(pData2 - 1), *pData2,
+				*(pData2 + 1), *(pData2 + 2), *(pData2 + 3),
+			    *(pData2 + 4), *(pData2 + 5), *(pData2 + 6),
+			    *(pData2 + 7));
+#else
+		// Report both packets to upper layer
+		REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(pAd,
+			     							skb, Header802_3, Payload2Size);
+#endif
+		return NDIS_STATUS_SUCCESS;
+	}
+	
+	//
+	// No fragmentation nor aggregation (plain old lone packet in frame)
+	//
+	// Report it to upper layer
+	REPORT_ETHERNET_FRAME_TO_LLC(pAd, skb, Header802_3);
+	DBGPRINT_RAW
+		    (RT_DEBUG_INFO,
+		    "!!! report DATA (no frag) to LLC (len=%d, proto=%02x:%02x) %02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x\n",
+		    skb->len, Header802_3[12], Header802_3[13],
+    		*skb->data, *(skb->data + 1), *(skb->data + 2), *(skb->data + 3),
+     		*(skb->data + 4), *(skb->data + 5), *(skb->data + 6), *(skb->data + 7));
+	
+	return NDIS_STATUS_SUCCESS;
+}
+
+
+static inline UCHAR RxNextFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb,
+								IN OUT PUCHAR Header802_3,
+								IN PUCHAR pDA, IN PUCHAR pSA,
+								IN USHORT Msdu2Size)
+{
+	PHEADER_802_11 pHeader = (PHEADER_802_11) skb->data;
+	// WARNING: only 24 first bytes of RxD here. Don't use further bytes !!!
+	PRXD_STRUC pRxD = (PRXD_STRUC) &skb->cb;
+	struct sk_buff *fskb = pAd->FragFrame.skb;		// Re-assembly buffer
+	
+	//
+	// Middle & End of fragment burst fragments (i.e. no LLC-SNAP header)
+	//
+	
+	// Is fragment not from the same sequence?
+	// Is invalid fragment number?
+	// Does fragment exceeds max size limit?
+	if ((pHeader->Sequence != pAd->FragFrame.Sequence)
+	    			|| (pHeader->Frag != (pAd->FragFrame.LastFrag + 1))
+	    			|| ((fskb->len + skb->len) > MAX_FRAME_SIZE)) {
+	    // Reset re-assembly buffer
+	    if (fskb)
+			dev_kfree_skb_irq(fskb);
+		memset(&pAd->FragFrame, 0, sizeof(FRAGMENT_FRAME));
+		return NDIS_STATUS_FAILURE;	// give up this frame
+	}
+	
+	// concatenate this fragment into the re-assembly buffer
+	memcpy(skb_put(fskb, skb->len), skb->data, skb->len);
+	pAd->FragFrame.LastFrag = pHeader->Frag;	// Update fragment number
+
+	// More fragment to come (is this a middle fragment)?
+	if (pHeader->FC.MoreFrag)
+		return NDIS_STATUS_FAILURE;	// Release this fragment
+		
+	//
+	// Last fragment, let's bring it all back together
+	//
+	
+	// For TKIP frame, calculate the MIC value
+	if (pRxD->CipherAlg == CIPHER_TKIP) {
+		PCIPHER_KEY pWpaKey = &pAd->SharedKey[pRxD->KeyIndex];
+
+		// Minus MIC length
+		fskb->len -= 8;
+		fskb->tail -= 8;
+
+		if (pAd->FragFrame.Flags & 0x00000001) {
+			// originally there's an LLC/SNAP field in the first fragment
+			// but been removed in re-assembly buffer. here we have to include
+			// this LLC/SNAP field upon calculating TKIP MIC
+			// skb->data = pAd->FragFrame.Header_LLC;
+			// Copy LLC data to the position in front of real data for MIC calculation
+			memcpy(skb_push(fskb, LENGTH_802_1_H), pAd->FragFrame.Header_LLC,
+					LENGTH_802_1_H);
+		}
+
+		if (RTMPTkipCompareMICValue(pAd, skb->data, pDA, pSA, pWpaKey->RxMic,
+														skb->len) == FALSE) {
+			DBGPRINT_RAW(RT_DEBUG_ERROR, "Rx MIC Value error 2\n");
+			RTMPReportMicError(pAd, pWpaKey);
+			// Clear Fragment frame contents
+			dev_kfree_skb_irq(fskb);
+			memset(&pAd->FragFrame, 0, sizeof(FRAGMENT_FRAME));
+			return NDIS_STATUS_FAILURE;	// give up this frame
+		}
+
+		// MIC ok, remove LLC/SNAP field if any
+		if (pAd->FragFrame.Flags & 0x00000001)
+			skb_pull(pAd->FragFrame.skb, LENGTH_802_1_H);
+		
+	}
+	
+	REPORT_ETHERNET_FRAME_TO_LLC(pAd, fskb, pAd->FragFrame.Header802_3);
+//	DBGPRINT_RAW(RT_DEBUG_TRACE, "!!! report DATA (fragmented) to LLC (len=%d) !!!\n", pAd->FragFrame.RxSize);
+
+	// Clear Fragment frame contents
+	memset(&pAd->FragFrame, 0, sizeof(FRAGMENT_FRAME));
+
+	return NDIS_STATUS_FAILURE;		// Release last fragment's skbuff
+}
+
+
+static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
+{
+	PHEADER_802_11 pHeader = (PHEADER_802_11) skb->data;
+	// WARNING: only 24 first bytes of RxD here. Don't use further bytes !!!
+	PRXD_STRUC pRxD = (PRXD_STRUC) &skb->cb;
+	UCHAR Header802_3[14];
+	PUCHAR pDA, pSA;
+	USHORT Msdu2Size;
+	USHORT Offset = 0;
+	// Skip 802.11 header
+	skb_pull(skb, LENGTH_802_11);
+	
+	// before LINK UP, all DATA frames are rejected
+	if (!OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
+		DBGPRINT(RT_DEBUG_TRACE,
+					"RxDone- drop DATA frame before LINK UP(len=%d)\n",
+			 		pRxD->DataByteCnt);
+		// TODO: dis-associate the AP if U2M? class3 error. better no. will cause trouble when reconnecting to same AP
+		return NDIS_STATUS_FAILURE;
+	}
+	// Drop not my BSS frame
+	if (pRxD->MyBss == 0)
+		return NDIS_STATUS_FAILURE;	// give up this frame
+
+	// Drop NULL (+CF-POLL) (+CF-ACK) data frame
+	if ((pHeader->FC.SubType & 0x04) == 0x04) {
+		DBGPRINT(RT_DEBUG_TRACE, "RxDone- drop NULL frame(subtype=%d)\n",
+			 		pHeader->FC.SubType);
+		return NDIS_STATUS_FAILURE;	// give up this frame
+	}
+	// remove the 2 extra QOS CNTL bytes
+	if (pHeader->FC.SubType & 0x08) {
+		skb_pull(skb, 2);
+		Offset += 2;
+	}
+	// remove the 2 extra AGGREGATION bytes
+	Msdu2Size = 0;
+	if (pHeader->FC.Order) {
+		Msdu2Size = *skb->data + (*(skb->data + 1) << 8);
+		if ((Msdu2Size <= 1536) && (Msdu2Size < skb->len)) {
+			skb_pull(skb, 2);
+		} else
+			Msdu2Size = 0;
+	}
+	// prepare 802.3 header: DA=addr1; SA=addr3 in INFRA mode, DA=addr2 in ADHOC mode
+	pDA = pHeader->Addr1;
+	if (INFRA_ON(pAd))
+		pSA = pHeader->Addr3;
+	else
+		pSA = pHeader->Addr2;
+
+	if (pHeader->FC.Wep) {	// frame received in encrypted format
+		if (pRxD->CipherAlg == CIPHER_NONE)	// unsupported cipher suite
+			return NDIS_STATUS_FAILURE;	// give up this frame
+	} else {	// frame received in clear text
+		// encryption in-use but receive a non-EAPOL clear text frame, drop it
+		if (((pAd->PortCfg.WepStatus == Ndis802_11Encryption1Enabled)
+		     	|| (pAd->PortCfg.WepStatus == Ndis802_11Encryption2Enabled)
+		     	|| (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled))
+		    	&& (pAd->PortCfg.PrivacyFilter == Ndis802_11PrivFilter8021xWEP)
+		    	&& (memcmp(EAPOL_LLC_SNAP, skb->data, LENGTH_802_1_H) != 0))
+			return NDIS_STATUS_FAILURE;	// give up this frame
+	}
+
+	//
+	// Case 1:  Process Broadcast & Multicast data frame
+	//
+	if (pRxD->Bcast || pRxD->Mcast) {
+		PUCHAR pRemovedLLCSNAP;
+
+		INC_COUNTER64(pAd->WlanCounters.MulticastReceivedFrameCount);
+
+		// Drop Mcast/Bcast frame with fragment bit on
+		if (pHeader->FC.MoreFrag)
+			return NDIS_STATUS_FAILURE;	// give up this frame
+
+		// Filter out Bcast frame which AP relayed for us
+		if (pHeader->FC.FrDs && (memcmp(pHeader->Addr3, pAd->CurrentAddress,
+		      								ETH_ALEN) == 0))
+			return NDIS_STATUS_FAILURE;	// give up this frame
+
+		// build 802.3 header and decide if remove the 8-byte LLC/SNAP encapsulation
+		CONVERT_TO_802_3(Header802_3, pDA, pSA, skb, pRemovedLLCSNAP);
+		REPORT_ETHERNET_FRAME_TO_LLC(pAd, skb, Header802_3);
+//      DBGPRINT_RAW(RT_DEBUG_TRACE, "!!! report BCAST DATA to LLC (len=%d) !!!\n", skb->len);
+		return NDIS_STATUS_SUCCESS;
+	}
+	
+	//
+	// Case 2:  Process unicast-to-me DATA frame
+	//
+	if (!(pRxD->U2M || pAd->bAcceptPromiscuous))
+		return NDIS_STATUS_FAILURE;
+// TODO: temp removed
+//                                      // Send PS-Poll for AP to send next data frame
+//                                      if ((pHeader->FC.MoreData) && INFRA_ON(pAd) && (pAd->PortCfg.Psm == PWR_SAVE))
+//                                              EnqueuePsPoll(pAd);
+	pAd->RalinkCounters.OneSecRxOkDataCnt++;
+
+	// Update Rx data rate for OID query
+	if (pAd->Mlme.bTxRateReportPeriod)
+		RECORD_LATEST_RX_DATA_RATE(pAd, pRxD);
+
+	//
+	// 2.1  Special EAPoL frame?
+	//
+	if (memcmp(EAPOL_LLC_SNAP, skb->data, LENGTH_802_1_H) == 0) {
+
+		// 2.1.1  WPA supplicant enabled
+//#ifdef WPA_SUPPLICANT_SUPPORT
+		if (pAd->PortCfg.WPA_Supplicant) {
+			// All EAPoL frames have to pass to upper layer
+			// (ex. WPA_SUPPLICANT daemon)
+			// TBD : process fragmented EAPol frames
+			PUCHAR pRemovedLLCSNAP;
+			int success = 0;
+
+			// In 802.1x mode, if the received frame is EAP-SUCCESS packet,
+			// turn on the PortSecured variable
+			if ((pAd->PortCfg.IEEE8021X)
+					&& (EAP_CODE_SUCCESS == RTMPCheckWPAframeForEapCode(pAd,
+							 							skb->data, skb->len,
+							 							LENGTH_802_1_H))) {
+				DBGPRINT_RAW (RT_DEBUG_TRACE, "Receive EAP-SUCCESS Packet\n");
+				pAd->PortCfg.PortSecured = WPA_802_1X_PORT_SECURED;
+				success = 1;
+			}
+			// build 802.3 header (might remove the 8-byte LLC/SNAP encaps.)
+			CONVERT_TO_802_3(Header802_3, pDA, pSA, skb, pRemovedLLCSNAP);
+			REPORT_ETHERNET_FRAME_TO_LLC(pAd, skb, Header802_3);
+			DBGPRINT_RAW(RT_DEBUG_TRACE,
+			     		"!!! report EAPoL DATA to LLC (len=%d) !!!\n",
+			     		skb->len);
+
+			// For static wep mode, need to set wep key to Asic again
+			if (success && (pAd->PortCfg.IEEE8021x_required_keys == 0)) {
+				int idx = pAd->PortCfg.DefaultKeyId;
+//				for (idx=0; idx < 4; idx++)
+//				{
+				DBGPRINT_RAW(RT_DEBUG_TRACE,
+								"Set WEP key to Asic again =>\n");
+
+				if (pAd->PortCfg.DesireSharedKey[idx].KeyLen != 0) {
+					pAd->SharedKey[idx].KeyLen =
+									pAd->PortCfg.DesireSharedKey[idx].KeyLen;
+					memcpy(pAd->SharedKey[idx].Key, 
+									pAd->PortCfg.DesireSharedKey[idx].Key,
+							     	pAd->SharedKey[idx].KeyLen);
+					pAd->SharedKey[idx].CipherAlg =
+									pAd->PortCfg.DesireSharedKey[idx].CipherAlg;
+					AsicAddSharedKeyEntry(pAd, 0, (UCHAR) idx,
+					     			pAd->SharedKey[idx].CipherAlg,
+					     			pAd->SharedKey[idx].Key,
+					     			NULL, NULL);
+				}
+//				}
+			}
+
+			return NDIS_STATUS_SUCCESS;
+			
+		} else
+//#else
+		// 2.1.2  Onboard MLME enabled
+		if (pAd->PortCfg.WpaState != SS_NOTUSE) {
+			// Special DATA frame that has to pass to MLME
+			// EAPOL handshaking frames when driver supplicant enabled,
+			// pass to MLME for special process
+			skb_push(skb, LENGTH_802_11 + Offset);
+			REPORT_MGMT_FRAME_TO_MLME(pAd, skb);
+			DBGPRINT_RAW(RT_DEBUG_TRACE,
+			     			"!!! report EAPOL DATA to MLME (len=%d) !!!\n",
+				     		skb->len);
+			return NDIS_STATUS_FAILURE;	// end of processing this frame
+		}
+//#endif
+	}
+	
+	//
+	// 2.2  Normal data frame
+	//
+	
+	// First fragment (perhaps only)?
+	if (pHeader->Frag == 0)
+		return RxFirstFragment(pAd, skb, &Header802_3[0], pDA, pSA, Msdu2Size);
+
+	// Next fragment (perhaps last)
+	return RxNextFragment(pAd, skb, &Header802_3[0], pDA, pSA, Msdu2Size);
+	
+}
+
+
+VOID RxProcessFrameQueue(unsigned long pAdd)
+{
+#ifdef RX_TASKLET
+#define MONITOR_FRAME	1
+#define DATA_FRAME		2	  
+#define MGMT_FRAME 		4
+	PRTMP_ADAPTER pAd = (PRTMP_ADAPTER)pAdd;
+	struct sk_buff *skb;
+	PRXD_STRUC pRxD;
+	UCHAR pcktType = 0;
+	UCHAR result;
+
+	// Process frame queue
+	// Drop frame without notifying upper layer nor MLME on error
+	while (TRUE) {
+		skb = skb_dequeue(&pAd->RxQueue);
+		// Nothing left to process? Exit.
+		if(!skb)
+			return;
+		// WARNING: Only 24 first bytes of pRxD available in skb->cb !!! 		 
+		pRxD = (PRXD_STRUC) &skb->cb;
+		pcktType = skb->cb[24];
+		result = NDIS_STATUS_FAILURE;
+		if (pcktType == MONITOR_FRAME)
+			result = RxMonitorFrame(pAd, skb);
+		else if (RxFrameCheck(pAd, skb) == NDIS_STATUS_SUCCESS) {
+			if (pcktType == DATA_FRAME)
+				result = RxDataFrame(pAd, skb);
+			else if (pcktType == MGMT_FRAME)
+				REPORT_MGMT_FRAME_TO_MLME(pAd, skb);
+		}
+		// Drop frame? Release skbuff
+		if (result == NDIS_STATUS_FAILURE)
+			dev_kfree_skb_irq(skb);
+	}
+#endif
+}
+
 
 /*
 	========================================================================
@@ -304,18 +1120,22 @@ VOID REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP_ADAPTER pAd,
 VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 {
 	PRXD_STRUC pRxD;
-	USHORT Offset = 0;
 #ifdef BIG_ENDIAN
 	PRXD_STRUC pDestRxD;
 	RXD_STRUC RxD;
 #endif
+	PRTMP_DMABUF DmaBuf;
+	struct sk_buff *skb;
 	PHEADER_802_11 pHeader;
-	PUCHAR pData;
-	USHORT DataSize, Msdu2Size;
-	PUCHAR pDA, pSA;
-	UCHAR Header802_3[14];
 	int Count;
-	struct net_device *net_dev = pAd->net_dev;
+#ifdef RX_TASKLET
+	UCHAR pcktType;
+#else
+	UCHAR BufferConsummed;
+#endif
+#ifdef NONCOPY_RX
+	struct sk_buff *nskb;
+#endif	
 #if SL_IRQSAVE
 	ULONG IrqFlags;
 #endif
@@ -329,938 +1149,169 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 	spin_lock_bh(&pAd->RxRingLock);
 #endif
 
-	for (Count = 0; Count < MAX_RX_PROCESS; Count++) {
-		// Point to Rx indexed rx ring descriptor
+	for (Count = 0; ; ) {
+
+		// Point to Rx indexed ring descriptor
 #ifndef BIG_ENDIAN
-		// Point to Rx indexed rx ring descriptor
-		pRxD =
-		    (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-		    AllocVa;
+		// Point to Rx indexed ring descriptor
+		pRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
 #else
-		pDestRxD =
-		    (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-		    AllocVa;
+		pDestRxD = (PRXD_STRUC) pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].AllocVa;
 		RxD = *pDestRxD;
 		pRxD = &RxD;
 		RTMPDescriptorEndianChange((PUCHAR) pRxD, TYPE_RXD);
 #endif
+		DmaBuf = &pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].DmaBuf;
 
-		// In case of false alarm or processed at last instance
+		// Rx descriptor is not ours? Nothing left to do, exit
 		if (pRxD->Owner != DESC_OWN_HOST)
 			break;
 
+		// Increase Total bytes received counter (error or not)
+		pAd->RalinkCounters.ReceivedByteCount += pRxD->DataByteCnt;
+		pAd->RalinkCounters.RxCount++;
+
+		// We can't allocate new shared skbuff? Keep this skbuff
+#ifdef NONCOPY_RX
+		skb = DmaBuf->pSkb;
+		if (!(nskb = __dev_alloc_skb(RX_DMA_BUFFER_SIZE, MEM_ALLOC_FLAG))) {
+			nskb = DmaBuf->pSkb;
+#else
+		if (!(skb = __dev_alloc_skb(pRxD->DataByteCnt, MEM_ALLOC_FLAG))) {
+#endif
+			goto drop; 	// drop frame, don't re-map DMA
+		}
+
 		// start process the received frame. break out this "do {...} while(FALSE)"
-		// loop without indication to upper layer or MLME if any error in this
-		// received frame.
+		// loop without indication to upper layer or MLME if any error
 		do {
-			pci_unmap_single(pAd->pPci_Dev,
-					 pAd->RxRing.Cell[pAd->RxRing.
-							  CurRxIndex].DmaBuf.
-					 AllocPa,
-					 pAd->RxRing.Cell[pAd->RxRing.
-							  CurRxIndex].DmaBuf.
-					 AllocSize, PCI_DMA_FROMDEVICE);
+			// Release DMA shared mem
+			pci_unmap_single(pAd->pPci_Dev, DmaBuf->AllocPa, DmaBuf->AllocSize,
+								PCI_DMA_FROMDEVICE);
+#ifdef NONCOPY_RX
+			// Update skb
+			skb->len = pRxD->DataByteCnt;
+			skb->tail = skb->data + skb->len;
+#else
+			// Fill current skbuff
+			memcpy(skb_put(skb, pRxD->DataByteCnt), DmaBuf->AllocVa,
+					pRxD->DataByteCnt);
+#endif
+			// Save RxDescriptor's useful data in skbuff private field
+			memcpy(&skb->cb, pRxD, 24);
 			// Point to Rx ring buffer where stores the real data frame
-			pData =
-			    (PUCHAR) (pAd->RxRing.Cell[pAd->RxRing.CurRxIndex].
-				      DmaBuf.AllocVa);
-			pHeader = (PHEADER_802_11) pData;
-
+			pHeader = (PHEADER_802_11) skb->data;
 #ifdef BIG_ENDIAN
-			RTMPFrameEndianChange(pAd, (PUCHAR) pHeader, DIR_READ,
-					      FALSE);
+			RTMPFrameEndianChange(pAd, (PUCHAR) pHeader, DIR_READ, FALSE);
 #endif
 
+#ifdef RX_TASKLET
+			// Filter frames according to type (and MONITOR mode)
+			pcktType = 0;
+			if (pAd->PortCfg.BssType == BSS_MONITOR)
+				pcktType = MONITOR_FRAME;					// Monitor mode
+			else  {
+				if (pHeader->FC.Type == BTYPE_DATA)			// Data frame
+					pcktType = DATA_FRAME;
+				else if (pHeader->FC.Type == BTYPE_MGMT)	// Mgmt frame
+					pcktType = MGMT_FRAME;
+			}
+			// Shall we keep this frame?
+			if (pcktType != 0) {
+				skb->cb[24] = pcktType;
+				// Enqueue current skbuff for Rx processing
+				skb_queue_tail(&pAd->RxQueue, skb);
+				Count++;
+			}
+		} while (FALSE);
+		
+#else
+			// We'll need to release skbuff if no one else does !!!
+			BufferConsummed = NDIS_STATUS_FAILURE;
+
+			// Monitor mode on?
 			if (pAd->PortCfg.BssType == BSS_MONITOR) {
-				struct sk_buff *skb;
-				wlan_ng_prism2_header *ph;
-
-				if ((skb =
-				     __dev_alloc_skb(2048,
-						     GFP_DMA | GFP_ATOMIC)) !=
-				    NULL) {
-					if (pAd->PortCfg.RFMONTX == FALSE) {
-						/* Set up the wlan-ng prismheader */
-						if (skb_headroom(skb) <
-						    sizeof
-						    (wlan_ng_prism2_header))
-							pskb_expand_head(skb,
-									 sizeof
-									 (wlan_ng_prism2_header),
-									 0,
-									 GFP_ATOMIC);
-
-						ph = (wlan_ng_prism2_header *)
-						    skb_push(skb,
-							     sizeof
-							     (wlan_ng_prism2_header));
-						memset(ph, 0,
-						       sizeof
-						       (wlan_ng_prism2_header));
-
-						ph->msgcode =
-						    DIDmsg_lnxind_wlansniffrm;
-						ph->msglen =
-						    sizeof
-						    (wlan_ng_prism2_header);
-						strcpy(ph->devname,
-						       pAd->net_dev->name);
-
-						ph->hosttime.did =
-						    DIDmsg_lnxind_wlansniffrm_hosttime;
-						ph->hosttime.len = 4;
-						ph->hosttime.data = jiffies;
-
-						ph->mactime.did =
-						    DIDmsg_lnxind_wlansniffrm_mactime;
-						ph->mactime.len = 4;
-
-						ph->channel.did =
-						    DIDmsg_lnxind_wlansniffrm_channel;
-						ph->channel.len = 4;
-						ph->channel.data =
-						    pAd->PortCfg.Channel;
-
-						ph->signal.did =
-						    DIDmsg_lnxind_wlansniffrm_signal;
-						ph->signal.len = 4;
-						ph->signal.data =
-						    pRxD->PlcpRssi;
-
-						ph->noise.did =
-						    DIDmsg_lnxind_wlansniffrm_noise;
-						ph->noise.len = 4;
-						ph->noise.data =
-						    pAd->BbpWriteLatch[17];
-
-						ph->rssi.did =
-						    DIDmsg_lnxind_wlansniffrm_rssi;
-						ph->rssi.len = 4;
-						ph->rssi.data =
-						    ph->signal.data -
-						    ph->noise.data;
-
-						ph->rate.did =
-						    DIDmsg_lnxind_wlansniffrm_rate;
-						ph->rate.len = 4;
-						if (pRxD->Ofdm == 1) {
-							int i;
-
-							for (i = 4; i < 12; i++)
-								if (pRxD->
-								    PlcpSignal
-								    ==
-								    RateIdToPlcpSignal
-								    [i])
-									ph->rate.data = _11G_RATES[i] * 2;
-						} else {
-							ph->rate.data =
-							    pRxD->PlcpSignal /
-							    5;
-						}
-
-						ph->istx.did =
-						    DIDmsg_lnxind_wlansniffrm_istx;
-						ph->istx.len = 4;
-
-						ph->frmlen.did =
-						    DIDmsg_lnxind_wlansniffrm_frmlen;
-						ph->frmlen.len = 4;
-						ph->frmlen.data =
-						    pRxD->DataByteCnt;
-						/* end prismheader setup */
-					}
-
-					skb->dev = pAd->net_dev;
-					memcpy(skb_put(skb, pRxD->DataByteCnt),
-					       pData, pRxD->DataByteCnt);
-					skb->mac.raw = skb->data;
-					skb->pkt_type = PACKET_OTHERHOST;
-					skb->protocol = htons(ETH_P_802_2);
-					skb->ip_summed = CHECKSUM_NONE;
-					netif_rx(skb);
-				}
+				BufferConsummed = RxMonitorFrame(pAd, skb);	// Eats up all frames
 				break;
 			}
-			// Increase Total receive byte counter after real data received no mater any error or not
-			pAd->RalinkCounters.ReceivedByteCount +=
-			    pRxD->DataByteCnt;
-			pAd->RalinkCounters.RxCount++;
 
-			// Check for all RxD errors
-			if (RTMPCheckRxError(pAd, pHeader, pRxD) !=
-			    NDIS_STATUS_SUCCESS) {
-				DBGPRINT(RT_DEBUG_INFO,
-					 "RxDone - drop error frame (len=%d)\n",
-					 pRxD->DataByteCnt);
-				pAd->Counters8023.RxErrors++;
-				break;	// give up this frame
-			}
-			// Apply packet filtering rule based on microsoft requirements.
-			if (RTMPApplyPacketFilter(pAd, pRxD, pHeader) !=
-			    NDIS_STATUS_SUCCESS) {
-				DBGPRINT(RT_DEBUG_INFO,
-					 "RxDone - frame filtered out (len=%d)\n",
-					 pRxD->DataByteCnt);
-				pAd->Counters8023.RxErrors++;
-				break;	// give up this frame
-			}
-			// Increase 802.11 counters & general receive counters
-			INC_COUNTER64(pAd->WlanCounters.ReceivedFragmentCount);
-			pAd->RalinkCounters.OneSecRxOkCnt++;
-
-#ifdef RALINK_ATE
-			if ((!pRxD->U2M) && pAd->ate.Mode != ATE_STASTART) {
-				CHAR RealRssi;
-
-				RealRssi =
-				    ConvertToRssi(pAd, (UCHAR) pRxD->PlcpRssi,
-						  RSSI_NO_1);
-				pAd->PortCfg.LastRssi =
-				    RealRssi + pAd->BbpRssiToDbmDelta;
-				pAd->PortCfg.AvgRssiX8 =
-				    (pAd->PortCfg.AvgRssiX8 -
-				     pAd->PortCfg.AvgRssi) +
-				    pAd->PortCfg.LastRssi;
-				pAd->PortCfg.AvgRssi =
-				    pAd->PortCfg.AvgRssiX8 >> 3;
-
-				if ((pAd->RfIcType == RFIC_5325)
-				    || (pAd->RfIcType == RFIC_2529)) {
-					pAd->PortCfg.LastRssi2 =
-					    ConvertToRssi(pAd,
-							  (UCHAR) pRxD->
-							  PlcpSignal,
-							  RSSI_NO_2) +
-					    pAd->BbpRssiToDbmDelta;
-				}
-			}
-#endif				// RALINK_ATE
-
-			// DUPLICATE FRAME CHECK:
-			//   Check retry bit. If this bit is on, search the cache with SA & sequence
-			//   as index, if matched, discard this frame, otherwise, update cache
-			//   This check only apply to unicast data & management frames
-			if ((pRxD->U2M) &&
-			    (pHeader->FC.Retry) &&
-			    (RTMPSearchTupleCache(pAd, pHeader) == TRUE)) {
-				DBGPRINT(RT_DEBUG_INFO,
-					 "RxDone- drop DUPLICATE frame(len=%d)\n",
-					 pRxD->DataByteCnt);
-				INC_COUNTER64(pAd->WlanCounters.
-					      FrameDuplicateCount);
-				break;	// give up this frame
-			} else	// Update Tuple Cache
-				RTMPUpdateTupleCache(pAd, pHeader);
-
-			if ((pRxD->U2M)
-			    || ((pHeader->FC.SubType == SUBTYPE_BEACON)
-				&&
-				(memcmp
-				 (&pAd->PortCfg.Bssid, &pHeader->Addr2,
-				  ETH_ALEN) == 0))) {
-				if (((pAd->Antenna.field.NumOfAntenna == 0)
-				     && (pAd->NicConfig2.field.
-					 Enable4AntDiversity == 1))
-				    || ((pAd->Antenna.field.NumOfAntenna == 2)
-					&& (pAd->Antenna.field.
-					    TxDefaultAntenna == 0)
-					&& (pAd->Antenna.field.
-					    RxDefaultAntenna == 0))) {
-					if (pAd->RxAnt.EvaluatePeriod != 2) {
-						COLLECT_RX_ANTENNA_AVERAGE_RSSI
-						    (pAd,
-						     ConvertToRssi(pAd,
-								   (UCHAR)
-								   pRxD->
-								   PlcpRssi,
-								   RSSI_NO_1),
-						     ConvertToRssi(pAd,
-								   (UCHAR)
-								   pRxD->
-								   PlcpSignal,
-								   RSSI_NO_2));
-					}
-					pAd->PortCfg.NumOfAvgRssiSample++;
-				}
-			}
-#ifdef RALINK_ATE
-			if (pAd->ate.Mode != ATE_STASTART) {
+			if (RxFrameCheck(pAd, skb) == NDIS_STATUS_FAILURE)
 				break;
-			}
-#endif
 
 #if 0
 			// TODO: to be removed
 			if (pRxD->CipherAlg) {
 				int i;
 				PUCHAR ptr = (PUCHAR) pHeader;
-				DBGPRINT_RAW(RT_DEBUG_TRACE,
-					     "%s decrypt with Key#%d Len=%d\n",
-					     CipherName[pRxD->CipherAlg],
-					     pRxD->KeyIndex, pRxD->DataByteCnt);
+				DBGPRINT_RAW(RT_DEBUG_TRACE, "%s decrypt with Key#%d Len=%d\n",
+					     					CipherName[pRxD->CipherAlg],
+					     					pRxD->KeyIndex, pRxD->DataByteCnt);
 				for (i = 0; i < 64; i += 16) {
 					DBGPRINT_RAW(RT_DEBUG_TRACE,
 						     "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x - %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
-						     *ptr, *(ptr + 1),
-						     *(ptr + 2), *(ptr + 3),
-						     *(ptr + 4), *(ptr + 5),
-						     *(ptr + 6), *(ptr + 7),
-						     *(ptr + 8), *(ptr + 9),
-						     *(ptr + 10), *(ptr + 11),
-						     *(ptr + 12), *(ptr + 13),
-						     *(ptr + 14), *(ptr + 15));
+						     *ptr, *(ptr + 1), *(ptr + 2), *(ptr + 3),
+						     *(ptr + 4), *(ptr + 5), *(ptr + 6), *(ptr + 7),
+						     *(ptr + 8), *(ptr + 9), *(ptr + 10), *(ptr + 11),
+						     *(ptr + 12), *(ptr + 13), *(ptr + 14), *(ptr + 15));
 					ptr += 16;
 				}
 			}
 #endif
-			// pData : Pointer skip the     first 24 bytes, 802.11 HEADER
-			pData += LENGTH_802_11;
-			DataSize = (USHORT) pRxD->DataByteCnt - LENGTH_802_11;
-
 			//
 			// CASE I. receive a DATA frame
 			//
 			if (pHeader->FC.Type == BTYPE_DATA) {
-				// before LINK UP, all DATA frames are rejected
-				if (!OPSTATUS_TEST_FLAG
-				    (pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
-					DBGPRINT(RT_DEBUG_TRACE,
-						 "RxDone- drop DATA frame before LINK UP(len=%d)\n",
-						 pRxD->DataByteCnt);
-					// TODO: dis-associate the AP if U2M? class3 error. better no. will cause trouble when reconnecting to same AP
-					break;
-				}
-				// Drop not my BSS frame
-				if (pRxD->MyBss == 0)
-					break;	// give up this frame
-
-				// Drop NULL (+CF-POLL) (+CF-ACK) data frame
-				if ((pHeader->FC.SubType & 0x04) == 0x04) {
-					DBGPRINT(RT_DEBUG_TRACE,
-						 "RxDone- drop NULL frame(subtype=%d)\n",
-						 pHeader->FC.SubType);
-					break;	// give up this frame
-				}
-				// remove the 2 extra QOS CNTL bytes
-				if (pHeader->FC.SubType & 0x08) {
-					pData += 2;
-					DataSize -= 2;
-					Offset += 2;
-				}
-				// remove the 2 extra AGGREGATION bytes
-				Msdu2Size = 0;
-				if (pHeader->FC.Order) {
-					Msdu2Size =
-					    *pData + (*(pData + 1) << 8);
-					if ((Msdu2Size <= 1536)
-					    && (Msdu2Size < DataSize)) {
-						pData += 2;
-						DataSize -= 2;
-					} else
-						Msdu2Size = 0;
-				}
-				// prepare 802.3 header: DA=addr1; SA=addr3 in INFRA mode, DA=addr2 in ADHOC mode
-				pDA = pHeader->Addr1;
-				if (INFRA_ON(pAd))
-					pSA = pHeader->Addr3;
-				else
-					pSA = pHeader->Addr2;
-
-				if (pHeader->FC.Wep)	// frame received in encrypted format
-				{
-					if (pRxD->CipherAlg == CIPHER_NONE)	// unsupported cipher suite
-						break;	// give up this frame
-
-				} else	// frame received in clear text
-				{
-					// encryption in-use but receive a non-EAPOL clear text frame, drop it
-					if (((pAd->PortCfg.WepStatus ==
-					      Ndis802_11Encryption1Enabled)
-					     || (pAd->PortCfg.WepStatus ==
-						 Ndis802_11Encryption2Enabled)
-					     || (pAd->PortCfg.WepStatus ==
-						 Ndis802_11Encryption3Enabled))
-					    && (pAd->PortCfg.PrivacyFilter ==
-						Ndis802_11PrivFilter8021xWEP)
-					    &&
-					    (memcmp
-					     (EAPOL_LLC_SNAP, pData,
-					      LENGTH_802_1_H) != 0))
-						break;	// give up this frame
-				}
-
-				//
-				// Case I.1  Process Broadcast & Multicast data frame
-				//
-				if (pRxD->Bcast || pRxD->Mcast) {
-					PUCHAR pRemovedLLCSNAP;
-
-					INC_COUNTER64(pAd->WlanCounters.
-						      MulticastReceivedFrameCount);
-
-					// Drop Mcast/Bcast frame with fragment bit on
-					if (pHeader->FC.MoreFrag)
-						break;	// give up this frame
-
-					// Filter out Bcast frame which AP relayed for us
-					if (pHeader->FC.FrDs
-					    &&
-					    (memcmp
-					     (pHeader->Addr3,
-					      pAd->CurrentAddress,
-					      ETH_ALEN) == 0))
-						break;	// give up this frame
-
-					// build 802.3 header and decide if remove the 8-byte LLC/SNAP encapsulation
-					CONVERT_TO_802_3(Header802_3, pDA, pSA,
-							 pData, DataSize,
-							 pRemovedLLCSNAP);
-					REPORT_ETHERNET_FRAME_TO_LLC(pAd,
-								     Header802_3,
-								     pData,
-								     DataSize,
-								     net_dev);
-//                                      DBGPRINT_RAW(RT_DEBUG_TRACE, "!!! report BCAST DATA to LLC (len=%d) !!!\n", DataSize);
-				}
-				//
-				// Case I.2  Process unicast-to-me DATA frame
-				//
-				else if (pRxD->U2M
-					 || pAd->bAcceptPromiscuous == TRUE) {
-// TODO: temp removed
-//                                      // Send PS-Poll for AP to send next data frame
-//                                      if ((pHeader->FC.MoreData) && INFRA_ON(pAd) && (pAd->PortCfg.Psm == PWR_SAVE))
-//                                              EnqueuePsPoll(pAd);
-
-					pAd->RalinkCounters.OneSecRxOkDataCnt++;
-
-					// Update Rx data rate for OID query
-					if (pAd->Mlme.bTxRateReportPeriod) {
-						RECORD_LATEST_RX_DATA_RATE(pAd,
-									   pRxD);
-					}
-//#ifdef WPA_SUPPLICANT_SUPPORT
-					if (pAd->PortCfg.WPA_Supplicant == TRUE) {
-						// All EAPoL frames have to pass to upper layer (ex. WPA_SUPPLICANT daemon)
-						// TBD : process fragmented EAPol frames
-						if (memcmp
-						    (EAPOL_LLC_SNAP, pData,
-						     LENGTH_802_1_H) == 0) {
-							PUCHAR pRemovedLLCSNAP;
-							int success = 0;
-
-							// In 802.1x mode, if the received frame is EAP-SUCCESS packet, turn on the PortSecured variable
-							if (pAd->PortCfg.
-							    IEEE8021X == TRUE
-							    && (EAP_CODE_SUCCESS
-								==
-								RTMPCheckWPAframeForEapCode
-								(pAd, pData,
-								 DataSize,
-								 LENGTH_802_1_H)))
-							{
-								DBGPRINT_RAW
-								    (RT_DEBUG_TRACE,
-								     "Receive EAP-SUCCESS Packet\n");
-								pAd->PortCfg.
-								    PortSecured
-								    =
-								    WPA_802_1X_PORT_SECURED;
-
-								success = 1;
-							}
-							// build 802.3 header and decide if remove the 8-byte LLC/SNAP encapsulation
-							CONVERT_TO_802_3
-							    (Header802_3, pDA,
-							     pSA, pData,
-							     DataSize,
-							     pRemovedLLCSNAP);
-							REPORT_ETHERNET_FRAME_TO_LLC
-							    (pAd, Header802_3,
-							     pData, DataSize,
-							     net_dev);
-							DBGPRINT_RAW
-							    (RT_DEBUG_TRACE,
-							     "!!! report EAPoL DATA to LLC (len=%d) !!!\n",
-							     DataSize);
-
-							if (success) {
-								// For static wep mode, need to set wep key to Asic again
-								if (pAd->
-								    PortCfg.
-								    IEEE8021x_required_keys
-								    == 0) {
-									int idx;
-
-									idx =
-									    pAd->
-									    PortCfg.
-									    DefaultKeyId;
-									//for (idx=0; idx < 4; idx++)
-									{
-										DBGPRINT_RAW
-										    (RT_DEBUG_TRACE,
-										     "Set WEP key to Asic again =>\n");
-
-										if (pAd->PortCfg.DesireSharedKey[idx].KeyLen != 0) {
-											pAd->
-											    SharedKey
-											    [idx].
-											    KeyLen
-											    =
-											    pAd->
-											    PortCfg.
-											    DesireSharedKey
-											    [idx].
-											    KeyLen;
-											memcpy
-											    (pAd->
-											     SharedKey
-											     [idx].
-											     Key,
-											     pAd->
-											     PortCfg.
-											     DesireSharedKey
-											     [idx].
-											     Key,
-											     pAd->
-											     SharedKey
-											     [idx].
-											     KeyLen);
-
-											pAd->
-											    SharedKey
-											    [idx].
-											    CipherAlg
-											    =
-											    pAd->
-											    PortCfg.
-											    DesireSharedKey
-											    [idx].
-											    CipherAlg;
-
-											AsicAddSharedKeyEntry
-											    (pAd,
-											     0,
-											     (UCHAR)
-											     idx,
-											     pAd->
-											     SharedKey
-											     [idx].
-											     CipherAlg,
-											     pAd->
-											     SharedKey
-											     [idx].
-											     Key,
-											     NULL,
-											     NULL);
-										}
-									}
-								}
-							}
-
-							break;
-						}
-					} else {
-//#else
-						// Special DATA frame that has to pass to MLME
-						// EAPOL handshaking frames when driver supplicant enabled, pass to MLME for special process
-						if ((memcmp
-						     (EAPOL_LLC_SNAP, pData,
-						      LENGTH_802_1_H) == 0)
-						    && (pAd->PortCfg.WpaState !=
-							SS_NOTUSE)) {
-							DataSize +=
-							    LENGTH_802_11 +
-							    Offset;
-							REPORT_MGMT_FRAME_TO_MLME
-							    (pAd, pHeader,
-							     DataSize,
-							     pRxD->PlcpRssi,
-							     pRxD->PlcpSignal);
-							DBGPRINT_RAW
-							    (RT_DEBUG_TRACE,
-							     "!!! report EAPOL DATA to MLME (len=%d) !!!\n",
-							     DataSize);
-							break;	// end of processing this frame
-						}
-//#endif
-					}
-
-					if (pHeader->Frag == 0)	// First or Only fragment
-					{
-						PUCHAR pRemovedLLCSNAP;
-
-						CONVERT_TO_802_3(Header802_3,
-								 pDA, pSA,
-								 pData,
-								 DataSize,
-								 pRemovedLLCSNAP);
-						pAd->FragFrame.Flags &=
-						    0xFFFFFFFE;
-
-						// Firt Fragment & LLC/SNAP been removed. Keep the removed LLC/SNAP for later on
-						// TKIP MIC verification.
-						if (pHeader->FC.MoreFrag
-						    && pRemovedLLCSNAP) {
-							memcpy(pAd->FragFrame.
-							       Header_LLC,
-							       pRemovedLLCSNAP,
-							       LENGTH_802_1_H);
-							//DataSize -= LENGTH_802_1_H;
-							//pData += LENGTH_802_1_H;
-							pAd->FragFrame.Flags |=
-							    0x01;
-						}
-						// One & The only fragment
-						if (pHeader->FC.MoreFrag ==
-						    FALSE) {
-							if ((pHeader->FC.Order == 1) && (Msdu2Size > 0))	// this is an aggregation
-							{
-								USHORT
-								    Payload1Size,
-								    Payload2Size;
-#ifndef NONCOPY_RX
-								PUCHAR pData2;
-#endif
-
-								pAd->
-								    RalinkCounters.
-								    OneSecRxAggregationCount++;
-								Payload1Size =
-								    DataSize -
-								    Msdu2Size;
-								Payload2Size =
-								    Msdu2Size -
-								    LENGTH_802_3;
-#ifndef NONCOPY_RX
-								REPORT_ETHERNET_FRAME_TO_LLC
-								    (pAd,
-								     Header802_3,
-								     pData,
-								     Payload1Size,
-								     net_dev);
-								DBGPRINT_RAW
-								    (RT_DEBUG_INFO,
-								     "!!! report agregated MSDU1 to LLC (len=%d, proto=%02x:%02x) %02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x\n",
-								     LENGTH_802_3
-								     +
-								     Payload1Size,
-								     Header802_3
-								     [12],
-								     Header802_3
-								     [13],
-								     *pData,
-								     *(pData +
-								       1),
-								     *(pData +
-								       2),
-								     *(pData +
-								       3),
-								     *(pData +
-								       4),
-								     *(pData +
-								       5),
-								     *(pData +
-								       6),
-								     *(pData +
-								       7));
-
-								pData2 =
-								    pData +
-								    Payload1Size
-								    +
-								    LENGTH_802_3;
-								REPORT_ETHERNET_FRAME_TO_LLC
-								    (pAd,
-								     pData +
-								     Payload1Size,
-								     pData2,
-								     Payload2Size,
-								     net_dev);
-								DBGPRINT_RAW
-								    (RT_DEBUG_INFO,
-								     "!!! report agregated MSDU2 to LLC (len=%d, proto=%02x:%02x) %02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x\n",
-								     LENGTH_802_3
-								     +
-								     Payload2Size,
-								     *(pData2 -
-								       2),
-								     *(pData2 -
-								       1),
-								     *pData2,
-								     *(pData2 +
-								       1),
-								     *(pData2 +
-								       2),
-								     *(pData2 +
-								       3),
-								     *(pData2 +
-								       4),
-								     *(pData2 +
-								       5),
-								     *(pData2 +
-								       6),
-								     *(pData2 +
-								       7));
-#else
-								REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY
-								    (pAd,
-								     Header802_3,
-								     pData,
-								     Payload1Size,
-								     Payload2Size,
-								     net_dev);
-								pRxD->
-								    BufPhyAddr =
-								    pAd->RxRing.
-								    Cell[pAd->
-									 RxRing.
-									 CurRxIndex].
-								    DmaBuf.
-								    AllocPa;
-#endif
-							} else {
-#if 0
-								REPORT_ETHERNET_FRAME_TO_LLC
-								    (pAd,
-								     Header802_3,
-								     pData,
-								     DataSize,
-								     net_dev);
-
-#endif
-
-								REPORT_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY
-								    (pAd,
-								     Header802_3,
-								     pData,
-								     DataSize,
-								     net_dev);
-#ifdef NONCOPY_RX
-								pRxD->
-								    BufPhyAddr =
-								    pAd->RxRing.
-								    Cell[pAd->
-									 RxRing.
-									 CurRxIndex].
-								    DmaBuf.
-								    AllocPa;
-#endif
-
-								DBGPRINT_RAW
-								    (RT_DEBUG_INFO,
-								     "!!! report DATA (no frag) to LLC (len=%d, proto=%02x:%02x) %02x:%02x:%02x:%02x-%02x:%02x:%02x:%02x\n",
-								     DataSize,
-								     Header802_3
-								     [12],
-								     Header802_3
-								     [13],
-								     *pData,
-								     *(pData +
-								       1),
-								     *(pData +
-								       2),
-								     *(pData +
-								       3),
-								     *(pData +
-								       4),
-								     *(pData +
-								       5),
-								     *(pData +
-								       6),
-								     *(pData +
-								       7));
-							}
-						}
-						// First fragment - record the 802.3 header and frame body
-						else {
-							memcpy(&pAd->FragFrame.
-							       Buffer
-							       [LENGTH_802_3],
-							       pData, DataSize);
-							memcpy(pAd->FragFrame.
-							       Header802_3,
-							       Header802_3,
-							       LENGTH_802_3);
-							pAd->FragFrame.RxSize =
-							    DataSize;
-							pAd->FragFrame.
-							    Sequence =
-							    pHeader->Sequence;
-							pAd->FragFrame.LastFrag = pHeader->Frag;	// Should be 0
-						}
-					}
-					// Middle & End of fragment burst fragments
-					else {
-						// No LLC-SNAP header in except the first fragment frame
-
-						if ((pHeader->Sequence !=
-						     pAd->FragFrame.Sequence)
-						    || (pHeader->Frag !=
-							(pAd->FragFrame.
-							 LastFrag + 1))) {
-							// Fragment is not the same sequence or out of fragment number order
-							// Clear Fragment frame contents
-							memset(&pAd->FragFrame,
-							       0,
-							       sizeof
-							       (FRAGMENT_FRAME));
-							break;	// give up this frame
-						} else
-						    if ((pAd->FragFrame.RxSize +
-							 DataSize) >
-							MAX_FRAME_SIZE) {
-							// Fragment frame is too large, it exeeds the maximum frame size.
-							// Clear Fragment frame contents
-							memset(&pAd->FragFrame,
-							       0,
-							       sizeof
-							       (FRAGMENT_FRAME));
-							break;	// give up this frame
-						}
-						// concatenate this fragment into the re-assembly buffer
-						memcpy(&pAd->FragFrame.
-						       Buffer[LENGTH_802_3 +
-							      pAd->FragFrame.
-							      RxSize], pData,
-						       DataSize);
-						pAd->FragFrame.RxSize +=
-						    DataSize;
-						pAd->FragFrame.LastFrag = pHeader->Frag;	// Update fragment number
-
-						// Last fragment
-						if (pHeader->FC.MoreFrag ==
-						    FALSE) {
-							// For TKIP frame, calculate the MIC value
-							if (pRxD->CipherAlg ==
-							    CIPHER_TKIP) {
-								PCIPHER_KEY
-								    pWpaKey =
-								    &pAd->
-								    SharedKey
-								    [pRxD->
-								     KeyIndex];
-
-								// Minus MIC length
-								pAd->FragFrame.
-								    RxSize -= 8;
-
-								if (pAd->
-								    FragFrame.
-								    Flags &
-								    0x00000001)
-								{
-									// originally there's an LLC/SNAP field in the first fragment
-									// but been removed in re-assembly buffer. here we have to include
-									// this LLC/SNAP field upon calculating TKIP MIC
-									// pData = pAd->FragFrame.Header_LLC;
-									// Copy LLC data to the position in front of real data for MIC calculation
-									memcpy
-									    (&pAd->
-									     FragFrame.
-									     Buffer
-									     [LENGTH_802_3
-									      -
-									      LENGTH_802_1_H],
-									     pAd->
-									     FragFrame.
-									     Header_LLC,
-									     LENGTH_802_1_H);
-									pData =
-									    (PUCHAR)
-									    &
-									    pAd->
-									    FragFrame.
-									    Buffer
-									    [LENGTH_802_3
-									     -
-									     LENGTH_802_1_H];
-									DataSize
-									    =
-									    (USHORT)
-									    pAd->
-									    FragFrame.
-									    RxSize
-									    +
-									    LENGTH_802_1_H;
-								} else {
-									pData =
-									    (PUCHAR)
-									    &
-									    pAd->
-									    FragFrame.
-									    Buffer
-									    [LENGTH_802_3];
-									DataSize
-									    =
-									    (USHORT)
-									    pAd->
-									    FragFrame.
-									    RxSize;
-								}
-
-								if (RTMPTkipCompareMICValue(pAd, pData, pDA, pSA, pWpaKey->RxMic, DataSize) == FALSE) {
-									DBGPRINT_RAW
-									    (RT_DEBUG_ERROR,
-									     "Rx MIC Value error 2\n");
-									RTMPReportMicError
-									    (pAd,
-									     pWpaKey);
-									break;	// give up this frame
-								}
-
-							}
-
-							pData =
-							    &pAd->FragFrame.
-							    Buffer
-							    [LENGTH_802_3];
-							REPORT_ETHERNET_FRAME_TO_LLC
-							    (pAd,
-							     pAd->FragFrame.
-							     Header802_3, pData,
-							     pAd->FragFrame.
-							     RxSize, net_dev);
-//                                                      DBGPRINT_RAW(RT_DEBUG_TRACE, "!!! report DATA (fragmented) to LLC (len=%d) !!!\n", pAd->FragFrame.RxSize);
-
-							// Clear Fragment frame contents
-							memset(&pAd->FragFrame,
-							       0,
-							       sizeof
-							       (FRAGMENT_FRAME));
-						}
-					}
-				}
-
+				BufferConsummed = RxDataFrame(pAd, skb);
+				break;
 			}
+			//
 			// CASE II. receive a MGMT frame
 			//
 			else if (pHeader->FC.Type == BTYPE_MGMT) {
-				REPORT_MGMT_FRAME_TO_MLME(pAd, pHeader,
-							  pRxD->DataByteCnt,
-							  pRxD->PlcpRssi,
-							  pRxD->PlcpSignal);
+				REPORT_MGMT_FRAME_TO_MLME(pAd, skb);
+//				BufferConsummed == NDIS_STATUS_SUCCESS;
 				break;	// end of processing this frame
 			}
+			//
 			// CASE III. receive a CNTL frame
 			//
 			else if (pHeader->FC.Type == BTYPE_CNTL)
 				break;	// give up this frame
 
+			//
 			// CASE IV. receive a frame of invalid type
+			//
 			else
 				break;	// give up this frame
 
 		} while (FALSE);	// ************* exit point *********
 
+		// Do we need to release this skbuff?
+		if (BufferConsummed == NDIS_STATUS_FAILURE) {
+			dev_kfree_skb_irq(skb);
+		}
+		
+		Count++;
+#endif
+		
+		// Map new skbuff to shared DMA
+#ifdef NONCOPY_RX
+		RTMP_SET_PACKET_SOURCE(nskb, PKTSRC_DRIVER);
+		DmaBuf->pSkb = nskb;
+		DmaBuf->AllocVa = nskb->data;
+#endif
+		DmaBuf->AllocPa = pci_map_single(pAd->pPci_Dev, DmaBuf->AllocVa,
+				   					DmaBuf->AllocSize, PCI_DMA_FROMDEVICE);
+#ifdef NONCOPY_RX
+		pRxD->BufPhyAddr = DmaBuf->AllocPa;
+#endif
+
+drop:
 		// release this RXD for ASIC to use
 		pRxD->Owner = DESC_OWN_NIC;
 #ifdef BIG_ENDIAN
 		RTMPDescriptorEndianChange((PUCHAR) pRxD, TYPE_RXD);
-		WriteBackToDescriptor((PUCHAR) pDestRxD, (PUCHAR) pRxD, FALSE,
-				      TYPE_RXD);
+		WriteBackToDescriptor((PUCHAR) pDestRxD, (PUCHAR) pRxD, FALSE, TYPE_RXD);
 #endif
 		// advance to next RX frame
 		INC_RING_INDEX(pAd->RxRing.CurRxIndex, RX_RING_SIZE);
@@ -1274,6 +1325,92 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 	spin_unlock_bh(&pAd->RxRingLock);
 #endif
 
+#ifdef RX_TASKLET
+	if (Count)
+		tasklet_schedule(&pAd->RxTasklet);
+#endif
+}
+
+
+static VOID DBGPRINT_TX_RING(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueIdx)
+{
+	ULONG PbfCsr = 0;
+	ULONG Ac0Base = 0;
+	ULONG Ac0CurAddr = 0;
+	ULONG Ac0HwIdx, Ac0SwIdx, AC0DmaDoneIdx;
+	PTXD_STRUC pTxD;
+#ifdef	BIG_ENDIAN
+	PTXD_STRUC pDestTxD;
+	TXD_STRUC TxD;
+#endif
+	int i;
+
+	RTMP_IO_READ32(pAdapter, PBF_QUEUE_CSR, &PbfCsr);
+	switch (QueIdx) {
+	case QID_AC_BE:
+		RTMP_IO_READ32(pAdapter, AC0_BASE_CSR, &Ac0Base);
+		RTMP_IO_READ32(pAdapter, AC0_TXPTR_CSR, &Ac0CurAddr);
+		break;
+	case QID_AC_BK:
+		RTMP_IO_READ32(pAdapter, AC1_BASE_CSR, &Ac0Base);
+		RTMP_IO_READ32(pAdapter, AC1_TXPTR_CSR, &Ac0CurAddr);
+		break;
+	case QID_AC_VI:
+		RTMP_IO_READ32(pAdapter, AC2_BASE_CSR, &Ac0Base);
+		RTMP_IO_READ32(pAdapter, AC2_TXPTR_CSR, &Ac0CurAddr);
+		break;
+	case QID_AC_VO:
+		RTMP_IO_READ32(pAdapter, AC3_BASE_CSR, &Ac0Base);
+		RTMP_IO_READ32(pAdapter, AC3_TXPTR_CSR, &Ac0CurAddr);
+		break;
+	default:
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "DBGPRINT_TX_RING(Ring %d) not supported\n", QueIdx);
+		return;
+	}
+	Ac0HwIdx = (Ac0CurAddr - Ac0Base) / TXD_SIZE;
+	Ac0SwIdx = pAdapter->TxRing[QueIdx].CurTxIndex;
+	AC0DmaDoneIdx = pAdapter->TxRing[QueIdx].NextTxDmaDoneIndex;
+
+	printk("TxRing%d PBF=%08x, HwIdx=%d, SwIdx[%d]=", QueIdx, PbfCsr,
+	       Ac0HwIdx, Ac0SwIdx);
+	for (i = 0; i < 4; i++) {
+#ifndef BIG_ENDIAN
+		pTxD =
+		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[Ac0SwIdx].
+		    AllocVa;
+#else
+		pDestTxD =
+		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[Ac0SwIdx].
+		    AllocVa;
+		TxD = *pDestTxD;
+		pTxD = &TxD;
+		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
+#endif
+
+		printk("%d%d.", pTxD->Owner, pTxD->bWaitingDmaDoneInt);
+		INC_RING_INDEX(Ac0SwIdx, TX_RING_SIZE);
+	}
+	printk("DmaIdx[%d]=", AC0DmaDoneIdx);
+	for (i = 0; i < 4; i++) {
+#ifndef BIG_ENDIAN
+		pTxD =
+		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[AC0DmaDoneIdx].
+		    AllocVa;
+#else
+		pDestTxD =
+		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[AC0DmaDoneIdx].
+		    AllocVa;
+		TxD = *pDestTxD;
+		pTxD = &TxD;
+		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
+#endif
+
+		printk("%d%d.", pTxD->Owner, pTxD->bWaitingDmaDoneInt);
+		INC_RING_INDEX(AC0DmaDoneIdx, TX_RING_SIZE);
+	}
+	DBGPRINT(RT_DEBUG_TRACE, "p-NDIS=%d\n",
+		 pAdapter->RalinkCounters.PendingNdisPacketCount);
 }
 
 /*
@@ -1400,6 +1537,93 @@ VOID RTMPHandleTxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 			pAd->Counters8023.TxErrors++;
 			break;
 		}
+	}
+}
+
+
+static VOID RTMPFreeTXDUponTxDmaDone(IN PRTMP_ADAPTER pAd,
+			      IN UCHAR QueIdx, IN UINT RingSize)
+{
+	PRTMP_TX_RING pTxRing;
+	PTXD_STRUC pTxD;
+#ifdef	BIG_ENDIAN
+	PTXD_STRUC pDestTxD;
+	TXD_STRUC TxD;
+#endif
+	struct sk_buff **pSkb;
+	struct sk_buff **pNextSkb;
+	int i;
+
+	ASSERT(QueIdx < NUM_OF_TX_RING);
+	pTxRing = &pAd->TxRing[QueIdx];
+
+	for (i = 0; i < MAX_DMA_DONE_PROCESS; i++) {
+#ifndef BIG_ENDIAN
+		pTxD =
+		    (PTXD_STRUC) (pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].
+				  AllocVa);
+#else
+		pDestTxD =
+		    (PTXD_STRUC) (pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].
+				  AllocVa);
+		TxD = *pDestTxD;
+		pTxD = &TxD;
+		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
+#endif
+
+		pSkb = &pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].pSkb;
+		pNextSkb = &pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].pNextSkb;
+		if (pTxD->Owner == DESC_OWN_NIC)
+			break;
+		if (pTxD->bWaitingDmaDoneInt == 0) {
+			if (pTxRing->NextTxDmaDoneIndex != pTxRing->CurTxIndex) {
+				// should never reach here!!!!
+				DBGPRINT_TX_RING(pAd, QueIdx);
+				// dump TXD at NextTxDmaDoneIndex, check sequence#, check Airopeek if
+				// the frame been transmitted out or not.
+				DBGPRINT(RT_DEBUG_ERROR,
+					 "pNdisPacket[%d]=0x%08lx\n",
+					 pTxRing->NextTxDmaDoneIndex,
+					 (unsigned long)*pSkb);
+				INC_RING_INDEX(pTxRing->NextTxDmaDoneIndex,
+					       RingSize);
+				continue;
+			} else
+				break;
+		}
+
+		pTxD->bWaitingDmaDoneInt = 0;
+		INC_RING_INDEX(pTxRing->NextTxDmaDoneIndex, RingSize);
+		pAd->RalinkCounters.TransmittedByteCount += pTxD->DataByteCnt;
+		pAd->RalinkCounters.OneSecDmaDoneCount[QueIdx]++;
+
+#ifdef RALINK_ATE
+		if (pAd->ate.Mode == ATE_TXFRAME) {
+#ifdef BIG_ENDIAN
+			RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
+			*pDestTxD = TxD;
+#endif
+			continue;
+		}
+#endif
+
+		if (*pSkb) {
+			pci_unmap_single(pAd->pPci_Dev, pTxD->BufPhyAddr1,
+					 pTxD->BufLen1, PCI_DMA_TODEVICE);
+			RELEASE_NDIS_PACKET(pAd, *pSkb);
+			*pSkb = NULL;
+		}
+
+		if (*pNextSkb) {
+			pci_unmap_single(pAd->pPci_Dev, pTxD->BufPhyAddr2,
+					 pTxD->BufLen2, PCI_DMA_TODEVICE);
+			RELEASE_NDIS_PACKET(pAd, *pNextSkb);
+			*pNextSkb = 0;
+		}
+#ifdef BIG_ENDIAN
+		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
+		*pDestTxD = TxD;
+#endif
 	}
 }
 
@@ -1625,76 +1849,6 @@ VOID RTMPHandleTwakeupInterrupt(IN PRTMP_ADAPTER pAd)
 	========================================================================
 
 	Routine	Description:
-		API for MLME to transmit management frame to AP (BSS Mode)
-	or station (IBSS Mode)
-
-	Arguments:
-		pAdapter	Pointer	to our adapter
-		pData		Pointer to the outgoing 802.11 frame
-		Length		Size of outgoing management frame
-
-	Return Value:
-		NDIS_STATUS_FAILURE
-		NDIS_STATUS_PENDING
-		NDIS_STATUS_SUCCESS
-
-	Note:
-
-	========================================================================
-*/
-NDIS_STATUS MiniportMMRequest(IN PRTMP_ADAPTER pAdapter,
-			      IN PUCHAR pData, IN UINT Length)
-{
-	struct sk_buff *pSkb = NULL;
-	NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
-	UCHAR FreeNum;
-
-	ASSERT(Length <= MGMT_DMA_BUFFER_SIZE);
-
-	do {
-#if 0
-		// Reset is in progress, stop immediately
-		if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
-		    RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
-			DBGPRINT(RT_DEBUG_WARN,
-				 "MiniportMMRequest-Card in abnormal state!!!\n");
-			Status = NDIS_STATUS_FAILURE;
-			break;
-		}
-#endif
-		// Check Free priority queue
-		Status = RTMPFreeTXDRequest(pAdapter, QID_MGMT, 1, &FreeNum);
-		if (Status == NDIS_STATUS_SUCCESS) {
-			Status =
-			    RTMPAllocateNdisPacket(pAdapter, &pSkb, pData,
-						   Length);
-			if (Status != NDIS_STATUS_SUCCESS) {
-				DBGPRINT(RT_DEBUG_WARN,
-					 "MiniportMMRequest (error:: can't allocate skb buffer)\n");
-				break;
-			}
-
-			Status = MlmeHardTransmit(pAdapter, pSkb);
-			if (Status != NDIS_STATUS_SUCCESS)
-				RELEASE_NDIS_PACKET(pAdapter, pSkb);
-		} else {
-			pAdapter->RalinkCounters.MgmtRingFullCount++;
-
-			// Kick MGMT ring transmit
-			RTMP_IO_WRITE32(pAdapter, TX_CNTL_CSR, 0x00000010);
-
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "Not enough space in MgmtRing\n");
-		}
-	} while (FALSE);
-
-	return Status;
-}
-
-/*
-	========================================================================
-
-	Routine	Description:
 		Copy frame from waiting queue into relative ring buffer and set
 	appropriate ASIC register to kick hardware transmit function
 
@@ -1712,7 +1866,7 @@ NDIS_STATUS MiniportMMRequest(IN PRTMP_ADAPTER pAdapter,
 
 	========================================================================
 */
-NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
+static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 			     IN struct sk_buff * pSkb)
 {
 	PUCHAR pSrcBufVA;
@@ -1893,12 +2047,117 @@ NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 	return NDIS_STATUS_SUCCESS;
 }
 
+// clone an input skb buffer to another one.
+// NOTE: internally created NDIS_PACKET should be destroyed by RTMPFreeNdisPacket
+static NDIS_STATUS RTMPCloneNdisPacket(IN PRTMP_ADAPTER pAdapter,
+				IN struct sk_buff *pInSkb,
+				OUT struct sk_buff **ppOutSkb)
+{
+	if ((*ppOutSkb = skb_clone(pInSkb, MEM_ALLOC_FLAG)) == NULL)
+		return NDIS_STATUS_FAILURE;
+
+	RTMP_SET_PACKET_SOURCE(*ppOutSkb, PKTSRC_DRIVER);
+
+	return NDIS_STATUS_SUCCESS;
+}
+
+// the allocated Skb buffer must be freed via RTMPFreeNdisPacket()
+static NDIS_STATUS RTMPAllocateNdisPacket(IN PRTMP_ADAPTER pAdapter,
+				   OUT struct sk_buff ** ppSkb,
+				   IN PUCHAR pData, IN UINT DataLen)
+{
+	// 1. Allocate Skb buffer
+	*ppSkb = __dev_alloc_skb(DataLen + 2, MEM_ALLOC_FLAG);
+	if (*ppSkb == NULL)
+		return NDIS_STATUS_RESOURCES;
+
+	// 2. Set packet flag
+	skb_reserve(*ppSkb, 2);	// 16 byte align the IP header
+	RTMP_SET_PACKET_SOURCE(*ppSkb, PKTSRC_DRIVER);
+
+	// 3. clone the frame content
+	memcpy(skb_put(*ppSkb, DataLen), pData, DataLen);
+
+	return NDIS_STATUS_SUCCESS;
+}
+
+
+/*
+	========================================================================
+
+	Routine	Description:
+		API for MLME to transmit management frame to AP (BSS Mode)
+	or station (IBSS Mode)
+
+	Arguments:
+		pAdapter	Pointer	to our adapter
+		pData		Pointer to the outgoing 802.11 frame
+		Length		Size of outgoing management frame
+
+	Return Value:
+		NDIS_STATUS_FAILURE
+		NDIS_STATUS_PENDING
+		NDIS_STATUS_SUCCESS
+
+	Note:
+
+	========================================================================
+*/
+NDIS_STATUS MiniportMMRequest(IN PRTMP_ADAPTER pAdapter,
+			      IN PUCHAR pData, IN UINT Length)
+{
+	struct sk_buff *pSkb = NULL;
+	NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
+	UCHAR FreeNum;
+
+	ASSERT(Length <= MGMT_DMA_BUFFER_SIZE);
+
+	do {
+#if 0
+		// Reset is in progress, stop immediately
+		if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
+		    RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
+			DBGPRINT(RT_DEBUG_WARN,
+				 "MiniportMMRequest-Card in abnormal state!!!\n");
+			Status = NDIS_STATUS_FAILURE;
+			break;
+		}
+#endif
+		// Check Free priority queue
+		Status = RTMPFreeTXDRequest(pAdapter, QID_MGMT, 1, &FreeNum);
+		if (Status == NDIS_STATUS_SUCCESS) {
+			Status =
+			    RTMPAllocateNdisPacket(pAdapter, &pSkb, pData,
+						   Length);
+			if (Status != NDIS_STATUS_SUCCESS) {
+				DBGPRINT(RT_DEBUG_WARN,
+					 "MiniportMMRequest (error:: can't allocate skb buffer)\n");
+				break;
+			}
+
+			Status = MlmeHardTransmit(pAdapter, pSkb);
+			if (Status != NDIS_STATUS_SUCCESS)
+				RELEASE_NDIS_PACKET(pAdapter, pSkb);
+		} else {
+			pAdapter->RalinkCounters.MgmtRingFullCount++;
+
+			// Kick MGMT ring transmit
+			RTMP_IO_WRITE32(pAdapter, TX_CNTL_CSR, 0x00000010);
+
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "Not enough space in MgmtRing\n");
+		}
+	} while (FALSE);
+
+	return Status;
+}
+
 // should be called only when -
 // 1. MEADIA_CONNECTED
 // 2. AGGREGATION_IN_USED
 // 3. Fragmentation not in used
 // 4. either no previous frame (pPrevAddr1=NULL) .OR. previoud frame is aggregatible
-BOOLEAN TxFrameIsAggregatible(IN PRTMP_ADAPTER pAd,
+static BOOLEAN TxFrameIsAggregatible(IN PRTMP_ADAPTER pAd,
 			      IN PUCHAR pPrevAddr1, IN PUCHAR p8023hdr)
 {
 	// can't aggregate EAPOL (802.1x) frame
@@ -1919,7 +2178,7 @@ BOOLEAN TxFrameIsAggregatible(IN PRTMP_ADAPTER pAd,
 
 // NOTE: we do have an assumption here, that Byte0 and Byte1 always reasid at the same
 //       scatter gather buffer
-NDIS_STATUS Sniff2BytesFromNdisBuffer(IN struct sk_buff * pFirstSkb,
+static NDIS_STATUS Sniff2BytesFromNdisBuffer(IN struct sk_buff * pFirstSkb,
 				      IN UCHAR DesiredOffset,
 				      OUT PUCHAR pByte0, OUT PUCHAR pByte1)
 {
@@ -2298,7 +2557,7 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 
 }
 
-VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
+static VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 		      IN PUCHAR pDA,
 		      IN unsigned int NextMpduSize,
 		      IN UCHAR TxRate, IN USHORT CtsDuration, IN UCHAR QueIdx)
@@ -2428,6 +2687,80 @@ VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 
 }
 
+
+/*
+	========================================================================
+
+	Routine	Description:
+		Check the out going frame, if this is an DHCP or ARP datagram
+	will be duplicate another frame at low data rate transmit.
+
+	Arguments:
+		pAd			Pointer	to our adapter
+		pSkb		Pointer to outgoing skb buffer
+
+	Return Value:
+		TRUE		To be transmitted at Low data rate transmit. (1Mbps/6Mbps)
+		FALSE		Do nothing.
+
+	Note:
+
+		MAC header + IP Header + UDP Header
+		  14 Bytes    20 Bytes
+
+		UDP Header
+		00|01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|
+						Source Port
+		16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|
+					Destination Port
+
+		port 0x43 means Bootstrap Protocol, server.
+		Port 0x44 means Bootstrap Protocol, client.
+
+	========================================================================
+*/
+static BOOLEAN RTMPCheckDHCPFrame(IN PRTMP_ADAPTER pAd, IN struct sk_buff *pSkb)
+{
+	PUCHAR pSrc;
+	ULONG SrcLen = 0;
+
+	pSrc = (PVOID) pSkb->data;
+	SrcLen = pSkb->len;
+
+	// Check ARP packet
+	if (SrcLen >= 13) {
+		if ((pSrc[12] == 0x08) && (pSrc[13] == 0x06)) {
+			DBGPRINT(RT_DEBUG_INFO,
+				 "RTMPCheckDHCPFrame - ARP packet\n");
+			return TRUE;
+		}
+	}
+	// Check foe DHCP & BOOTP protocol
+	if (SrcLen >= 37) {
+		if ((pSrc[12] == 0x08) && (pSrc[13] == 0x00) && // It's an IP packet
+		    ((pSrc[14] & 0xf0) == 0x40) && // It's IPv4
+		    (pSrc[23] == 17) && // It's UDP
+		    ((pSrc[36] == 0x00) && ((pSrc[37] == 0x43) || (pSrc[37] == 0x44))) ) // dest port is a DHCP port
+		{
+			DBGPRINT(RT_DEBUG_INFO,
+				 "RTMPCheckDHCPFrame - DHCP packet\n");
+			return TRUE;
+		}
+		else
+		{
+			int is_ip = ((pSrc[12] == 0x08) && (pSrc[13] == 0x00));
+			int is_ipv4 = ((pSrc[14] & 0xf0) == 0x40);
+			int is_udp = (pSrc[23] == 17);
+			int dest_port = (pSrc[36] << 8) | pSrc[37];
+			DBGPRINT(RT_DEBUG_INFO,"RTMPCheckDHCPFrame - not DHCP, ip %d ipv4 %d udp %d destport %d\n",
+				 is_ip, is_ipv4, is_udp, dest_port );
+		}	
+	}
+
+	return FALSE;
+}
+
+
 /*
 	========================================================================
 
@@ -2448,8 +2781,9 @@ VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 
 	========================================================================
 */
+static 
 #ifdef BIG_ENDIAN
-static inline
+ inline
 #endif
  NDIS_STATUS RTMPHardTransmit(IN PRTMP_ADAPTER pAd,
 			      IN struct sk_buff *pSkb, IN UCHAR QueIdx)
@@ -3613,124 +3947,6 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 	========================================================================
 
 	Routine	Description:
-		Search tuple cache for receive duplicate frame from unicast frames.
-
-	Arguments:
-		pAdapter		Pointer	to our adapter
-		pHeader			802.11 header of receiving frame
-
-	Return Value:
-		TRUE			found matched tuple cache
-		FALSE			no matched found
-
-	Note:
-
-	========================================================================
-*/
-BOOLEAN RTMPSearchTupleCache(IN PRTMP_ADAPTER pAdapter,
-			     IN PHEADER_802_11 pHeader)
-{
-	INT Index;
-
-	for (Index = 0; Index < MAX_CLIENT; Index++) {
-		if (pAdapter->TupleCache[Index].Valid == FALSE)
-			continue;
-
-		if ((memcmp
-		     (pAdapter->TupleCache[Index].MacAddress, pHeader->Addr2,
-		      ETH_ALEN) == 0)
-		    && (pAdapter->TupleCache[Index].Sequence ==
-			pHeader->Sequence)
-		    && (pAdapter->TupleCache[Index].Frag == pHeader->Frag)) {
-//                      DBGPRINT(RT_DEBUG_TRACE,"DUPCHECK - duplicate frame hit entry %d\n", Index);
-			return (TRUE);
-		}
-	}
-	return (FALSE);
-}
-
-/*
-	========================================================================
-
-	Routine	Description:
-		Update tuple cache for new received unicast frames.
-
-	Arguments:
-		pAdapter		Pointer	to our adapter
-		pHeader			802.11 header of receiving frame
-
-	Return Value:
-		None
-
-	Note:
-
-	========================================================================
-*/
-VOID RTMPUpdateTupleCache(IN PRTMP_ADAPTER pAdapter, IN PHEADER_802_11 pHeader)
-{
-	UCHAR Index;
-
-	for (Index = 0; Index < MAX_CLIENT; Index++) {
-		if (pAdapter->TupleCache[Index].Valid == FALSE) {
-			// Add new entry
-			memcpy(pAdapter->TupleCache[Index].MacAddress,
-			       pHeader->Addr2, ETH_ALEN);
-			pAdapter->TupleCache[Index].Sequence =
-			    pHeader->Sequence;
-			pAdapter->TupleCache[Index].Frag = pHeader->Frag;
-			pAdapter->TupleCache[Index].Valid = TRUE;
-			pAdapter->TupleCacheLastUpdateIndex = Index;
-			DBGPRINT(RT_DEBUG_INFO,
-				 "DUPCHECK - Add Entry %d, MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
-				 Index,
-				 pAdapter->TupleCache[Index].MacAddress[0],
-				 pAdapter->TupleCache[Index].MacAddress[1],
-				 pAdapter->TupleCache[Index].MacAddress[2],
-				 pAdapter->TupleCache[Index].MacAddress[3],
-				 pAdapter->TupleCache[Index].MacAddress[4],
-				 pAdapter->TupleCache[Index].MacAddress[5]);
-			return;
-		} else
-		    if (memcmp
-			(pAdapter->TupleCache[Index].MacAddress, pHeader->Addr2,
-			 ETH_ALEN) == 0) {
-			// Update old entry
-			pAdapter->TupleCache[Index].Sequence =
-			    pHeader->Sequence;
-			pAdapter->TupleCache[Index].Frag = pHeader->Frag;
-			return;
-		}
-	}
-
-	// tuple cache full, replace the first inserted one (even though it may not be
-	// least referenced one)
-	if (Index == MAX_CLIENT) {
-		pAdapter->TupleCacheLastUpdateIndex++;
-		if (pAdapter->TupleCacheLastUpdateIndex >= MAX_CLIENT)
-			pAdapter->TupleCacheLastUpdateIndex = 0;
-		Index = pAdapter->TupleCacheLastUpdateIndex;
-
-		// replace with new entry
-		memcpy(pAdapter->TupleCache[Index].MacAddress, pHeader->Addr2,
-		       ETH_ALEN);
-		pAdapter->TupleCache[Index].Sequence = pHeader->Sequence;
-		pAdapter->TupleCache[Index].Frag = pHeader->Frag;
-		pAdapter->TupleCache[Index].Valid = TRUE;
-		DBGPRINT(RT_DEBUG_INFO,
-			 "DUPCHECK - replace Entry %d, MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
-			 Index, pAdapter->TupleCache[Index].MacAddress[0],
-			 pAdapter->TupleCache[Index].MacAddress[1],
-			 pAdapter->TupleCache[Index].MacAddress[2],
-			 pAdapter->TupleCache[Index].MacAddress[3],
-			 pAdapter->TupleCache[Index].MacAddress[4],
-			 pAdapter->TupleCache[Index].MacAddress[5]);
-	}
-}
-
-/*
-	========================================================================
-
-	Routine	Description:
 		Suspend MSDU transmission
 
 	Arguments:
@@ -3783,548 +3999,8 @@ VOID RTMPResumeMsduTransmission(IN PRTMP_ADAPTER pAd)
 	RTMP_IO_WRITE32(pAd, TX_CNTL_CSR, 0x0000000f);	// kick all TX rings
 }
 
-/*
-	========================================================================
 
-	Routine	Description:
-		Check Rx descriptor, return NDIS_STATUS_FAILURE if any error dound
-
-	Arguments:
-		pRxD		Pointer	to the Rx descriptor
-
-	Return Value:
-		NDIS_STATUS_SUCCESS		No err
-		NDIS_STATUS_FAILURE		Error
-
-	Note:
-
-	========================================================================
-*/
-NDIS_STATUS RTMPCheckRxError(IN PRTMP_ADAPTER pAd,
-			     IN PHEADER_802_11 pHeader, IN PRXD_STRUC pRxD)
-{
-	PCIPHER_KEY pWpaKey;
-
-	// Drop ToDs promiscous frame, it is opened due to CCX 2 channel load statistics
-	if (pHeader->FC.ToDs)
-		return (NDIS_STATUS_FAILURE);
-
-	// Drop not U2M frames, cant's drop here because we will drop beacon in this case
-	// I am kind of doubting the U2M bit operation
-	// if (pRxD->U2M == 0)
-	//      return(NDIS_STATUS_FAILURE);
-
-	// drop decyption fail frame
-	if (pRxD->CipherErr) {
-		UINT i;
-		PUCHAR ptr = (PUCHAR) pHeader;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "ERROR: CRC ok but CipherErr %d (len = %d, Mcast=%d, Cipher=%s, KeyId=%d)\n",
-			 pRxD->CipherErr, pRxD->DataByteCnt,
-			 pRxD->Mcast | pRxD->Bcast, CipherName[pRxD->CipherAlg],
-			 pRxD->KeyIndex);
-#if 1
-		for (i = 0; i < 64; i += 16) {
-			DBGPRINT_RAW(RT_DEBUG_TRACE,
-				     "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x - %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x\n",
-				     *ptr, *(ptr + 1), *(ptr + 2), *(ptr + 3),
-				     *(ptr + 4), *(ptr + 5), *(ptr + 6),
-				     *(ptr + 7), *(ptr + 8), *(ptr + 9),
-				     *(ptr + 10), *(ptr + 11), *(ptr + 12),
-				     *(ptr + 13), *(ptr + 14), *(ptr + 15));
-			ptr += 16;
-		}
-#endif
-
-		//
-		// MIC Error
-		//
-		if (pRxD->CipherErr == 2) {
-			pWpaKey = &pAd->SharedKey[pRxD->KeyIndex];
-			RTMPReportMicError(pAd, pWpaKey);
-			DBGPRINT(RT_DEBUG_ERROR, "Rx MIC Value error\n");
-		}
-
-		return (NDIS_STATUS_FAILURE);
-	}
-
-	return (NDIS_STATUS_SUCCESS);
-}
-
-/*
-	========================================================================
-
-	Routine	Description:
-		Apply packet filter policy, return NDIS_STATUS_FAILURE if this frame
-		should be dropped.
-
-	Arguments:
-		pAd		Pointer	to our adapter
-		pRxD			Pointer	to the Rx descriptor
-		pHeader			Pointer to the 802.11 frame header
-
-	Return Value:
-		NDIS_STATUS_SUCCESS		Accept frame
-		NDIS_STATUS_FAILURE		Drop Frame
-
-	Note:
-		Maganement frame should bypass this filtering rule.
-
-	========================================================================
-*/
-NDIS_STATUS RTMPApplyPacketFilter(IN PRTMP_ADAPTER pAd,
-				  IN PRXD_STRUC pRxD, IN PHEADER_802_11 pHeader)
-{
-	UCHAR i;
-
-	// 0. Management frame should bypass all these filtering rules.
-	if (pHeader->FC.Type == BTYPE_MGMT)
-		return (NDIS_STATUS_SUCCESS);
-
-	// 0.1  Drop all Rx frames if MIC countermeasures kicks in
-	if (pAd->PortCfg.MicErrCnt >= 2) {
-		DBGPRINT(RT_DEBUG_TRACE, "Rx dropped by MIC countermeasure\n");
-		return (NDIS_STATUS_FAILURE);
-	}
-	// 1. Drop unicast to me packet if NDIS_PACKET_TYPE_DIRECTED is FALSE
-	if (pRxD->U2M) {
-		if (pAd->bAcceptDirect == FALSE) {
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "Rx U2M dropped by RX_FILTER\n");
-			return (NDIS_STATUS_FAILURE);
-		}
-	}
-	// 2. Drop broadcast packet if NDIS_PACKET_TYPE_BROADCAST is FALSE
-	else if (pRxD->Bcast) {
-		if (pAd->bAcceptBroadcast == FALSE) {
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "Rx BCAST dropped by RX_FILTER\n");
-			return (NDIS_STATUS_FAILURE);
-		}
-	}
-	// 3. Drop (non-Broadcast) multicast packet if NDIS_PACKET_TYPE_ALL_MULTICAST is false
-	//    and NDIS_PACKET_TYPE_MULTICAST is false.
-	//    If NDIS_PACKET_TYPE_MULTICAST is true, but NDIS_PACKET_TYPE_ALL_MULTICAST is false.
-	//    We have to deal with multicast table lookup & drop not matched packets.
-	else if (pRxD->Mcast) {
-		if (pAd->bAcceptAllMulticast == FALSE) {
-			if (pAd->bAcceptMulticast == FALSE) {
-				DBGPRINT(RT_DEBUG_INFO,
-					 "Rx MCAST dropped by RX_FILTER\n");
-				return (NDIS_STATUS_FAILURE);
-			} else {
-				// Selected accept multicast packet based on multicast table
-				for (i = 0; i < pAd->NumberOfMcastAddresses;
-				     i++) {
-					if (memcmp
-					    (pHeader->Addr1, pAd->McastTable[i],
-					     ETH_ALEN) == 0)
-						break;	// Matched
-				}
-
-				// Not matched
-				if (i == pAd->NumberOfMcastAddresses) {
-					DBGPRINT(RT_DEBUG_INFO,
-						 "Rx MCAST %02x:%02x:%02x:%02x:%02x:%02x dropped by RX_FILTER\n",
-						 pHeader->Addr1[0],
-						 pHeader->Addr1[1],
-						 pHeader->Addr1[2],
-						 pHeader->Addr1[3],
-						 pHeader->Addr1[4],
-						 pHeader->Addr1[5]);
-					return (NDIS_STATUS_FAILURE);
-				} else {
-					DBGPRINT(RT_DEBUG_INFO,
-						 "Accept multicast %02x:%02x:%02x:%02x:%02x:%02x\n",
-						 pHeader->Addr1[0],
-						 pHeader->Addr1[1],
-						 pHeader->Addr1[2],
-						 pHeader->Addr1[3],
-						 pHeader->Addr1[4],
-						 pHeader->Addr1[5]);
-				}
-			}
-		}
-	}
-	// 4. Not U2M, not Mcast, not Bcast, must be unicast to other DA.
-	//    Since we did not implement promiscuous mode, just drop this kind of packet for now.
-	else if (pAd->bAcceptPromiscuous == FALSE)
-		return (NDIS_STATUS_FAILURE);
-
-	return (NDIS_STATUS_SUCCESS);
-}
-
-//#ifdef WPA_SUPPLICANT_SUPPORT
-static void ralink_michael_mic_failure(struct net_device *dev,
-				       PCIPHER_KEY pWpaKey)
-{
-	union iwreq_data wrqu;
-	char buf[128];
-
-	/* TODO: needed parameters: count, keyid, key type, TSC */
-
-	//Check for Group or Pairwise MIC error
-	if (pWpaKey->Type == PAIRWISE_KEY)
-		sprintf(buf, "MLME-MICHAELMICFAILURE.indication unicast");
-	else
-		sprintf(buf, "MLME-MICHAELMICFAILURE.indication broadcast");
-	memset(&wrqu, 0, sizeof(wrqu));
-	wrqu.data.length = strlen(buf);
-	//send mic error event to wpa_supplicant
-	wireless_send_event(dev, IWEVCUSTOM, &wrqu, buf);
-}
-
-//#endif
-
-/*
-	========================================================================
-
-	Routine	Description:
-		Process MIC error indication and record MIC error timer.
-
-	Arguments:
-		pAd		Pointer	to our adapter
-		pWpaKey			Pointer	to the WPA key structure
-
-	Return Value:
-		None
-
-	Note:
-
-	========================================================================
-*/
-VOID RTMPReportMicError(IN PRTMP_ADAPTER pAd, IN PCIPHER_KEY pWpaKey)
-{
-	unsigned long Now;
-	struct {
-		NDIS_802_11_STATUS_INDICATION Status;
-		NDIS_802_11_AUTHENTICATION_REQUEST Request;
-	} Report;
-
-//#ifdef WPA_SUPPLICANT_SUPPORT
-	if (pAd->PortCfg.WPA_Supplicant == TRUE) {
-		//report mic error to wpa_supplicant
-		ralink_michael_mic_failure(pAd->net_dev, pWpaKey);
-	}
-//#endif
-
-	// 0. Set Status to indicate auth error
-	Report.Status.StatusType = Ndis802_11StatusType_Authentication;
-
-	// 1. Check for Group or Pairwise MIC error
-	if (pWpaKey->Type == PAIRWISE_KEY)
-		Report.Request.Flags = NDIS_802_11_AUTH_REQUEST_PAIRWISE_ERROR;
-	else
-		Report.Request.Flags = NDIS_802_11_AUTH_REQUEST_GROUP_ERROR;
-
-	// 2. Copy AP MAC address
-	memcpy(Report.Request.Bssid, pWpaKey->BssId, ETH_ALEN);
-
-	// 3. Calculate length
-	Report.Request.Length = sizeof(NDIS_802_11_AUTHENTICATION_REQUEST);
-
-	// 4. Record Last MIC error time and count
-	Now = jiffies;
-	if (pAd->PortCfg.MicErrCnt == 0) {
-		pAd->PortCfg.MicErrCnt++;
-		pAd->PortCfg.LastMicErrorTime = Now;
-	} else if (pAd->PortCfg.MicErrCnt == 1) {
-		if ((pAd->PortCfg.LastMicErrorTime + (60 * 1000)) < Now) {
-			// Update Last MIC error time, this did not violate two MIC errors within 60 seconds
-			pAd->PortCfg.LastMicErrorTime = Now;
-		} else {
-			pAd->PortCfg.LastMicErrorTime = Now;
-			// Violate MIC error counts, MIC countermeasures kicks in
-			pAd->PortCfg.MicErrCnt++;
-			// We shall block all reception
-			// We shall clean all Tx ring and disassoicate from AP after next EAPOL frame
-			RTMPRingCleanUp(pAd, QID_AC_BK);
-			RTMPRingCleanUp(pAd, QID_AC_BE);
-			RTMPRingCleanUp(pAd, QID_AC_VI);
-			RTMPRingCleanUp(pAd, QID_AC_VO);
-			RTMPRingCleanUp(pAd, QID_HCCA);
-		}
-	} else {
-		// MIC error count >= 2
-		// This should not happen
-		;
-	}
-}
-
-// clone an input skb buffer to another one.
-// NOTE: internally created NDIS_PACKET should be destroyed by RTMPFreeNdisPacket
-NDIS_STATUS RTMPCloneNdisPacket(IN PRTMP_ADAPTER pAdapter,
-				IN struct sk_buff *pInSkb,
-				OUT struct sk_buff **ppOutSkb)
-{
-	if ((*ppOutSkb = skb_clone(pInSkb, MEM_ALLOC_FLAG)) == NULL)
-		return NDIS_STATUS_FAILURE;
-
-	RTMP_SET_PACKET_SOURCE(*ppOutSkb, PKTSRC_DRIVER);
-
-	return NDIS_STATUS_SUCCESS;
-}
-
-// the allocated Skb buffer must be freed via RTMPFreeNdisPacket()
-NDIS_STATUS RTMPAllocateNdisPacket(IN PRTMP_ADAPTER pAdapter,
-				   OUT struct sk_buff ** ppSkb,
-				   IN PUCHAR pData, IN UINT DataLen)
-{
-	// 1. Allocate Skb buffer
-	*ppSkb = __dev_alloc_skb(DataLen + 2, MEM_ALLOC_FLAG);
-	if (*ppSkb == NULL)
-		return NDIS_STATUS_RESOURCES;
-
-	// 2. Set packet flag
-	skb_reserve(*ppSkb, 2);	// 16 byte align the IP header
-	RTMP_SET_PACKET_SOURCE(*ppSkb, PKTSRC_DRIVER);
-
-	// 3. clone the frame content
-	memcpy(skb_put(*ppSkb, DataLen), pData, DataLen);
-
-	return NDIS_STATUS_SUCCESS;
-}
-
-VOID DBGPRINT_TX_RING(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueIdx)
-{
-	ULONG PbfCsr = 0;
-	ULONG Ac0Base = 0;
-	ULONG Ac0CurAddr = 0;
-	ULONG Ac0HwIdx, Ac0SwIdx, AC0DmaDoneIdx;
-	PTXD_STRUC pTxD;
-#ifdef	BIG_ENDIAN
-	PTXD_STRUC pDestTxD;
-	TXD_STRUC TxD;
-#endif
-	int i;
-
-	RTMP_IO_READ32(pAdapter, PBF_QUEUE_CSR, &PbfCsr);
-	switch (QueIdx) {
-	case QID_AC_BE:
-		RTMP_IO_READ32(pAdapter, AC0_BASE_CSR, &Ac0Base);
-		RTMP_IO_READ32(pAdapter, AC0_TXPTR_CSR, &Ac0CurAddr);
-		break;
-	case QID_AC_BK:
-		RTMP_IO_READ32(pAdapter, AC1_BASE_CSR, &Ac0Base);
-		RTMP_IO_READ32(pAdapter, AC1_TXPTR_CSR, &Ac0CurAddr);
-		break;
-	case QID_AC_VI:
-		RTMP_IO_READ32(pAdapter, AC2_BASE_CSR, &Ac0Base);
-		RTMP_IO_READ32(pAdapter, AC2_TXPTR_CSR, &Ac0CurAddr);
-		break;
-	case QID_AC_VO:
-		RTMP_IO_READ32(pAdapter, AC3_BASE_CSR, &Ac0Base);
-		RTMP_IO_READ32(pAdapter, AC3_TXPTR_CSR, &Ac0CurAddr);
-		break;
-	default:
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "DBGPRINT_TX_RING(Ring %d) not supported\n", QueIdx);
-		return;
-	}
-	Ac0HwIdx = (Ac0CurAddr - Ac0Base) / TXD_SIZE;
-	Ac0SwIdx = pAdapter->TxRing[QueIdx].CurTxIndex;
-	AC0DmaDoneIdx = pAdapter->TxRing[QueIdx].NextTxDmaDoneIndex;
-
-	printk("TxRing%d PBF=%08x, HwIdx=%d, SwIdx[%d]=", QueIdx, PbfCsr,
-	       Ac0HwIdx, Ac0SwIdx);
-	for (i = 0; i < 4; i++) {
-#ifndef BIG_ENDIAN
-		pTxD =
-		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[Ac0SwIdx].
-		    AllocVa;
-#else
-		pDestTxD =
-		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[Ac0SwIdx].
-		    AllocVa;
-		TxD = *pDestTxD;
-		pTxD = &TxD;
-		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
-#endif
-
-		printk("%d%d.", pTxD->Owner, pTxD->bWaitingDmaDoneInt);
-		INC_RING_INDEX(Ac0SwIdx, TX_RING_SIZE);
-	}
-	printk("DmaIdx[%d]=", AC0DmaDoneIdx);
-	for (i = 0; i < 4; i++) {
-#ifndef BIG_ENDIAN
-		pTxD =
-		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[AC0DmaDoneIdx].
-		    AllocVa;
-#else
-		pDestTxD =
-		    (PTXD_STRUC) pAdapter->TxRing[QueIdx].Cell[AC0DmaDoneIdx].
-		    AllocVa;
-		TxD = *pDestTxD;
-		pTxD = &TxD;
-		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
-#endif
-
-		printk("%d%d.", pTxD->Owner, pTxD->bWaitingDmaDoneInt);
-		INC_RING_INDEX(AC0DmaDoneIdx, TX_RING_SIZE);
-	}
-	DBGPRINT(RT_DEBUG_TRACE, "p-NDIS=%d\n",
-		 pAdapter->RalinkCounters.PendingNdisPacketCount);
-}
-
-VOID RTMPFreeTXDUponTxDmaDone(IN PRTMP_ADAPTER pAd,
-			      IN UCHAR QueIdx, IN UINT RingSize)
-{
-	PRTMP_TX_RING pTxRing;
-	PTXD_STRUC pTxD;
-#ifdef	BIG_ENDIAN
-	PTXD_STRUC pDestTxD;
-	TXD_STRUC TxD;
-#endif
-	struct sk_buff **pSkb;
-	struct sk_buff **pNextSkb;
-	int i;
-
-	ASSERT(QueIdx < NUM_OF_TX_RING);
-	pTxRing = &pAd->TxRing[QueIdx];
-
-	for (i = 0; i < MAX_DMA_DONE_PROCESS; i++) {
-#ifndef BIG_ENDIAN
-		pTxD =
-		    (PTXD_STRUC) (pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].
-				  AllocVa);
-#else
-		pDestTxD =
-		    (PTXD_STRUC) (pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].
-				  AllocVa);
-		TxD = *pDestTxD;
-		pTxD = &TxD;
-		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
-#endif
-
-		pSkb = &pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].pSkb;
-		pNextSkb = &pTxRing->Cell[pTxRing->NextTxDmaDoneIndex].pNextSkb;
-		if (pTxD->Owner == DESC_OWN_NIC)
-			break;
-		if (pTxD->bWaitingDmaDoneInt == 0) {
-			if (pTxRing->NextTxDmaDoneIndex != pTxRing->CurTxIndex) {
-				// should never reach here!!!!
-				DBGPRINT_TX_RING(pAd, QueIdx);
-				// dump TXD at NextTxDmaDoneIndex, check sequence#, check Airopeek if
-				// the frame been transmitted out or not.
-				DBGPRINT(RT_DEBUG_ERROR,
-					 "pNdisPacket[%d]=0x%08lx\n",
-					 pTxRing->NextTxDmaDoneIndex,
-					 (unsigned long)*pSkb);
-				INC_RING_INDEX(pTxRing->NextTxDmaDoneIndex,
-					       RingSize);
-				continue;
-			} else
-				break;
-		}
-
-		pTxD->bWaitingDmaDoneInt = 0;
-		INC_RING_INDEX(pTxRing->NextTxDmaDoneIndex, RingSize);
-		pAd->RalinkCounters.TransmittedByteCount += pTxD->DataByteCnt;
-		pAd->RalinkCounters.OneSecDmaDoneCount[QueIdx]++;
-
-#ifdef RALINK_ATE
-		if (pAd->ate.Mode == ATE_TXFRAME) {
-#ifdef BIG_ENDIAN
-			RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
-			*pDestTxD = TxD;
-#endif
-			continue;
-		}
-#endif
-
-		if (*pSkb) {
-			pci_unmap_single(pAd->pPci_Dev, pTxD->BufPhyAddr1,
-					 pTxD->BufLen1, PCI_DMA_TODEVICE);
-			RELEASE_NDIS_PACKET(pAd, *pSkb);
-			*pSkb = NULL;
-		}
-
-		if (*pNextSkb) {
-			pci_unmap_single(pAd->pPci_Dev, pTxD->BufPhyAddr2,
-					 pTxD->BufLen2, PCI_DMA_TODEVICE);
-			RELEASE_NDIS_PACKET(pAd, *pNextSkb);
-			*pNextSkb = 0;
-		}
-#ifdef BIG_ENDIAN
-		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
-		*pDestTxD = TxD;
-#endif
-	}
-}
-
-/*
-	========================================================================
-
-	Routine	Description:
-		Check the out going frame, if this is an DHCP or ARP datagram
-	will be duplicate another frame at low data rate transmit.
-
-	Arguments:
-		pAd			Pointer	to our adapter
-		pSkb		Pointer to outgoing skb buffer
-
-	Return Value:
-		TRUE		To be transmitted at Low data rate transmit. (1Mbps/6Mbps)
-		FALSE		Do nothing.
-
-	Note:
-
-		MAC header + IP Header + UDP Header
-		  14 Bytes    20 Bytes
-
-		UDP Header
-		00|01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|
-						Source Port
-		16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31|
-					Destination Port
-
-		port 0x43 means Bootstrap Protocol, server.
-		Port 0x44 means Bootstrap Protocol, client.
-
-	========================================================================
-*/
-BOOLEAN RTMPCheckDHCPFrame(IN PRTMP_ADAPTER pAd, IN struct sk_buff *pSkb)
-{
-	PUCHAR pSrc;
-	ULONG SrcLen = 0;
-
-	pSrc = (PVOID) pSkb->data;
-	SrcLen = pSkb->len;
-
-	// Check ARP packet
-	if (SrcLen >= 13) {
-		if ((pSrc[12] == 0x08) && (pSrc[13] == 0x06)) {
-			DBGPRINT(RT_DEBUG_INFO,
-				 "RTMPCheckDHCPFrame - ARP packet\n");
-			return TRUE;
-		}
-	}
-	// Check foe DHCP & BOOTP protocol
-	if (SrcLen >= 37) {
-		if ((pSrc[12] == 0x08) && (pSrc[13] == 0x00) && // It's an IP packet
-		    ((pSrc[14] & 0xf0) == 0x40) && // It's IPv4
-		    (pSrc[23] == 17) && // It's UDP
-		    ((pSrc[36] == 0x00) && ((pSrc[37] == 0x43) || (pSrc[37] == 0x44))) ) // dest port is a DHCP port
-		{
-			DBGPRINT(RT_DEBUG_INFO,
-				 "RTMPCheckDHCPFrame - DHCP packet\n");
-			return TRUE;
-		}
-		else
-		{
-			int is_ip = ((pSrc[12] == 0x08) && (pSrc[13] == 0x00));
-			int is_ipv4 = ((pSrc[14] & 0xf0) == 0x40);
-			int is_udp = (pSrc[23] == 17);
-			int dest_port = (pSrc[36] << 8) | pSrc[37];
-			DBGPRINT(RT_DEBUG_INFO,"RTMPCheckDHCPFrame - not DHCP, ip %d ipv4 %d udp %d destport %d\n",
-				 is_ip, is_ipv4, is_udp, dest_port );
-		}	
-	}
-
-	return FALSE;
-}
-
-VOID RTMPCckBbpTuning(IN PRTMP_ADAPTER pAd, IN UINT TxRate)
+static VOID RTMPCckBbpTuning(IN PRTMP_ADAPTER pAd, IN UINT TxRate)
 {
 	CHAR Bbp94 = 0xFF;
 

@@ -113,71 +113,6 @@ UCHAR WEPKEY[] = {
     ========================================================================
 
     Routine Description:
-        Init WEP function.
-
-    Arguments:
-      pAdapter      Pointer to our adapter
-        pKey        Pointer to the WEP KEY
-        KeyId       WEP Key ID
-        KeyLen      the length of WEP KEY
-        pDest       Pointer to the destination which Encryption data will store in.
-
-    Return Value:
-        None
-
-    Note:
-
-    ========================================================================
-*/
-VOID RTMPInitWepEngine(IN PRTMP_ADAPTER pAdapter,
-		       IN PUCHAR pKey,
-		       IN UCHAR KeyId, IN UCHAR KeyLen, IN OUT PUCHAR pDest)
-{
-	UINT i;
-
-	pAdapter->PrivateInfo.FCSCRC32 = PPPINITFCS32;	//Init crc32.
-	memcpy(WEPKEY + 3, pKey, KeyLen);
-
-	for (i = 0; i < 3; i++)
-		WEPKEY[i] = RandomByte(pAdapter);	//Call mlme RandomByte() function.
-	ARCFOUR_INIT(&pAdapter->PrivateInfo.WEPCONTEXT, WEPKEY, KeyLen + 3);	//INIT SBOX, KEYLEN+3(IV)
-
-	memcpy(pDest, WEPKEY, 3);	//Append Init Vector
-	*(pDest + 3) = (KeyId << 6);	//Append KEYID
-
-}
-
-/*
-    ========================================================================
-
-    Routine Description:
-        Encrypt transimitted data
-
-    Arguments:
-      pAdapter      Pointer to our adapter
-      pSrc          Pointer to the transimitted source data that will be encrypt
-      pDest         Pointer to the destination where entryption data will be store in.
-      Len           Indicate the length of the source data
-
-    Return Value:
-      None
-
-    Note:
-
-    ========================================================================
-*/
-VOID RTMPEncryptData(IN PRTMP_ADAPTER pAdapter,
-		     IN PUCHAR pSrc, IN PUCHAR pDest, IN UINT Len)
-{
-	pAdapter->PrivateInfo.FCSCRC32 =
-	    RTMP_CALC_FCS32(pAdapter->PrivateInfo.FCSCRC32, pSrc, Len);
-	ARCFOUR_ENCRYPT(&pAdapter->PrivateInfo.WEPCONTEXT, pDest, pSrc, Len);
-}
-
-/*
-    ========================================================================
-
-    Routine Description:
         The Stream Cipher Encryption Algorithm "ARCFOUR" initialize
 
     Arguments:
@@ -274,7 +209,7 @@ UCHAR ARCFOUR_BYTE(IN PARCFOURCONTEXT Ctx)
 
     ========================================================================
 */
-VOID ARCFOUR_DECRYPT(IN PARCFOURCONTEXT Ctx,
+inline VOID ARCFOUR_DECRYPT(IN PARCFOURCONTEXT Ctx,
 		     IN PUCHAR pDest, IN PUCHAR pSrc, IN UINT Len)
 {
 	UINT i;
@@ -302,7 +237,7 @@ VOID ARCFOUR_DECRYPT(IN PARCFOURCONTEXT Ctx,
 
     ========================================================================
 */
-VOID ARCFOUR_ENCRYPT(IN PARCFOURCONTEXT Ctx,
+static inline VOID ARCFOUR_ENCRYPT(IN PARCFOURCONTEXT Ctx,
 		     IN PUCHAR pDest, IN PUCHAR pSrc, IN UINT Len)
 {
 	UINT i;
@@ -329,7 +264,7 @@ VOID ARCFOUR_ENCRYPT(IN PARCFOURCONTEXT Ctx,
 
     ========================================================================
 */
-ULONG RTMP_CALC_FCS32(IN ULONG Fcs, IN PUCHAR Cp, IN INT Len)
+static inline ULONG RTMP_CALC_FCS32(IN ULONG Fcs, IN PUCHAR Cp, IN INT Len)
 {
 	while (Len--)
 		Fcs = (((Fcs) >> 8) ^ FCSTAB_32[((Fcs) ^ (*Cp++)) & 0xff]);
@@ -363,4 +298,69 @@ VOID RTMPSetICV(IN PRTMP_ADAPTER pAdapter, IN PUCHAR pDest)
 
 	ARCFOUR_ENCRYPT(&pAdapter->PrivateInfo.WEPCONTEXT, pDest,
 			(PUCHAR) & pAdapter->PrivateInfo.FCSCRC32, 4);
+}
+
+/*
+    ========================================================================
+
+    Routine Description:
+        Init WEP function.
+
+    Arguments:
+      pAdapter      Pointer to our adapter
+        pKey        Pointer to the WEP KEY
+        KeyId       WEP Key ID
+        KeyLen      the length of WEP KEY
+        pDest       Pointer to the destination which Encryption data will store in.
+
+    Return Value:
+        None
+
+    Note:
+
+    ========================================================================
+*/
+VOID RTMPInitWepEngine(IN PRTMP_ADAPTER pAdapter,
+		       IN PUCHAR pKey,
+		       IN UCHAR KeyId, IN UCHAR KeyLen, IN OUT PUCHAR pDest)
+{
+	UINT i;
+
+	pAdapter->PrivateInfo.FCSCRC32 = PPPINITFCS32;	//Init crc32.
+	memcpy(WEPKEY + 3, pKey, KeyLen);
+
+	for (i = 0; i < 3; i++)
+		WEPKEY[i] = RandomByte(pAdapter);	//Call mlme RandomByte() function.
+	ARCFOUR_INIT(&pAdapter->PrivateInfo.WEPCONTEXT, WEPKEY, KeyLen + 3);	//INIT SBOX, KEYLEN+3(IV)
+
+	memcpy(pDest, WEPKEY, 3);	//Append Init Vector
+	*(pDest + 3) = (KeyId << 6);	//Append KEYID
+
+}
+
+/*
+    ========================================================================
+
+    Routine Description:
+        Encrypt transimitted data
+
+    Arguments:
+      pAdapter      Pointer to our adapter
+      pSrc          Pointer to the transimitted source data that will be encrypt
+      pDest         Pointer to the destination where entryption data will be store in.
+      Len           Indicate the length of the source data
+
+    Return Value:
+      None
+
+    Note:
+
+    ========================================================================
+*/
+VOID RTMPEncryptData(IN PRTMP_ADAPTER pAdapter,
+		     IN PUCHAR pSrc, IN PUCHAR pDest, IN UINT Len)
+{
+	pAdapter->PrivateInfo.FCSCRC32 =
+	    RTMP_CALC_FCS32(pAdapter->PrivateInfo.FCSCRC32, pSrc, Len);
+	ARCFOUR_ENCRYPT(&pAdapter->PrivateInfo.WEPCONTEXT, pDest, pSrc, Len);
 }

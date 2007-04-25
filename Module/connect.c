@@ -89,12 +89,10 @@ UCHAR CipherSuiteWpaNoneAesLen =
     Description:
     ==========================================================================
 */
-VOID MlmeCntlInit(IN PRTMP_ADAPTER pAd,
-		  IN STATE_MACHINE * S, OUT STATE_MACHINE_FUNC Trans[])
+static VOID JoinParmFill(IN PRTMP_ADAPTER pAd,
+		  IN OUT MLME_JOIN_REQ_STRUCT * JoinReq, IN ULONG BssIdx)
 {
-	// Control state machine differs from other state machines, the interface
-	// follows the standard interface
-	pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
+	JoinReq->BssIdx = BssIdx;
 }
 
 /*
@@ -102,78 +100,256 @@ VOID MlmeCntlInit(IN PRTMP_ADAPTER pAd,
     Description:
     ==========================================================================
 */
-VOID MlmeCntlMachinePerformAction(IN PRTMP_ADAPTER pAd,
-				  IN STATE_MACHINE * S,
-				  IN MLME_QUEUE_ELEM * Elem)
+static VOID AssocParmFill(IN PRTMP_ADAPTER pAd,
+		   IN OUT MLME_ASSOC_REQ_STRUCT * AssocReq,
+		   IN PUCHAR pAddr,
+		   IN USHORT CapabilityInfo,
+		   IN ULONG Timeout, IN USHORT ListenIntv)
 {
-	switch (Elem->MsgType) {
-	case OID_802_11_SSID:
-		CntlOidSsidProc(pAd, Elem);
-		return;
-	case OID_802_11_BSSID:
-		CntlOidRTBssidProc(pAd, Elem);
-		return;
-	case OID_802_11_BSSID_LIST_SCAN:
-		CntlOidScanProc(pAd, Elem);
-		return;
+	memcpy(AssocReq->Addr, pAddr, ETH_ALEN);
+	// Add mask to support 802.11b mode only
+	AssocReq->CapabilityInfo = CapabilityInfo & SUPPORTED_CAPABILITY_INFO;	// not cf-pollable, not cf-poll-request
+	AssocReq->Timeout = Timeout;
+	AssocReq->ListenIntv = ListenIntv;
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+VOID ScanParmFill(IN PRTMP_ADAPTER pAd,
+		  IN OUT MLME_SCAN_REQ_STRUCT * ScanReq,
+		  IN CHAR Ssid[],
+		  IN UCHAR SsidLen, IN UCHAR BssType, IN UCHAR ScanType)
+{
+	ScanReq->SsidLen = SsidLen;
+	memcpy(ScanReq->Ssid, Ssid, SsidLen);
+	ScanReq->BssType = BssType;
+	ScanReq->ScanType = ScanType;
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+VOID DisassocParmFill(IN PRTMP_ADAPTER pAd,
+		      IN OUT MLME_DISASSOC_REQ_STRUCT * DisassocReq,
+		      IN PUCHAR pAddr, IN USHORT Reason)
+{
+	memcpy(DisassocReq->Addr, pAddr, ETH_ALEN);
+	DisassocReq->Reason = Reason;
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+static VOID StartParmFill(IN PRTMP_ADAPTER pAd,
+		   IN OUT MLME_START_REQ_STRUCT * StartReq,
+		   IN CHAR Ssid[], IN UCHAR SsidLen)
+{
+	memcpy(StartReq->Ssid, Ssid, SsidLen);
+	StartReq->SsidLen = SsidLen;
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+static VOID AuthParmFill(IN PRTMP_ADAPTER pAd,
+		  IN OUT MLME_AUTH_REQ_STRUCT * AuthReq,
+		  IN PUCHAR pAddr, IN USHORT Alg)
+{
+	memcpy(AuthReq->Addr, pAddr, ETH_ALEN);
+	AuthReq->Alg = Alg;
+	AuthReq->Timeout = AUTH_TIMEOUT;
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+static VOID IterateOnBssTab(IN PRTMP_ADAPTER pAd)
+{
+	MLME_START_REQ_STRUCT StartReq;
+	MLME_JOIN_REQ_STRUCT JoinReq;
+	ULONG BssIdx;
+
+	BssIdx = pAd->MlmeAux.BssIdx;
+	if (BssIdx < pAd->MlmeAux.SsidBssTab.BssNr) {
+		// Check cipher suite, AP must have more secured cipher than station setting
+		// Set the Pairwise and Group cipher to match the intended AP setting
+		// We can only connect to AP with less secured cipher setting
+		if ((pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA)
+		    || (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK)) {
+			pAd->PortCfg.GroupCipher =
+			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA.
+			    GroupCipher;
+
+			if (pAd->PortCfg.WepStatus ==
+			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA.
+			    PairCipher)
+				pAd->PortCfg.PairCipher =
+				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
+				    WPA.PairCipher;
+			else if (pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA.
+				 PairCipherAux != Ndis802_11WEPDisabled)
+				pAd->PortCfg.PairCipher =
+				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
+				    WPA.PairCipherAux;
+			else	// There is no PairCipher Aux, downgrade our capability to TKIP
+				pAd->PortCfg.PairCipher =
+				    Ndis802_11Encryption2Enabled;
+		} else if ((pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2)
+			   || (pAd->PortCfg.AuthMode ==
+			       Ndis802_11AuthModeWPA2PSK)) {
+			pAd->PortCfg.GroupCipher =
+			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
+			    GroupCipher;
+
+			if (pAd->PortCfg.WepStatus ==
+			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
+			    PairCipher)
+				pAd->PortCfg.PairCipher =
+				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
+				    WPA2.PairCipher;
+			else if (pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
+				 PairCipherAux != Ndis802_11WEPDisabled)
+				pAd->PortCfg.PairCipher =
+				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
+				    WPA2.PairCipherAux;
+			else	// There is no PairCipher Aux, downgrade our capability to TKIP
+				pAd->PortCfg.PairCipher =
+				    Ndis802_11Encryption2Enabled;
+
+			// RSN capability
+			pAd->PortCfg.RsnCapability =
+			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
+			    RsnCapability;
+		}
+		// Set Mix cipher flag
+		if (pAd->PortCfg.PairCipher != pAd->PortCfg.GroupCipher)
+			pAd->PortCfg.bMixCipher = TRUE;
+
+		DBGPRINT(RT_DEBUG_TRACE, "CNTL - iterate BSS %d of %d\n",
+			 BssIdx, pAd->MlmeAux.SsidBssTab.BssNr);
+		JoinParmFill(pAd, &JoinReq, BssIdx);
+		MlmeEnqueue(pAd, SYNC_STATE_MACHINE, MT2_MLME_JOIN_REQ,
+			    sizeof(MLME_JOIN_REQ_STRUCT), &JoinReq);
+		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_JOIN;
+	} else if (pAd->PortCfg.BssType == BSS_ADHOC) {
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "CNTL - All BSS fail; start a new ADHOC (Ssid=%s)...\n",
+			 pAd->MlmeAux.Ssid);
+		StartParmFill(pAd, &StartReq, pAd->MlmeAux.Ssid,
+			      pAd->MlmeAux.SsidLen);
+		MlmeEnqueue(pAd, SYNC_STATE_MACHINE, MT2_MLME_START_REQ,
+			    sizeof(MLME_START_REQ_STRUCT), &StartReq);
+		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_START;
+	} else			// no more BSS
+	{
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "CNTL - All roaming failed, stay @ ch #%d\n",
+			 pAd->PortCfg.Channel);
+		AsicSwitchChannel(pAd, pAd->PortCfg.Channel);
+		AsicLockChannel(pAd, pAd->PortCfg.Channel);
+		pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
 	}
+}
 
-	switch (pAd->Mlme.CntlMachine.CurrState) {
-	case CNTL_IDLE:
-		CntlIdleProc(pAd, Elem);
-		break;
-	case CNTL_WAIT_DISASSOC:
-		CntlWaitDisassocProc(pAd, Elem);
-		break;
-	case CNTL_WAIT_JOIN:
-		CntlWaitJoinProc(pAd, Elem);
-		break;
+// for re-association only
+static VOID IterateOnBssTab2(IN PRTMP_ADAPTER pAd)
+{
+	MLME_REASSOC_REQ_STRUCT ReassocReq;
+	ULONG BssIdx;
+	BSS_ENTRY *pBss;
 
-		// CNTL_WAIT_REASSOC is the only state in CNTL machine that does
-		// not triggered directly or indirectly by "RTMPSetInformation(OID_xxx)".
-		// Therefore not protected by NDIS's "only one outstanding OID request"
-		// rule. Which means NDIS may SET OID in the middle of ROAMing attempts.
-		// Current approach is to block new SET request at RTMPSetInformation()
-		// when CntlMachine.CurrState is not CNTL_IDLE
-	case CNTL_WAIT_REASSOC:
-		CntlWaitReassocProc(pAd, Elem);
-		break;
+	BssIdx = pAd->MlmeAux.RoamIdx;
+	pBss = &pAd->MlmeAux.RoamTab.BssEntry[BssIdx];
 
-	case CNTL_WAIT_START:
-		CntlWaitStartProc(pAd, Elem);
-		break;
-	case CNTL_WAIT_AUTH:
-		CntlWaitAuthProc(pAd, Elem);
-		break;
-	case CNTL_WAIT_AUTH2:
-		CntlWaitAuthProc2(pAd, Elem);
-		break;
-	case CNTL_WAIT_ASSOC:
-		CntlWaitAssocProc(pAd, Elem);
-		break;
+	if (BssIdx < pAd->MlmeAux.RoamTab.BssNr) {
+		DBGPRINT(RT_DEBUG_TRACE, "CNTL - iterate BSS %d of %d\n",
+			 BssIdx, pAd->MlmeAux.RoamTab.BssNr);
 
-	case CNTL_WAIT_OID_LIST_SCAN:
-		if (Elem->MsgType == MT2_SCAN_CONF) {
-			// Resume TxRing after SCANING complete. We hope the out-of-service time
-			// won't be too long to let upper layer time-out the waiting frames
-			RTMPResumeMsduTransmission(pAd);
+		AsicSwitchChannel(pAd, pBss->Channel);
+		AsicLockChannel(pAd, pBss->Channel);
 
-			pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
+		// reassociate message has the same structure as associate message
+		AssocParmFill(pAd, &ReassocReq, pBss->Bssid,
+			      pBss->CapabilityInfo, ASSOC_TIMEOUT,
+			      pAd->PortCfg.DefaultListenCount);
+		MlmeEnqueue(pAd, ASSOC_STATE_MACHINE, MT2_MLME_REASSOC_REQ,
+			    sizeof(MLME_REASSOC_REQ_STRUCT), &ReassocReq);
+
+		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_REASSOC;
+	} else			// no more BSS
+	{
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "CNTL - All fast roaming failed, back to ch #%d\n",
+			 pAd->PortCfg.Channel);
+		AsicSwitchChannel(pAd, pAd->PortCfg.Channel);
+		AsicLockChannel(pAd, pAd->PortCfg.Channel);
+		pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
+	}
+}
+
+// Roaming is the only external request triggering CNTL state machine
+// despite of other "SET OID" operation. All "SET OID" related oerations
+// happen in sequence, because no other SET OID will be sent to this device
+// until the the previous SET operation is complete (successful o failed).
+// So, how do we quarantee this ROAMING request won't corrupt other "SET OID"?
+// or been corrupted by other "SET OID"?
+static VOID CntlMlmeRoamingProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+{
+	// TODO:
+	// AP in different channel may show lower RSSI than actual value??
+	// should we add a weighting factor to compensate it?
+	DBGPRINT(RT_DEBUG_TRACE, "CNTL - Roaming in MlmeAux.RoamTab...\n");
+
+	memcpy(&pAd->MlmeAux.SsidBssTab, &pAd->MlmeAux.RoamTab,
+	       sizeof(pAd->MlmeAux.RoamTab));
+	pAd->MlmeAux.SsidBssTab.BssNr = pAd->MlmeAux.RoamTab.BssNr;
+
+	BssTableSortByRssi(&pAd->MlmeAux.SsidBssTab);
+	pAd->MlmeAux.BssIdx = 0;
+	IterateOnBssTab(pAd);
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+static VOID CntlWaitDisassocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+{
+	MLME_START_REQ_STRUCT StartReq;
+
+	if (Elem->MsgType == MT2_DISASSOC_CONF) {
+		DBGPRINT(RT_DEBUG_TRACE, "CNTL - Dis-associate successful\n");
+		LinkDown(pAd, FALSE);
+
+		// case 1. no matching BSS, and user wants ADHOC, so we just start a new one
+		if ((pAd->MlmeAux.SsidBssTab.BssNr == 0)
+		    && (pAd->PortCfg.BssType == BSS_ADHOC)) {
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "CNTL - No matching BSS, start a new ADHOC (Ssid=%s)...\n",
+				 pAd->MlmeAux.Ssid);
+			StartParmFill(pAd, &StartReq, pAd->MlmeAux.Ssid,
+				      pAd->MlmeAux.SsidLen);
+			MlmeEnqueue(pAd, SYNC_STATE_MACHINE, MT2_MLME_START_REQ,
+				    sizeof(MLME_START_REQ_STRUCT), &StartReq);
+			pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_START;
 		}
-		break;
-
-	case CNTL_WAIT_OID_DISASSOC:
-		if (Elem->MsgType == MT2_DISASSOC_CONF) {
-			LinkDown(pAd, FALSE);
-			pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
+		// case 2. try each matched BSS
+		else {
+			pAd->MlmeAux.BssIdx = 0;
+			IterateOnBssTab(pAd);
 		}
-		break;
-
-	default:
-		printk(KERN_ERR DRIVER_NAME
-		       "!ERROR! CNTL - Illegal message type(=%d)",
-		       Elem->MsgType);
-		break;
 	}
 }
 
@@ -182,7 +358,7 @@ VOID MlmeCntlMachinePerformAction(IN PRTMP_ADAPTER pAd,
     Description:
     ==========================================================================
 */
-VOID CntlIdleProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlIdleProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	MLME_DISASSOC_REQ_STRUCT DisassocReq;
 
@@ -218,7 +394,7 @@ VOID CntlIdleProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	}
 }
 
-VOID CntlOidScanProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlOidScanProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	MLME_SCAN_REQ_STRUCT ScanReq;
 	ULONG BssIdx = BSS_NOT_FOUND;
@@ -268,7 +444,7 @@ VOID CntlOidScanProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
         recorded in PortCfg.Ssid[]
     ==========================================================================
 */
-VOID CntlOidSsidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlOidSsidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PNDIS_802_11_SSID pOidSsid = (NDIS_802_11_SSID *) Elem->Msg;
 	MLME_DISASSOC_REQ_STRUCT DisassocReq;
@@ -564,67 +740,12 @@ VOID CntlOidRTBssidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	}
 }
 
-// Roaming is the only external request triggering CNTL state machine
-// despite of other "SET OID" operation. All "SET OID" related oerations
-// happen in sequence, because no other SET OID will be sent to this device
-// until the the previous SET operation is complete (successful o failed).
-// So, how do we quarantee this ROAMING request won't corrupt other "SET OID"?
-// or been corrupted by other "SET OID"?
-VOID CntlMlmeRoamingProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
-{
-	// TODO:
-	// AP in different channel may show lower RSSI than actual value??
-	// should we add a weighting factor to compensate it?
-	DBGPRINT(RT_DEBUG_TRACE, "CNTL - Roaming in MlmeAux.RoamTab...\n");
-
-	memcpy(&pAd->MlmeAux.SsidBssTab, &pAd->MlmeAux.RoamTab,
-	       sizeof(pAd->MlmeAux.RoamTab));
-	pAd->MlmeAux.SsidBssTab.BssNr = pAd->MlmeAux.RoamTab.BssNr;
-
-	BssTableSortByRssi(&pAd->MlmeAux.SsidBssTab);
-	pAd->MlmeAux.BssIdx = 0;
-	IterateOnBssTab(pAd);
-}
-
 /*
     ==========================================================================
     Description:
     ==========================================================================
 */
-VOID CntlWaitDisassocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
-{
-	MLME_START_REQ_STRUCT StartReq;
-
-	if (Elem->MsgType == MT2_DISASSOC_CONF) {
-		DBGPRINT(RT_DEBUG_TRACE, "CNTL - Dis-associate successful\n");
-		LinkDown(pAd, FALSE);
-
-		// case 1. no matching BSS, and user wants ADHOC, so we just start a new one
-		if ((pAd->MlmeAux.SsidBssTab.BssNr == 0)
-		    && (pAd->PortCfg.BssType == BSS_ADHOC)) {
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "CNTL - No matching BSS, start a new ADHOC (Ssid=%s)...\n",
-				 pAd->MlmeAux.Ssid);
-			StartParmFill(pAd, &StartReq, pAd->MlmeAux.Ssid,
-				      pAd->MlmeAux.SsidLen);
-			MlmeEnqueue(pAd, SYNC_STATE_MACHINE, MT2_MLME_START_REQ,
-				    sizeof(MLME_START_REQ_STRUCT), &StartReq);
-			pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_START;
-		}
-		// case 2. try each matched BSS
-		else {
-			pAd->MlmeAux.BssIdx = 0;
-			IterateOnBssTab(pAd);
-		}
-	}
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID CntlWaitJoinProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlWaitJoinProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Reason;
 	MLME_AUTH_REQ_STRUCT AuthReq;
@@ -682,7 +803,7 @@ VOID CntlWaitJoinProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
 */
-VOID CntlWaitStartProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlWaitStartProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Result;
 
@@ -721,7 +842,7 @@ VOID CntlWaitStartProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
 */
-VOID CntlWaitAuthProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlWaitAuthProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Reason;
 	MLME_ASSOC_REQ_STRUCT AssocReq;
@@ -773,7 +894,7 @@ VOID CntlWaitAuthProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
 */
-VOID CntlWaitAuthProc2(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlWaitAuthProc2(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Reason;
 	MLME_ASSOC_REQ_STRUCT AssocReq;
@@ -826,7 +947,7 @@ VOID CntlWaitAuthProc2(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
 */
-VOID CntlWaitAssocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlWaitAssocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Reason;
 
@@ -854,7 +975,7 @@ VOID CntlWaitAssocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
 */
-VOID CntlWaitReassocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID CntlWaitReassocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Result;
 
@@ -879,6 +1000,125 @@ VOID CntlWaitReassocProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			IterateOnBssTab2(pAd);
 		}
 	}
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+VOID MlmeCntlInit(IN PRTMP_ADAPTER pAd,
+		  IN STATE_MACHINE * S, OUT STATE_MACHINE_FUNC Trans[])
+{
+	// Control state machine differs from other state machines, the interface
+	// follows the standard interface
+	pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+*/
+VOID MlmeCntlMachinePerformAction(IN PRTMP_ADAPTER pAd,
+				  IN STATE_MACHINE * S,
+				  IN MLME_QUEUE_ELEM * Elem)
+{
+	switch (Elem->MsgType) {
+	case OID_802_11_SSID:
+		CntlOidSsidProc(pAd, Elem);
+		return;
+	case OID_802_11_BSSID:
+		CntlOidRTBssidProc(pAd, Elem);
+		return;
+	case OID_802_11_BSSID_LIST_SCAN:
+		CntlOidScanProc(pAd, Elem);
+		return;
+	}
+
+	switch (pAd->Mlme.CntlMachine.CurrState) {
+	case CNTL_IDLE:
+		CntlIdleProc(pAd, Elem);
+		break;
+	case CNTL_WAIT_DISASSOC:
+		CntlWaitDisassocProc(pAd, Elem);
+		break;
+	case CNTL_WAIT_JOIN:
+		CntlWaitJoinProc(pAd, Elem);
+		break;
+
+		// CNTL_WAIT_REASSOC is the only state in CNTL machine that does
+		// not triggered directly or indirectly by "RTMPSetInformation(OID_xxx)".
+		// Therefore not protected by NDIS's "only one outstanding OID request"
+		// rule. Which means NDIS may SET OID in the middle of ROAMing attempts.
+		// Current approach is to block new SET request at RTMPSetInformation()
+		// when CntlMachine.CurrState is not CNTL_IDLE
+	case CNTL_WAIT_REASSOC:
+		CntlWaitReassocProc(pAd, Elem);
+		break;
+
+	case CNTL_WAIT_START:
+		CntlWaitStartProc(pAd, Elem);
+		break;
+	case CNTL_WAIT_AUTH:
+		CntlWaitAuthProc(pAd, Elem);
+		break;
+	case CNTL_WAIT_AUTH2:
+		CntlWaitAuthProc2(pAd, Elem);
+		break;
+	case CNTL_WAIT_ASSOC:
+		CntlWaitAssocProc(pAd, Elem);
+		break;
+
+	case CNTL_WAIT_OID_LIST_SCAN:
+		if (Elem->MsgType == MT2_SCAN_CONF) {
+			// Resume TxRing after SCANING complete. We hope the out-of-service time
+			// won't be too long to let upper layer time-out the waiting frames
+			RTMPResumeMsduTransmission(pAd);
+
+			pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
+		}
+		break;
+
+	case CNTL_WAIT_OID_DISASSOC:
+		if (Elem->MsgType == MT2_DISASSOC_CONF) {
+			LinkDown(pAd, FALSE);
+			pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
+		}
+		break;
+
+	default:
+		printk(KERN_ERR DRIVER_NAME
+		       "!ERROR! CNTL - Illegal message type(=%d)",
+		       Elem->MsgType);
+		break;
+	}
+}
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+ */
+static VOID ComposePsPoll(IN PRTMP_ADAPTER pAd)
+{
+	memset(&pAd->PsPollFrame, 0, sizeof(PSPOLL_FRAME));
+	pAd->PsPollFrame.FC.Type = BTYPE_CNTL;
+	pAd->PsPollFrame.FC.SubType = SUBTYPE_PS_POLL;
+	pAd->PsPollFrame.Aid = pAd->ActiveCfg.Aid | 0xC000;
+	memcpy(pAd->PsPollFrame.Bssid, pAd->PortCfg.Bssid, ETH_ALEN);
+	memcpy(pAd->PsPollFrame.Ta, pAd->CurrentAddress, ETH_ALEN);
+}
+
+static VOID ComposeNullFrame(IN PRTMP_ADAPTER pAd)
+{
+	memset(&pAd->NullFrame, 0, sizeof(HEADER_802_11));
+	pAd->NullFrame.FC.Type = BTYPE_DATA;
+	pAd->NullFrame.FC.SubType = SUBTYPE_NULL_FUNC;
+	pAd->NullFrame.FC.ToDs = 1;
+	memcpy(pAd->NullFrame.Addr1, pAd->PortCfg.Bssid, ETH_ALEN);
+	memcpy(pAd->NullFrame.Addr2, pAd->CurrentAddress, ETH_ALEN);
+	memcpy(pAd->NullFrame.Addr3, pAd->PortCfg.Bssid, ETH_ALEN);
 }
 
 /*
@@ -1221,246 +1461,6 @@ VOID LinkDown(IN PRTMP_ADAPTER pAd, IN BOOLEAN IsReqFromAP)
 		OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_PIGGYBACK_INUSED);
 	}
 
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID IterateOnBssTab(IN PRTMP_ADAPTER pAd)
-{
-	MLME_START_REQ_STRUCT StartReq;
-	MLME_JOIN_REQ_STRUCT JoinReq;
-	ULONG BssIdx;
-
-	BssIdx = pAd->MlmeAux.BssIdx;
-	if (BssIdx < pAd->MlmeAux.SsidBssTab.BssNr) {
-		// Check cipher suite, AP must have more secured cipher than station setting
-		// Set the Pairwise and Group cipher to match the intended AP setting
-		// We can only connect to AP with less secured cipher setting
-		if ((pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA)
-		    || (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK)) {
-			pAd->PortCfg.GroupCipher =
-			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA.
-			    GroupCipher;
-
-			if (pAd->PortCfg.WepStatus ==
-			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA.
-			    PairCipher)
-				pAd->PortCfg.PairCipher =
-				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
-				    WPA.PairCipher;
-			else if (pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA.
-				 PairCipherAux != Ndis802_11WEPDisabled)
-				pAd->PortCfg.PairCipher =
-				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
-				    WPA.PairCipherAux;
-			else	// There is no PairCipher Aux, downgrade our capability to TKIP
-				pAd->PortCfg.PairCipher =
-				    Ndis802_11Encryption2Enabled;
-		} else if ((pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2)
-			   || (pAd->PortCfg.AuthMode ==
-			       Ndis802_11AuthModeWPA2PSK)) {
-			pAd->PortCfg.GroupCipher =
-			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
-			    GroupCipher;
-
-			if (pAd->PortCfg.WepStatus ==
-			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
-			    PairCipher)
-				pAd->PortCfg.PairCipher =
-				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
-				    WPA2.PairCipher;
-			else if (pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
-				 PairCipherAux != Ndis802_11WEPDisabled)
-				pAd->PortCfg.PairCipher =
-				    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].
-				    WPA2.PairCipherAux;
-			else	// There is no PairCipher Aux, downgrade our capability to TKIP
-				pAd->PortCfg.PairCipher =
-				    Ndis802_11Encryption2Enabled;
-
-			// RSN capability
-			pAd->PortCfg.RsnCapability =
-			    pAd->MlmeAux.SsidBssTab.BssEntry[BssIdx].WPA2.
-			    RsnCapability;
-		}
-		// Set Mix cipher flag
-		if (pAd->PortCfg.PairCipher != pAd->PortCfg.GroupCipher)
-			pAd->PortCfg.bMixCipher = TRUE;
-
-		DBGPRINT(RT_DEBUG_TRACE, "CNTL - iterate BSS %d of %d\n",
-			 BssIdx, pAd->MlmeAux.SsidBssTab.BssNr);
-		JoinParmFill(pAd, &JoinReq, BssIdx);
-		MlmeEnqueue(pAd, SYNC_STATE_MACHINE, MT2_MLME_JOIN_REQ,
-			    sizeof(MLME_JOIN_REQ_STRUCT), &JoinReq);
-		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_JOIN;
-	} else if (pAd->PortCfg.BssType == BSS_ADHOC) {
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "CNTL - All BSS fail; start a new ADHOC (Ssid=%s)...\n",
-			 pAd->MlmeAux.Ssid);
-		StartParmFill(pAd, &StartReq, pAd->MlmeAux.Ssid,
-			      pAd->MlmeAux.SsidLen);
-		MlmeEnqueue(pAd, SYNC_STATE_MACHINE, MT2_MLME_START_REQ,
-			    sizeof(MLME_START_REQ_STRUCT), &StartReq);
-		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_START;
-	} else			// no more BSS
-	{
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "CNTL - All roaming failed, stay @ ch #%d\n",
-			 pAd->PortCfg.Channel);
-		AsicSwitchChannel(pAd, pAd->PortCfg.Channel);
-		AsicLockChannel(pAd, pAd->PortCfg.Channel);
-		pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
-	}
-}
-
-// for re-association only
-VOID IterateOnBssTab2(IN PRTMP_ADAPTER pAd)
-{
-	MLME_REASSOC_REQ_STRUCT ReassocReq;
-	ULONG BssIdx;
-	BSS_ENTRY *pBss;
-
-	BssIdx = pAd->MlmeAux.RoamIdx;
-	pBss = &pAd->MlmeAux.RoamTab.BssEntry[BssIdx];
-
-	if (BssIdx < pAd->MlmeAux.RoamTab.BssNr) {
-		DBGPRINT(RT_DEBUG_TRACE, "CNTL - iterate BSS %d of %d\n",
-			 BssIdx, pAd->MlmeAux.RoamTab.BssNr);
-
-		AsicSwitchChannel(pAd, pBss->Channel);
-		AsicLockChannel(pAd, pBss->Channel);
-
-		// reassociate message has the same structure as associate message
-		AssocParmFill(pAd, &ReassocReq, pBss->Bssid,
-			      pBss->CapabilityInfo, ASSOC_TIMEOUT,
-			      pAd->PortCfg.DefaultListenCount);
-		MlmeEnqueue(pAd, ASSOC_STATE_MACHINE, MT2_MLME_REASSOC_REQ,
-			    sizeof(MLME_REASSOC_REQ_STRUCT), &ReassocReq);
-
-		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_REASSOC;
-	} else			// no more BSS
-	{
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "CNTL - All fast roaming failed, back to ch #%d\n",
-			 pAd->PortCfg.Channel);
-		AsicSwitchChannel(pAd, pAd->PortCfg.Channel);
-		AsicLockChannel(pAd, pAd->PortCfg.Channel);
-		pAd->Mlme.CntlMachine.CurrState = CNTL_IDLE;
-	}
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID JoinParmFill(IN PRTMP_ADAPTER pAd,
-		  IN OUT MLME_JOIN_REQ_STRUCT * JoinReq, IN ULONG BssIdx)
-{
-	JoinReq->BssIdx = BssIdx;
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID AssocParmFill(IN PRTMP_ADAPTER pAd,
-		   IN OUT MLME_ASSOC_REQ_STRUCT * AssocReq,
-		   IN PUCHAR pAddr,
-		   IN USHORT CapabilityInfo,
-		   IN ULONG Timeout, IN USHORT ListenIntv)
-{
-	memcpy(AssocReq->Addr, pAddr, ETH_ALEN);
-	// Add mask to support 802.11b mode only
-	AssocReq->CapabilityInfo = CapabilityInfo & SUPPORTED_CAPABILITY_INFO;	// not cf-pollable, not cf-poll-request
-	AssocReq->Timeout = Timeout;
-	AssocReq->ListenIntv = ListenIntv;
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID ScanParmFill(IN PRTMP_ADAPTER pAd,
-		  IN OUT MLME_SCAN_REQ_STRUCT * ScanReq,
-		  IN CHAR Ssid[],
-		  IN UCHAR SsidLen, IN UCHAR BssType, IN UCHAR ScanType)
-{
-	ScanReq->SsidLen = SsidLen;
-	memcpy(ScanReq->Ssid, Ssid, SsidLen);
-	ScanReq->BssType = BssType;
-	ScanReq->ScanType = ScanType;
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID DisassocParmFill(IN PRTMP_ADAPTER pAd,
-		      IN OUT MLME_DISASSOC_REQ_STRUCT * DisassocReq,
-		      IN PUCHAR pAddr, IN USHORT Reason)
-{
-	memcpy(DisassocReq->Addr, pAddr, ETH_ALEN);
-	DisassocReq->Reason = Reason;
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID StartParmFill(IN PRTMP_ADAPTER pAd,
-		   IN OUT MLME_START_REQ_STRUCT * StartReq,
-		   IN CHAR Ssid[], IN UCHAR SsidLen)
-{
-	memcpy(StartReq->Ssid, Ssid, SsidLen);
-	StartReq->SsidLen = SsidLen;
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
-*/
-VOID AuthParmFill(IN PRTMP_ADAPTER pAd,
-		  IN OUT MLME_AUTH_REQ_STRUCT * AuthReq,
-		  IN PUCHAR pAddr, IN USHORT Alg)
-{
-	memcpy(AuthReq->Addr, pAddr, ETH_ALEN);
-	AuthReq->Alg = Alg;
-	AuthReq->Timeout = AUTH_TIMEOUT;
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
- */
-VOID ComposePsPoll(IN PRTMP_ADAPTER pAd)
-{
-	memset(&pAd->PsPollFrame, 0, sizeof(PSPOLL_FRAME));
-	pAd->PsPollFrame.FC.Type = BTYPE_CNTL;
-	pAd->PsPollFrame.FC.SubType = SUBTYPE_PS_POLL;
-	pAd->PsPollFrame.Aid = pAd->ActiveCfg.Aid | 0xC000;
-	memcpy(pAd->PsPollFrame.Bssid, pAd->PortCfg.Bssid, ETH_ALEN);
-	memcpy(pAd->PsPollFrame.Ta, pAd->CurrentAddress, ETH_ALEN);
-}
-
-VOID ComposeNullFrame(IN PRTMP_ADAPTER pAd)
-{
-	memset(&pAd->NullFrame, 0, sizeof(HEADER_802_11));
-	pAd->NullFrame.FC.Type = BTYPE_DATA;
-	pAd->NullFrame.FC.SubType = SUBTYPE_NULL_FUNC;
-	pAd->NullFrame.FC.ToDs = 1;
-	memcpy(pAd->NullFrame.Addr1, pAd->PortCfg.Bssid, ETH_ALEN);
-	memcpy(pAd->NullFrame.Addr2, pAd->CurrentAddress, ETH_ALEN);
-	memcpy(pAd->NullFrame.Addr3, pAd->PortCfg.Bssid, ETH_ALEN);
 }
 
 /*

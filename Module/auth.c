@@ -34,6 +34,23 @@
 
 #include "rt_config.h"
 
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+ */
+static VOID InvalidStateWhenAuth(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+{
+	USHORT Status;
+	DBGPRINT(RT_DEBUG_TRACE,
+		 "AUTH - InvalidStateWhenAuth (state=%d), reset AUTH state machine\n",
+		 pAd->Mlme.AuthMachine.CurrState);
+	pAd->Mlme.AuthMachine.CurrState = AUTH_REQ_IDLE;
+	Status = MLME_STATE_MACHINE_REJECT;
+	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_AUTH_CONF, 2, &Status);
+}
+
 /*
     ==========================================================================
     Description:
@@ -52,38 +69,20 @@
     ==========================================================================
  */
 
-VOID AuthStateMachineInit(IN PRTMP_ADAPTER pAd,
-			  IN PSTATE_MACHINE Sm, OUT STATE_MACHINE_FUNC Trans[])
+
+/*
+    ==========================================================================
+    Description:
+    ==========================================================================
+ */
+static VOID AuthTimeoutAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
-	StateMachineInit(Sm, (STATE_MACHINE_FUNC *) Trans, MAX_AUTH_STATE,
-			 MAX_AUTH_MSG, (STATE_MACHINE_FUNC) Drop, AUTH_REQ_IDLE,
-			 AUTH_MACHINE_BASE);
+	USHORT Status;
 
-	// the first column
-	StateMachineSetAction(Sm, AUTH_REQ_IDLE, MT2_MLME_AUTH_REQ,
-			      (STATE_MACHINE_FUNC) MlmeAuthReqAction);
-
-	// the second column
-	StateMachineSetAction(Sm, AUTH_WAIT_SEQ2, MT2_MLME_AUTH_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenAuth);
-	StateMachineSetAction(Sm, AUTH_WAIT_SEQ2, MT2_PEER_AUTH_EVEN,
-			      (STATE_MACHINE_FUNC) PeerAuthRspAtSeq2Action);
-	StateMachineSetAction(Sm, AUTH_WAIT_SEQ2, MT2_AUTH_TIMEOUT,
-			      (STATE_MACHINE_FUNC) AuthTimeoutAction);
-
-	// the third column
-	StateMachineSetAction(Sm, AUTH_WAIT_SEQ4, MT2_MLME_AUTH_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenAuth);
-	StateMachineSetAction(Sm, AUTH_WAIT_SEQ4, MT2_PEER_AUTH_EVEN,
-			      (STATE_MACHINE_FUNC) PeerAuthRspAtSeq4Action);
-	StateMachineSetAction(Sm, AUTH_WAIT_SEQ4, MT2_AUTH_TIMEOUT,
-			      (STATE_MACHINE_FUNC) AuthTimeoutAction);
-
-	// timer init
-	init_timer(&pAd->MlmeAux.AuthTimer);
-	pAd->MlmeAux.AuthTimer.data = (unsigned long)pAd;
-	pAd->MlmeAux.AuthTimer.function = &AuthTimeout;
-
+	DBGPRINT(RT_DEBUG_TRACE, "AUTH - AuthTimeoutAction\n");
+	pAd->Mlme.AuthMachine.CurrState = AUTH_REQ_IDLE;
+	Status = MLME_REJ_TIMEOUT;
+	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_AUTH_CONF, 2, &Status);
 }
 
 /*
@@ -92,7 +91,7 @@ VOID AuthStateMachineInit(IN PRTMP_ADAPTER pAd,
         function to be executed at timer thread when auth timer expires
     ==========================================================================
  */
-VOID AuthTimeout(IN unsigned long data)
+static VOID AuthTimeout(IN unsigned long data)
 {
 	RTMP_ADAPTER *pAd = (RTMP_ADAPTER *) data;
 
@@ -110,7 +109,7 @@ VOID AuthTimeout(IN unsigned long data)
     Description:
     ==========================================================================
  */
-VOID MlmeAuthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID MlmeAuthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Addr[ETH_ALEN];
 	USHORT Alg, Seq, Status;
@@ -183,7 +182,7 @@ VOID MlmeAuthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
  */
-VOID PeerAuthRspAtSeq2Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID PeerAuthRspAtSeq2Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Addr2[ETH_ALEN];
 	USHORT Seq, Status, RemoteStatus, Alg;
@@ -312,7 +311,7 @@ VOID PeerAuthRspAtSeq2Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
  */
-VOID PeerAuthRspAtSeq4Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID PeerAuthRspAtSeq4Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Addr2[ETH_ALEN];
 	USHORT Alg, Seq, Status;
@@ -348,7 +347,7 @@ VOID PeerAuthRspAtSeq4Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
  */
-VOID MlmeDeauthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID MlmeDeauthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	MLME_DEAUTH_REQ_STRUCT *pInfo;
 	HEADER_802_11 DeauthHdr;
@@ -392,44 +391,13 @@ VOID MlmeDeauthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 /*
     ==========================================================================
     Description:
-    ==========================================================================
- */
-VOID AuthTimeoutAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
-{
-	USHORT Status;
-
-	DBGPRINT(RT_DEBUG_TRACE, "AUTH - AuthTimeoutAction\n");
-	pAd->Mlme.AuthMachine.CurrState = AUTH_REQ_IDLE;
-	Status = MLME_REJ_TIMEOUT;
-	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_AUTH_CONF, 2, &Status);
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
- */
-VOID InvalidStateWhenAuth(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
-{
-	USHORT Status;
-	DBGPRINT(RT_DEBUG_TRACE,
-		 "AUTH - InvalidStateWhenAuth (state=%d), reset AUTH state machine\n",
-		 pAd->Mlme.AuthMachine.CurrState);
-	pAd->Mlme.AuthMachine.CurrState = AUTH_REQ_IDLE;
-	Status = MLME_STATE_MACHINE_REJECT;
-	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_AUTH_CONF, 2, &Status);
-}
-
-/*
-    ==========================================================================
-    Description:
         Some STA/AP
     Note:
         This action should never trigger AUTH state transition, therefore we
         separate it from AUTH state machine, and make it as a standalone service
     ==========================================================================
  */
-VOID Cls2errAction(IN PRTMP_ADAPTER pAd, IN PUCHAR pAddr)
+static VOID Cls2errAction(IN PRTMP_ADAPTER pAd, IN PUCHAR pAddr)
 {
 	HEADER_802_11 DeauthHdr;
 	PUCHAR pOutBuffer = NULL;
@@ -453,3 +421,38 @@ VOID Cls2errAction(IN PRTMP_ADAPTER pAd, IN PUCHAR pAddr)
 	pAd->PortCfg.DeauthReason = Reason;
 	memcpy(pAd->PortCfg.DeauthSta, pAddr, ETH_ALEN);
 }
+
+VOID AuthStateMachineInit(IN PRTMP_ADAPTER pAd,
+			  IN PSTATE_MACHINE Sm, OUT STATE_MACHINE_FUNC Trans[])
+{
+	StateMachineInit(Sm, (STATE_MACHINE_FUNC *) Trans, MAX_AUTH_STATE,
+			 MAX_AUTH_MSG, (STATE_MACHINE_FUNC) Drop, AUTH_REQ_IDLE,
+			 AUTH_MACHINE_BASE);
+
+	// the first column
+	StateMachineSetAction(Sm, AUTH_REQ_IDLE, MT2_MLME_AUTH_REQ,
+			      (STATE_MACHINE_FUNC) MlmeAuthReqAction);
+
+	// the second column
+	StateMachineSetAction(Sm, AUTH_WAIT_SEQ2, MT2_MLME_AUTH_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenAuth);
+	StateMachineSetAction(Sm, AUTH_WAIT_SEQ2, MT2_PEER_AUTH_EVEN,
+			      (STATE_MACHINE_FUNC) PeerAuthRspAtSeq2Action);
+	StateMachineSetAction(Sm, AUTH_WAIT_SEQ2, MT2_AUTH_TIMEOUT,
+			      (STATE_MACHINE_FUNC) AuthTimeoutAction);
+
+	// the third column
+	StateMachineSetAction(Sm, AUTH_WAIT_SEQ4, MT2_MLME_AUTH_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenAuth);
+	StateMachineSetAction(Sm, AUTH_WAIT_SEQ4, MT2_PEER_AUTH_EVEN,
+			      (STATE_MACHINE_FUNC) PeerAuthRspAtSeq4Action);
+	StateMachineSetAction(Sm, AUTH_WAIT_SEQ4, MT2_AUTH_TIMEOUT,
+			      (STATE_MACHINE_FUNC) AuthTimeoutAction);
+
+	// timer init
+	init_timer(&pAd->MlmeAux.AuthTimer);
+	pAd->MlmeAux.AuthTimer.data = (unsigned long)pAd;
+	pAd->MlmeAux.AuthTimer.function = &AuthTimeout;
+
+}
+

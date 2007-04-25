@@ -67,95 +67,222 @@ UCHAR A_BAND_REGION_7_CHANNEL_LIST[] =
     { 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128,
 132, 136, 140, 149, 153, 157, 161, 165 };
 
+
 /*
     ==========================================================================
     Description:
-        The sync state machine,
-    Parameters:
-        Sm - pointer to the state machine
-    Note:
-        the state machine looks like the following
-
-    Column 1-2
-                        SYNC_IDLE                       JOIN_WAIT_BEACON
-    MT2_MLME_SCAN_REQ   mlme_scan_req_action            invalid_state_when_scan
-    MT2_MLME_JOIN_REQ   mlme_join_req_action            invalid_state_when_join
-    MT2_MLME_START_REQ  mlme_start_req_action           invalid_state_when_start
-    MT2_PEER_BEACON     peer_beacon                     peer_beacon_at_join_wait_beacon_action
-    MT2_PEER_PROBE_RSP  peer_beacon                     drop
-    MT2_PEER_ATIM       drop                            drop
-    MT2_SCAN_TIMEOUT    Drop                            Drop
-    MT2_BEACON_TIMEOUT  Drop                            beacon_timeout_at_join_wait_beacon_action
-    MT2_ATIM_TIMEOUT    Drop                            Drop
-    MT2_PEER_PROBE_REQ  ????                            drop
-
-    column 3
-                         SCAN_LISTEN
-    MT2_MLME_SCAN_REQ    invalid_state_when_scan
-    MT2_MLME_JOIN_REQ    invalid_state_when_join
-    MT2_MLME_START_REQ   invalid_state_when_start
-    MT2_PEER_BEACON      peer_beacon_at_scan_action
-    MT2_PEER_PROBE_RSP   peer_probe_rsp_at_scan_action
-    MT2_PEER_ATIM        drop
-    MT2_SCAN_TIMEOUT     scan_timeout_action
-    MT2_BEACON_TIMEOUT   Drop
-    MT2_ATIM_TIMEOUT     Drop
-    MT2_PEER_PROBE_REQ   drop
+        This routine return the first channel number according to the country
+        code selection and RF IC selection (signal band or dual band). It is called
+        whenever driver need to start a site survey of all supported channels.
+    Return:
+        ch - the first channel number of current country code setting
     ==========================================================================
  */
-VOID SyncStateMachineInit(IN PRTMP_ADAPTER pAd,
-			  IN STATE_MACHINE * Sm, OUT STATE_MACHINE_FUNC Trans[])
+UCHAR FirstChannel(IN PRTMP_ADAPTER pAd)
 {
-	StateMachineInit(Sm, (STATE_MACHINE_FUNC *) Trans, MAX_SYNC_STATE,
-			 MAX_SYNC_MSG, (STATE_MACHINE_FUNC) Drop, SYNC_IDLE,
-			 SYNC_MACHINE_BASE);
+	return pAd->ChannelList[0].Channel;
+}
 
-	// column 1
-	StateMachineSetAction(Sm, SYNC_IDLE, MT2_MLME_SCAN_REQ,
-			      (STATE_MACHINE_FUNC) MlmeScanReqAction);
-	StateMachineSetAction(Sm, SYNC_IDLE, MT2_MLME_JOIN_REQ,
-			      (STATE_MACHINE_FUNC) MlmeJoinReqAction);
-	StateMachineSetAction(Sm, SYNC_IDLE, MT2_MLME_START_REQ,
-			      (STATE_MACHINE_FUNC) MlmeStartReqAction);
-	StateMachineSetAction(Sm, SYNC_IDLE, MT2_PEER_BEACON,
-			      (STATE_MACHINE_FUNC) PeerBeacon);
-	StateMachineSetAction(Sm, SYNC_IDLE, MT2_PEER_PROBE_REQ,
-			      (STATE_MACHINE_FUNC) PeerProbeReqAction);
+/*
+    ==========================================================================
+    Description:
+        This routine returns the next channel number. This routine is called
+        during driver need to start a site survey of all supported channels.
+    Return:
+        next_channel - the next channel number valid in current country code setting.
+    Note:
+        return 0 if no more next channel
+    ==========================================================================
+ */
+static UCHAR NextChannel(IN PRTMP_ADAPTER pAd, IN UCHAR channel)
+{
+	int i;
+	UCHAR next_channel = 0;
 
-	//column 2
-	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_MLME_SCAN_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenScan);
-	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_MLME_JOIN_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenJoin);
-	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_MLME_START_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenStart);
-	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_PEER_BEACON,
-			      (STATE_MACHINE_FUNC) PeerBeaconAtJoinAction);
-	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_BEACON_TIMEOUT,
-			      (STATE_MACHINE_FUNC) BeaconTimeoutAtJoinAction);
+	for (i = 0; i < (pAd->ChannelListNum - 1); i++)
+		if (channel == pAd->ChannelList[i].Channel) {
+			next_channel = pAd->ChannelList[i + 1].Channel;
+			break;
+		}
+	return next_channel;
+}
 
-	// column 3
-	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_MLME_SCAN_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenScan);
-	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_MLME_JOIN_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenJoin);
-	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_MLME_START_REQ,
-			      (STATE_MACHINE_FUNC) InvalidStateWhenStart);
-	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_PEER_BEACON,
-			      (STATE_MACHINE_FUNC) PeerBeaconAtScanAction);
-	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_PEER_PROBE_RSP,
-			      (STATE_MACHINE_FUNC) PeerBeaconAtScanAction);
-	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_SCAN_TIMEOUT,
-			      (STATE_MACHINE_FUNC) ScanTimeoutAction);
+/*
+    ==========================================================================
+    Description:
+        Scan next channel
+    ==========================================================================
+ */
+static VOID ScanNextChannel(IN PRTMP_ADAPTER pAd)
+{
+	HEADER_802_11 Hdr80211;
+	PUCHAR pOutBuffer = NULL;
+	ULONG FrameLen = 0;
+	UCHAR SsidLen = 0, ScanType = pAd->MlmeAux.ScanType;
+	USHORT Status;
+	PHEADER_802_11 pHdr80211;
 
-	// timer init
-	init_timer(&pAd->MlmeAux.BeaconTimer);
-	pAd->MlmeAux.BeaconTimer.data = (unsigned long)pAd;
-	pAd->MlmeAux.BeaconTimer.function = &BeaconTimeout;
+	DBGPRINT(RT_DEBUG_INFO, "ScanNextChannel(ch=%d)\n",
+		 pAd->MlmeAux.Channel);
 
-	init_timer(&pAd->MlmeAux.ScanTimer);
-	pAd->MlmeAux.ScanTimer.data = (unsigned long)pAd;
-	pAd->MlmeAux.ScanTimer.function = &ScanTimeout;
+	if (pAd->MlmeAux.Channel == 0) {
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "SYNC - End of SCAN, restore to channel %d\n",
+			 pAd->PortCfg.Channel);
+
+		AsicSwitchChannel(pAd, pAd->PortCfg.Channel);
+		AsicLockChannel(pAd, pAd->PortCfg.Channel);
+
+		// G band - set BBP_R62 to 0x02 when site survey or rssi<-82
+		// A band - always set BBP_R62 to 0x04
+		if (pAd->PortCfg.Channel <= 14) {
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x02);
+		} else {
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x04);
+		}
+
+		//
+		// To prevent data lost.
+		// Send an NULL data with turned PSM bit on to current associated AP before SCAN progress.
+		// Now, we need to send an NULL data with turned PSM bit off to AP, when scan progress done
+		//
+		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)
+		    && (INFRA_ON(pAd))) {
+			pOutBuffer =
+			    kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);
+			if (pOutBuffer != NULL) {
+				pHdr80211 = (PHEADER_802_11) pOutBuffer;
+				MgtMacHeaderInit(pAd, pHdr80211,
+						 SUBTYPE_NULL_FUNC, 1,
+						 pAd->PortCfg.Bssid,
+						 pAd->PortCfg.Bssid);
+				pHdr80211->Duration = 0;
+				pHdr80211->FC.Type = BTYPE_DATA;
+				pHdr80211->FC.PwrMgmt = PWR_ACTIVE;
+
+				// Send using priority queue
+				MiniportMMRequest(pAd, pOutBuffer,
+						  sizeof(HEADER_802_11));
+				DBGPRINT(RT_DEBUG_TRACE,
+					 "MlmeScanReqAction -- Send PSM Data frame\n");
+				kfree(pOutBuffer);
+				RTMPusecDelay(5000);
+			}
+		}
+
+		pAd->Mlme.SyncMachine.CurrState = SYNC_IDLE;
+		Status = MLME_SUCCESS;
+		MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_SCAN_CONF, 2,
+			    &Status);
+	} else {
+		// BBP and RF are not accessible in PS mode, we has to wake them up first
+		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE))
+			AsicForceWakeup(pAd);
+
+		// leave PSM during scanning. otherwise we may lost ProbeRsp & BEACON
+		if (pAd->PortCfg.Psm == PWR_SAVE)
+			MlmeSetPsmBit(pAd, PWR_ACTIVE);
+
+		AsicSwitchChannel(pAd, pAd->MlmeAux.Channel);
+		AsicLockChannel(pAd, pAd->MlmeAux.Channel);
+
+		// G band - set BBP_R62 to 0x02 when site survey or rssi<-82
+		// A band - always set BBP_R62 to 0x04
+		if (pAd->MlmeAux.Channel <= 14) {
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17,
+						     pAd->BbpTuning.
+						     R17LowerBoundG);
+			//
+			// For the high power and False CCA issue.(Gary)
+			//
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x04);
+		} else {
+			if ((pAd->PortCfg.bIEEE80211H == 1)
+			    && RadarChannelCheck(pAd, pAd->MlmeAux.Channel))
+				ScanType = SCAN_PASSIVE;
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17,
+						     pAd->BbpTuning.
+						     R17LowerBoundA);
+			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x04);
+		}
+
+		// We need to shorten active scan time in order for WZC connect issue
+		// Chnage the channel scan time for CISCO stuff based on its IAPP announcement
+		if (ScanType == FAST_SCAN_ACTIVE) {
+			pAd->MlmeAux.ScanTimer.expires =
+			    jiffies + (FAST_ACTIVE_SCAN_TIME * HZ) / 1000;
+			add_timer(&pAd->MlmeAux.ScanTimer);
+		} else		// must be SCAN_PASSIVE or SCAN_ACTIVE
+		{
+			if (pAd->PortCfg.PhyMode == PHY_11ABG_MIXED)
+				pAd->MlmeAux.ScanTimer.expires =
+				    jiffies + (MIN_CHANNEL_TIME * HZ) / 1000;
+			else
+				pAd->MlmeAux.ScanTimer.expires =
+				    jiffies + (MAX_CHANNEL_TIME * HZ) / 1000;
+			add_timer(&pAd->MlmeAux.ScanTimer);
+
+		}
+
+		if ((ScanType == SCAN_ACTIVE) || (ScanType == FAST_SCAN_ACTIVE)) {
+			pOutBuffer =
+			    kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);
+			if (pOutBuffer == NULL) {
+				DBGPRINT(RT_DEBUG_TRACE,
+					 "SYNC - ScanNextChannel() allocate memory fail\n");
+				pAd->Mlme.SyncMachine.CurrState = SYNC_IDLE;
+				Status = MLME_FAIL_NO_RESOURCE;
+				MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE,
+					    MT2_SCAN_CONF, 2, &Status);
+				return;
+			}
+			// There is no need to send broadcast probe request if active scan is in effect.
+			if ((ScanType == SCAN_ACTIVE)
+			    || (ScanType == FAST_SCAN_ACTIVE))
+				SsidLen = pAd->MlmeAux.SsidLen;
+			else
+				SsidLen = 0;
+			MgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0,
+					 BROADCAST_ADDR, BROADCAST_ADDR);
+			MakeOutgoingFrame(pOutBuffer, &FrameLen,
+					  sizeof(HEADER_802_11), &Hdr80211, 1,
+					  &SsidIe, 1, &SsidLen, SsidLen,
+					  pAd->MlmeAux.Ssid, 1, &SupRateIe, 1,
+					  &pAd->PortCfg.SupRateLen,
+					  pAd->PortCfg.SupRateLen,
+					  pAd->PortCfg.SupRate, END_OF_ARGS);
+
+			if (pAd->PortCfg.ExtRateLen) {
+				ULONG Tmp;
+				MakeOutgoingFrame(pOutBuffer + FrameLen, &Tmp,
+						  1, &ExtRateIe,
+						  1, &pAd->PortCfg.ExtRateLen,
+						  pAd->PortCfg.ExtRateLen,
+						  pAd->PortCfg.ExtRate,
+						  END_OF_ARGS);
+				FrameLen += Tmp;
+			}
+
+			if (pAd->PortCfg.bGetAPConfig) {
+				UCHAR RalinkSpecificIEForGetCfg[6] =
+				    { IE_VENDOR_SPECIFIC, 4, 0x00, 0x0c, 0x43,
+	   0x80 };
+				ULONG Tmp = 0;
+				MakeOutgoingFrame(pOutBuffer + FrameLen, &Tmp,
+						  6, RalinkSpecificIEForGetCfg,
+						  END_OF_ARGS);
+				FrameLen += Tmp;
+			}
+			MiniportMMRequest(pAd, pOutBuffer, FrameLen);
+			kfree(pOutBuffer);
+			DBGPRINT(RT_DEBUG_INFO,
+				 "SYNC - send ProbeReq @ channel=%d, Len=%d\n",
+				 pAd->MlmeAux.Channel, FrameLen);
+		}
+		// For SCAN_CISCO_PASSIVE, do nothing and silently wait for beacon or other probe reponse
+
+		pAd->Mlme.SyncMachine.CurrState = SCAN_LISTEN;
+	}
 }
 
 /*
@@ -164,7 +291,7 @@ VOID SyncStateMachineInit(IN PRTMP_ADAPTER pAd,
         Becaon timeout handler, executed in timer thread
     ==========================================================================
  */
-VOID BeaconTimeout(IN unsigned long data)
+static VOID BeaconTimeout(IN unsigned long data)
 {
 	RTMP_ADAPTER *pAd = (RTMP_ADAPTER *) data;
 
@@ -179,7 +306,7 @@ VOID BeaconTimeout(IN unsigned long data)
         Scan timeout handler, executed in timer thread
     ==========================================================================
  */
-VOID ScanTimeout(IN unsigned long data)
+static VOID ScanTimeout(IN unsigned long data)
 {
 	RTMP_ADAPTER *pAd = (RTMP_ADAPTER *) data;
 
@@ -191,10 +318,23 @@ VOID ScanTimeout(IN unsigned long data)
 /*
     ==========================================================================
     Description:
+        Scan timeout procedure. basically add channel index by 1 and rescan
+    ==========================================================================
+ */
+static inline VOID ScanTimeoutAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+{
+//  DBGPRINT(RT_DEBUG_TRACE,"SYNC - ScanTimeoutAction\n");
+	pAd->MlmeAux.Channel = NextChannel(pAd, pAd->MlmeAux.Channel);
+	ScanNextChannel(pAd);	// this routine will stop if pAd->MlmeAux.Channel == 0
+}
+
+/*
+    ==========================================================================
+    Description:
         MLME SCAN req state machine procedure
     ==========================================================================
  */
-VOID MlmeScanReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID MlmeScanReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Ssid[MAX_LEN_OF_SSID], SsidLen, ScanType, BssType;
 	unsigned long Now;
@@ -275,7 +415,7 @@ VOID MlmeScanReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
         MLME JOIN req state machine procedure
     ==========================================================================
  */
-VOID MlmeJoinReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID MlmeJoinReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	BSS_ENTRY *pBss;
 	MLME_JOIN_REQ_STRUCT *Info = (MLME_JOIN_REQ_STRUCT *) (Elem->Msg);
@@ -320,7 +460,7 @@ VOID MlmeJoinReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
         MLME START Request state machine procedure, starting an IBSS
     ==========================================================================
  */
-VOID MlmeStartReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID MlmeStartReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Ssid[MAX_LEN_OF_SSID], SsidLen;
 	USHORT Status;
@@ -439,7 +579,7 @@ VOID MlmeStartReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
         peer sends beacon back when scanning
     ==========================================================================
  */
-VOID PeerBeaconAtScanAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID PeerBeaconAtScanAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Bssid[ETH_ALEN], Addr2[ETH_ALEN];
 	UCHAR Ssid[MAX_LEN_OF_SSID], BssType, Channel, NewChannel,
@@ -547,7 +687,7 @@ VOID PeerBeaconAtScanAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
         When waiting joining the (I)BSS, beacon received from external
     ==========================================================================
  */
-VOID PeerBeaconAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID PeerBeaconAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Bssid[ETH_ALEN], Addr2[ETH_ALEN];
 	UCHAR Ssid[MAX_LEN_OF_SSID], SsidLen, BssType, Channel, MessageToMe,
@@ -1153,7 +1293,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
         Receive PROBE REQ from remote peer when operating in IBSS mode
     ==========================================================================
  */
-VOID PeerProbeReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID PeerProbeReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Addr2[ETH_ALEN];
 	CHAR Ssid[MAX_LEN_OF_SSID];
@@ -1274,7 +1414,7 @@ VOID PeerProbeReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	}
 }
 
-VOID BeaconTimeoutAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static inline VOID BeaconTimeoutAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Status;
 
@@ -1287,200 +1427,9 @@ VOID BeaconTimeoutAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 /*
     ==========================================================================
     Description:
-        Scan timeout procedure. basically add channel index by 1 and rescan
     ==========================================================================
  */
-VOID ScanTimeoutAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
-{
-//  DBGPRINT(RT_DEBUG_TRACE,"SYNC - ScanTimeoutAction\n");
-	pAd->MlmeAux.Channel = NextChannel(pAd, pAd->MlmeAux.Channel);
-	ScanNextChannel(pAd);	// this routine will stop if pAd->MlmeAux.Channel == 0
-}
-
-/*
-    ==========================================================================
-    Description:
-        Scan next channel
-    ==========================================================================
- */
-VOID ScanNextChannel(IN PRTMP_ADAPTER pAd)
-{
-	HEADER_802_11 Hdr80211;
-	PUCHAR pOutBuffer = NULL;
-	ULONG FrameLen = 0;
-	UCHAR SsidLen = 0, ScanType = pAd->MlmeAux.ScanType;
-	USHORT Status;
-	PHEADER_802_11 pHdr80211;
-
-	DBGPRINT(RT_DEBUG_INFO, "ScanNextChannel(ch=%d)\n",
-		 pAd->MlmeAux.Channel);
-
-	if (pAd->MlmeAux.Channel == 0) {
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "SYNC - End of SCAN, restore to channel %d\n",
-			 pAd->PortCfg.Channel);
-
-		AsicSwitchChannel(pAd, pAd->PortCfg.Channel);
-		AsicLockChannel(pAd, pAd->PortCfg.Channel);
-
-		// G band - set BBP_R62 to 0x02 when site survey or rssi<-82
-		// A band - always set BBP_R62 to 0x04
-		if (pAd->PortCfg.Channel <= 14) {
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x02);
-		} else {
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x04);
-		}
-
-		//
-		// To prevent data lost.
-		// Send an NULL data with turned PSM bit on to current associated AP before SCAN progress.
-		// Now, we need to send an NULL data with turned PSM bit off to AP, when scan progress done
-		//
-		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)
-		    && (INFRA_ON(pAd))) {
-			pOutBuffer =
-			    kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);
-			if (pOutBuffer != NULL) {
-				pHdr80211 = (PHEADER_802_11) pOutBuffer;
-				MgtMacHeaderInit(pAd, pHdr80211,
-						 SUBTYPE_NULL_FUNC, 1,
-						 pAd->PortCfg.Bssid,
-						 pAd->PortCfg.Bssid);
-				pHdr80211->Duration = 0;
-				pHdr80211->FC.Type = BTYPE_DATA;
-				pHdr80211->FC.PwrMgmt = PWR_ACTIVE;
-
-				// Send using priority queue
-				MiniportMMRequest(pAd, pOutBuffer,
-						  sizeof(HEADER_802_11));
-				DBGPRINT(RT_DEBUG_TRACE,
-					 "MlmeScanReqAction -- Send PSM Data frame\n");
-				kfree(pOutBuffer);
-				RTMPusecDelay(5000);
-			}
-		}
-
-		pAd->Mlme.SyncMachine.CurrState = SYNC_IDLE;
-		Status = MLME_SUCCESS;
-		MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_SCAN_CONF, 2,
-			    &Status);
-	} else {
-		// BBP and RF are not accessible in PS mode, we has to wake them up first
-		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE))
-			AsicForceWakeup(pAd);
-
-		// leave PSM during scanning. otherwise we may lost ProbeRsp & BEACON
-		if (pAd->PortCfg.Psm == PWR_SAVE)
-			MlmeSetPsmBit(pAd, PWR_ACTIVE);
-
-		AsicSwitchChannel(pAd, pAd->MlmeAux.Channel);
-		AsicLockChannel(pAd, pAd->MlmeAux.Channel);
-
-		// G band - set BBP_R62 to 0x02 when site survey or rssi<-82
-		// A band - always set BBP_R62 to 0x04
-		if (pAd->MlmeAux.Channel <= 14) {
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17,
-						     pAd->BbpTuning.
-						     R17LowerBoundG);
-			//
-			// For the high power and False CCA issue.(Gary)
-			//
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x04);
-		} else {
-			if ((pAd->PortCfg.bIEEE80211H == 1)
-			    && RadarChannelCheck(pAd, pAd->MlmeAux.Channel))
-				ScanType = SCAN_PASSIVE;
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, 17,
-						     pAd->BbpTuning.
-						     R17LowerBoundA);
-			RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R62, 0x04);
-		}
-
-		// We need to shorten active scan time in order for WZC connect issue
-		// Chnage the channel scan time for CISCO stuff based on its IAPP announcement
-		if (ScanType == FAST_SCAN_ACTIVE) {
-			pAd->MlmeAux.ScanTimer.expires =
-			    jiffies + (FAST_ACTIVE_SCAN_TIME * HZ) / 1000;
-			add_timer(&pAd->MlmeAux.ScanTimer);
-		} else		// must be SCAN_PASSIVE or SCAN_ACTIVE
-		{
-			if (pAd->PortCfg.PhyMode == PHY_11ABG_MIXED)
-				pAd->MlmeAux.ScanTimer.expires =
-				    jiffies + (MIN_CHANNEL_TIME * HZ) / 1000;
-			else
-				pAd->MlmeAux.ScanTimer.expires =
-				    jiffies + (MAX_CHANNEL_TIME * HZ) / 1000;
-			add_timer(&pAd->MlmeAux.ScanTimer);
-
-		}
-
-		if ((ScanType == SCAN_ACTIVE) || (ScanType == FAST_SCAN_ACTIVE)) {
-			pOutBuffer =
-			    kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);
-			if (pOutBuffer == NULL) {
-				DBGPRINT(RT_DEBUG_TRACE,
-					 "SYNC - ScanNextChannel() allocate memory fail\n");
-				pAd->Mlme.SyncMachine.CurrState = SYNC_IDLE;
-				Status = MLME_FAIL_NO_RESOURCE;
-				MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE,
-					    MT2_SCAN_CONF, 2, &Status);
-				return;
-			}
-			// There is no need to send broadcast probe request if active scan is in effect.
-			if ((ScanType == SCAN_ACTIVE)
-			    || (ScanType == FAST_SCAN_ACTIVE))
-				SsidLen = pAd->MlmeAux.SsidLen;
-			else
-				SsidLen = 0;
-			MgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0,
-					 BROADCAST_ADDR, BROADCAST_ADDR);
-			MakeOutgoingFrame(pOutBuffer, &FrameLen,
-					  sizeof(HEADER_802_11), &Hdr80211, 1,
-					  &SsidIe, 1, &SsidLen, SsidLen,
-					  pAd->MlmeAux.Ssid, 1, &SupRateIe, 1,
-					  &pAd->PortCfg.SupRateLen,
-					  pAd->PortCfg.SupRateLen,
-					  pAd->PortCfg.SupRate, END_OF_ARGS);
-
-			if (pAd->PortCfg.ExtRateLen) {
-				ULONG Tmp;
-				MakeOutgoingFrame(pOutBuffer + FrameLen, &Tmp,
-						  1, &ExtRateIe,
-						  1, &pAd->PortCfg.ExtRateLen,
-						  pAd->PortCfg.ExtRateLen,
-						  pAd->PortCfg.ExtRate,
-						  END_OF_ARGS);
-				FrameLen += Tmp;
-			}
-
-			if (pAd->PortCfg.bGetAPConfig) {
-				UCHAR RalinkSpecificIEForGetCfg[6] =
-				    { IE_VENDOR_SPECIFIC, 4, 0x00, 0x0c, 0x43,
-	   0x80 };
-				ULONG Tmp = 0;
-				MakeOutgoingFrame(pOutBuffer + FrameLen, &Tmp,
-						  6, RalinkSpecificIEForGetCfg,
-						  END_OF_ARGS);
-				FrameLen += Tmp;
-			}
-			MiniportMMRequest(pAd, pOutBuffer, FrameLen);
-			kfree(pOutBuffer);
-			DBGPRINT(RT_DEBUG_INFO,
-				 "SYNC - send ProbeReq @ channel=%d, Len=%d\n",
-				 pAd->MlmeAux.Channel, FrameLen);
-		}
-		// For SCAN_CISCO_PASSIVE, do nothing and silently wait for beacon or other probe reponse
-
-		pAd->Mlme.SyncMachine.CurrState = SCAN_LISTEN;
-	}
-}
-
-/*
-    ==========================================================================
-    Description:
-    ==========================================================================
- */
-VOID InvalidStateWhenScan(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID InvalidStateWhenScan(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Status;
 	DBGPRINT(RT_DEBUG_TRACE,
@@ -1496,7 +1445,7 @@ VOID InvalidStateWhenScan(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
  */
-VOID InvalidStateWhenJoin(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID InvalidStateWhenJoin(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Status;
 
@@ -1513,7 +1462,7 @@ VOID InvalidStateWhenJoin(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
     Description:
     ==========================================================================
  */
-VOID InvalidStateWhenStart(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static inline VOID InvalidStateWhenStart(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	USHORT Status;
 
@@ -1523,6 +1472,97 @@ VOID InvalidStateWhenStart(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	pAd->Mlme.SyncMachine.CurrState = SYNC_IDLE;
 	Status = MLME_STATE_MACHINE_REJECT;
 	MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_START_CONF, 2, &Status);
+}
+
+/*
+    ==========================================================================
+    Description:
+        The sync state machine,
+    Parameters:
+        Sm - pointer to the state machine
+    Note:
+        the state machine looks like the following
+
+    Column 1-2
+                        SYNC_IDLE                       JOIN_WAIT_BEACON
+    MT2_MLME_SCAN_REQ   mlme_scan_req_action            invalid_state_when_scan
+    MT2_MLME_JOIN_REQ   mlme_join_req_action            invalid_state_when_join
+    MT2_MLME_START_REQ  mlme_start_req_action           invalid_state_when_start
+    MT2_PEER_BEACON     peer_beacon                     peer_beacon_at_join_wait_beacon_action
+    MT2_PEER_PROBE_RSP  peer_beacon                     drop
+    MT2_PEER_ATIM       drop                            drop
+    MT2_SCAN_TIMEOUT    Drop                            Drop
+    MT2_BEACON_TIMEOUT  Drop                            beacon_timeout_at_join_wait_beacon_action
+    MT2_ATIM_TIMEOUT    Drop                            Drop
+    MT2_PEER_PROBE_REQ  ????                            drop
+
+    column 3
+                         SCAN_LISTEN
+    MT2_MLME_SCAN_REQ    invalid_state_when_scan
+    MT2_MLME_JOIN_REQ    invalid_state_when_join
+    MT2_MLME_START_REQ   invalid_state_when_start
+    MT2_PEER_BEACON      peer_beacon_at_scan_action
+    MT2_PEER_PROBE_RSP   peer_probe_rsp_at_scan_action
+    MT2_PEER_ATIM        drop
+    MT2_SCAN_TIMEOUT     scan_timeout_action
+    MT2_BEACON_TIMEOUT   Drop
+    MT2_ATIM_TIMEOUT     Drop
+    MT2_PEER_PROBE_REQ   drop
+    ==========================================================================
+ */
+VOID SyncStateMachineInit(IN PRTMP_ADAPTER pAd,
+			  IN STATE_MACHINE * Sm, OUT STATE_MACHINE_FUNC Trans[])
+{
+	StateMachineInit(Sm, (STATE_MACHINE_FUNC *) Trans, MAX_SYNC_STATE,
+			 MAX_SYNC_MSG, (STATE_MACHINE_FUNC) Drop, SYNC_IDLE,
+			 SYNC_MACHINE_BASE);
+
+	// column 1
+	StateMachineSetAction(Sm, SYNC_IDLE, MT2_MLME_SCAN_REQ,
+			      (STATE_MACHINE_FUNC) MlmeScanReqAction);
+	StateMachineSetAction(Sm, SYNC_IDLE, MT2_MLME_JOIN_REQ,
+			      (STATE_MACHINE_FUNC) MlmeJoinReqAction);
+	StateMachineSetAction(Sm, SYNC_IDLE, MT2_MLME_START_REQ,
+			      (STATE_MACHINE_FUNC) MlmeStartReqAction);
+	StateMachineSetAction(Sm, SYNC_IDLE, MT2_PEER_BEACON,
+			      (STATE_MACHINE_FUNC) PeerBeacon);
+	StateMachineSetAction(Sm, SYNC_IDLE, MT2_PEER_PROBE_REQ,
+			      (STATE_MACHINE_FUNC) PeerProbeReqAction);
+
+	//column 2
+	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_MLME_SCAN_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenScan);
+	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_MLME_JOIN_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenJoin);
+	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_MLME_START_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenStart);
+	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_PEER_BEACON,
+			      (STATE_MACHINE_FUNC) PeerBeaconAtJoinAction);
+	StateMachineSetAction(Sm, JOIN_WAIT_BEACON, MT2_BEACON_TIMEOUT,
+			      (STATE_MACHINE_FUNC) BeaconTimeoutAtJoinAction);
+
+	// column 3
+	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_MLME_SCAN_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenScan);
+	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_MLME_JOIN_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenJoin);
+	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_MLME_START_REQ,
+			      (STATE_MACHINE_FUNC) InvalidStateWhenStart);
+	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_PEER_BEACON,
+			      (STATE_MACHINE_FUNC) PeerBeaconAtScanAction);
+	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_PEER_PROBE_RSP,
+			      (STATE_MACHINE_FUNC) PeerBeaconAtScanAction);
+	StateMachineSetAction(Sm, SCAN_LISTEN, MT2_SCAN_TIMEOUT,
+			      (STATE_MACHINE_FUNC) ScanTimeoutAction);
+
+	// timer init
+	init_timer(&pAd->MlmeAux.BeaconTimer);
+	pAd->MlmeAux.BeaconTimer.data = (unsigned long)pAd;
+	pAd->MlmeAux.BeaconTimer.function = &BeaconTimeout;
+
+	init_timer(&pAd->MlmeAux.ScanTimer);
+	pAd->MlmeAux.ScanTimer.data = (unsigned long)pAd;
+	pAd->MlmeAux.ScanTimer.function = &ScanTimeout;
 }
 
 /*
@@ -1800,45 +1840,6 @@ VOID BuildChannelList(IN PRTMP_ADAPTER pAd)
 		DBGPRINT_RAW(RT_DEBUG_TRACE, "channel #%d\n",
 			     pAd->ChannelList[i].Channel);
 	}
-}
-
-/*
-    ==========================================================================
-    Description:
-        This routine returns the next channel number. This routine is called
-        during driver need to start a site survey of all supported channels.
-    Return:
-        next_channel - the next channel number valid in current country code setting.
-    Note:
-        return 0 if no more next channel
-    ==========================================================================
- */
-UCHAR NextChannel(IN PRTMP_ADAPTER pAd, IN UCHAR channel)
-{
-	int i;
-	UCHAR next_channel = 0;
-
-	for (i = 0; i < (pAd->ChannelListNum - 1); i++)
-		if (channel == pAd->ChannelList[i].Channel) {
-			next_channel = pAd->ChannelList[i + 1].Channel;
-			break;
-		}
-	return next_channel;
-}
-
-/*
-    ==========================================================================
-    Description:
-        This routine return the first channel number according to the country
-        code selection and RF IC selection (signal band or dual band). It is called
-        whenever driver need to start a site survey of all supported channels.
-    Return:
-        ch - the first channel number of current country code setting
-    ==========================================================================
- */
-UCHAR FirstChannel(IN PRTMP_ADAPTER pAd)
-{
-	return pAd->ChannelList[0].Channel;
 }
 
 CHAR ConvertToRssi(IN PRTMP_ADAPTER pAd, IN UCHAR Rssi, IN UCHAR RssiNumber)

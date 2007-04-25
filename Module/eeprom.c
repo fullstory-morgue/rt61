@@ -33,21 +33,21 @@
 
 #include	"rt_config.h"
 
-VOID RaiseClock(IN PRTMP_ADAPTER pAd, IN ULONG * x)
+static VOID RaiseClock(IN PRTMP_ADAPTER pAd, IN ULONG * x)
 {
 	*x = *x | EESK;
 	RTMP_IO_WRITE32(pAd, E2PROM_CSR, *x);
 	RTMPusecDelay(1);	// Max frequency = 1MHz in Spec. definition
 }
 
-VOID LowerClock(IN PRTMP_ADAPTER pAd, IN ULONG * x)
+static VOID LowerClock(IN PRTMP_ADAPTER pAd, IN ULONG * x)
 {
 	*x = *x & ~EESK;
 	RTMP_IO_WRITE32(pAd, E2PROM_CSR, *x);
 	RTMPusecDelay(1);
 }
 
-USHORT ShiftInBits(IN PRTMP_ADAPTER pAd)
+static USHORT ShiftInBits(IN PRTMP_ADAPTER pAd)
 {
 	ULONG x, i;
 	USHORT data = 0;
@@ -72,7 +72,7 @@ USHORT ShiftInBits(IN PRTMP_ADAPTER pAd)
 	return data;
 }
 
-VOID ShiftOutBits(IN PRTMP_ADAPTER pAd, IN USHORT data, IN USHORT count)
+static VOID ShiftOutBits(IN PRTMP_ADAPTER pAd, IN USHORT data, IN USHORT count)
 {
 	ULONG x, mask;
 
@@ -98,7 +98,7 @@ VOID ShiftOutBits(IN PRTMP_ADAPTER pAd, IN USHORT data, IN USHORT count)
 	RTMP_IO_WRITE32(pAd, E2PROM_CSR, x);
 }
 
-VOID EEpromCleanup(IN PRTMP_ADAPTER pAd)
+static VOID EEpromCleanup(IN PRTMP_ADAPTER pAd)
 {
 	ULONG x;
 
@@ -111,7 +111,7 @@ VOID EEpromCleanup(IN PRTMP_ADAPTER pAd)
 	LowerClock(pAd, &x);
 }
 
-VOID EWEN(IN PRTMP_ADAPTER pAd)
+static VOID EWEN(IN PRTMP_ADAPTER pAd)
 {
 	ULONG x;
 
@@ -132,7 +132,7 @@ VOID EWEN(IN PRTMP_ADAPTER pAd)
 	EEpromCleanup(pAd);
 }
 
-VOID EWDS(IN PRTMP_ADAPTER pAd)
+static VOID EWDS(IN PRTMP_ADAPTER pAd)
 {
 	ULONG x;
 

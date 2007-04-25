@@ -35,6 +35,12 @@
 #ifndef __RT_CONFIG_H__
 #define __RT_CONFIG_H__
 
+#ifndef BIG_ENDIAN
+#ifndef NO_RX_TASKLET
+#define RX_TASKLET
+#endif
+#endif
+
 #define PROFILE_PATH                "/etc/Wireless/RT61STA/rt61sta.dat"
 #define NIC_DEVICE_NAME             "RT61STA"
 // Super mode, RT2561S: super(high throughput, aggregiation, piggy back), RT2561T: Package type(TQFP)
@@ -44,7 +50,11 @@
 #define RALINK_PASSPHRASE           "Ralink"
 #define DRIVER_NAME                 "rt61"
 #define DRIVER_VERSION              "1.1.0 CVS"
-#define DRIVER_RELDATE              "CVS"
+#ifdef RX_TASKLET
+#define DRIVER_RELDATE              "RxTask"
+#else
+#define DRIVER_RELDATE              "NoRxTask"
+#endif
 
 // Query from UI
 #define DRV_MAJORVERSION            1

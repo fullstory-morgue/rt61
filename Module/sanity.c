@@ -439,6 +439,68 @@ BOOLEAN PeerProbeReqSanity(IN PRTMP_ADAPTER pAd,
 /*
     ==========================================================================
     Description:
+
+    ==========================================================================
+ */
+static BOOLEAN GetTimBit(IN CHAR * Ptr,
+		  IN USHORT Aid,
+		  OUT UCHAR * TimLen,
+		  OUT UCHAR * BcastFlag,
+		  OUT UCHAR * DtimCount,
+		  OUT UCHAR * DtimPeriod, OUT UCHAR * MessageToMe)
+{
+	UCHAR BitCntl, N1, N2, MyByte, MyBit;
+	CHAR *IdxPtr;
+
+	IdxPtr = Ptr;
+
+	IdxPtr++;
+	*TimLen = *IdxPtr;
+
+	// get DTIM Count from TIM element
+	IdxPtr++;
+	*DtimCount = *IdxPtr;
+
+	// get DTIM Period from TIM element
+	IdxPtr++;
+	*DtimPeriod = *IdxPtr;
+
+	// get Bitmap Control from TIM element
+	IdxPtr++;
+	BitCntl = *IdxPtr;
+
+	if ((*DtimCount == 0) && (BitCntl & 0x01))
+		*BcastFlag = TRUE;
+	else
+		*BcastFlag = FALSE;
+
+	// Parse Partial Virtual Bitmap from TIM element
+	N1 = BitCntl & 0xfe;	// N1 is the first bitmap byte#
+	N2 = *TimLen - 4 + N1;	// N2 is the last bitmap byte#
+
+	if ((Aid < (N1 << 3)) || (Aid >= ((N2 + 1) << 3)))
+		*MessageToMe = FALSE;
+	else {
+		MyByte = (Aid >> 3) - N1;	// my byte position in the bitmap byte-stream
+		MyBit = Aid % 16 - ((MyByte & 0x01) ? 8 : 0);
+
+		IdxPtr += (MyByte + 1);
+
+		//if (*IdxPtr)
+		//    DBGPRINT(RT_DEBUG_WARN, "TIM bitmap = 0x%02x\n", *IdxPtr);
+
+		if (*IdxPtr & (0x01 << MyBit))
+			*MessageToMe = TRUE;
+		else
+			*MessageToMe = FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
         MLME message sanity check
     Return:
         TRUE if all parameters are OK, FALSE otherwise
@@ -835,68 +897,6 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 		return TRUE;
 	}
 
-}
-
-/*
-    ==========================================================================
-    Description:
-
-    ==========================================================================
- */
-BOOLEAN GetTimBit(IN CHAR * Ptr,
-		  IN USHORT Aid,
-		  OUT UCHAR * TimLen,
-		  OUT UCHAR * BcastFlag,
-		  OUT UCHAR * DtimCount,
-		  OUT UCHAR * DtimPeriod, OUT UCHAR * MessageToMe)
-{
-	UCHAR BitCntl, N1, N2, MyByte, MyBit;
-	CHAR *IdxPtr;
-
-	IdxPtr = Ptr;
-
-	IdxPtr++;
-	*TimLen = *IdxPtr;
-
-	// get DTIM Count from TIM element
-	IdxPtr++;
-	*DtimCount = *IdxPtr;
-
-	// get DTIM Period from TIM element
-	IdxPtr++;
-	*DtimPeriod = *IdxPtr;
-
-	// get Bitmap Control from TIM element
-	IdxPtr++;
-	BitCntl = *IdxPtr;
-
-	if ((*DtimCount == 0) && (BitCntl & 0x01))
-		*BcastFlag = TRUE;
-	else
-		*BcastFlag = FALSE;
-
-	// Parse Partial Virtual Bitmap from TIM element
-	N1 = BitCntl & 0xfe;	// N1 is the first bitmap byte#
-	N2 = *TimLen - 4 + N1;	// N2 is the last bitmap byte#
-
-	if ((Aid < (N1 << 3)) || (Aid >= ((N2 + 1) << 3)))
-		*MessageToMe = FALSE;
-	else {
-		MyByte = (Aid >> 3) - N1;	// my byte position in the bitmap byte-stream
-		MyBit = Aid % 16 - ((MyByte & 0x01) ? 8 : 0);
-
-		IdxPtr += (MyByte + 1);
-
-		//if (*IdxPtr)
-		//    DBGPRINT(RT_DEBUG_WARN, "TIM bitmap = 0x%02x\n", *IdxPtr);
-
-		if (*IdxPtr & (0x01 << MyBit))
-			*MessageToMe = TRUE;
-		else
-			*MessageToMe = FALSE;
-	}
-
-	return TRUE;
 }
 
 UCHAR ChannelSanity(IN PRTMP_ADAPTER pAd, IN UCHAR channel)

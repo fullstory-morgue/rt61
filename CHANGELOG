@@ -23,6 +23,9 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	*
+
+ Version: 1.1.0-beta2
  	* Fix oops upon loading module without proper firmware file installed
 	  (bug 1518488).
 	* Fix resetting of WEP keys while reading them.

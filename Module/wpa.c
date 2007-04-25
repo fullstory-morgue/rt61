@@ -111,325 +111,199 @@ BOOLEAN WpaMsgTypeSubst(IN UCHAR EAPType, OUT ULONG * MsgType)
 }
 
 /*
-	==========================================================================
-	Description:
-		association	state machine init,	including state	transition and timer init
-	Parameters:
-		S -	pointer	to the association state machine
-	==========================================================================
- */
-VOID WpaPskStateMachineInit(IN PRTMP_ADAPTER pAd,
-			    IN STATE_MACHINE * S,
-			    OUT STATE_MACHINE_FUNC Trans[])
+	========================================================================
+
+	Routine Description:
+		Init WPA MAC header
+
+	Arguments:
+		pAd	Pointer	to our adapter
+
+	Return Value:
+		None
+
+	Note:
+
+	========================================================================
+*/
+static VOID WpaMacHeaderInit(IN PRTMP_ADAPTER pAd,
+		      IN OUT PHEADER_802_11 pHdr80211,
+		      IN UCHAR wep, IN PUCHAR pAddr1)
 {
-	StateMachineInit(S, (STATE_MACHINE_FUNC *) Trans, MAX_WPA_PSK_STATE,
-			 MAX_WPA_PSK_MSG, (STATE_MACHINE_FUNC) Drop,
-			 WPA_PSK_IDLE, WPA_MACHINE_BASE);
-	StateMachineSetAction(S, WPA_PSK_IDLE, MT2_EAPOLKey,
-			      (STATE_MACHINE_FUNC) WpaEAPOLKeyAction);
+	memset(pHdr80211, 0, sizeof(HEADER_802_11));
+	pHdr80211->FC.Type = BTYPE_DATA;
+	pHdr80211->FC.ToDs = 1;
+	if (wep == 1)
+		pHdr80211->FC.Wep = 1;
+
+	//     Addr1: DA, Addr2: BSSID, Addr3: SA
+	memcpy(pHdr80211->Addr1, pAddr1, ETH_ALEN);
+	memcpy(pHdr80211->Addr2, pAd->CurrentAddress, ETH_ALEN);
+	memcpy(pHdr80211->Addr3, pAd->PortCfg.Bssid, ETH_ALEN);
+	pHdr80211->Sequence = pAd->Sequence;
 }
 
 /*
-	==========================================================================
-	Description:
-		This is	state machine function.
-		When receiving EAPOL packets which is  for 802.1x key management.
-		Use	both in	WPA, and WPAPSK	case.
-		In this	function, further dispatch to different	functions according	to the received	packet.	 3 categories are :
-		  1.  normal 4-way pairwisekey and 2-way groupkey handshake
-		  2.  MIC error	(Countermeasures attack)  report packet	from STA.
-		  3.  Request for pairwise/group key update	from STA
-	Return:
-	==========================================================================
+	========================================================================
+
+	Routine Description:
+		SHA1 function
+
+	Arguments:
+
+	Return Value:
+
+	Note:
+
+	========================================================================
 */
-VOID WpaEAPOLKeyAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID HMAC_SHA1(IN UCHAR * text,
+	       IN UINT text_len,
+	       IN UCHAR * key, IN UINT key_len, IN UCHAR * digest)
 {
-	INT MsgType = EAPOL_MSG_INVALID;
-	PKEY_DESCRIPTER pKeyDesc;
-	PHEADER_802_11 pHeader;	//red
-	UCHAR ZeroReplay[LEN_KEY_DESC_REPLAY];
-	UCHAR EapolVr;
+	SHA_CTX context;
+	UCHAR k_ipad[65];	/* inner padding - key XORd with ipad       */
+	UCHAR k_opad[65];	/* outer padding - key XORd with opad       */
+	INT i;
 
-	DBGPRINT(RT_DEBUG_TRACE, "-----> WpaEAPOLKeyAction\n");
-
-	pHeader = (PHEADER_802_11) Elem->Msg;
-
-	// Get 802.11 header first
-	if ((pAd->PortCfg.bWmmCapable)
-	    && (pHeader->FC.SubType == SUBTYPE_QDATA))
-		pKeyDesc =
-		    (PKEY_DESCRIPTER) & Elem->
-		    Msg[(LENGTH_802_11 + LENGTH_802_1_H + LENGTH_WMMQOS_H +
-			 LENGTH_EAPOL_H)];
-	else
-		pKeyDesc =
-		    (PKEY_DESCRIPTER) & Elem->
-		    Msg[(LENGTH_802_11 + LENGTH_802_1_H + LENGTH_EAPOL_H)];
-
-#ifdef BIG_ENDIAN
-	// pMsg->KeyDesc.KeyInfo and pKeyDesc->KeyInfo both point to the same addr.
-	// Thus, it only needs swap once.
-	{
-		USHORT tmpKeyinfo;
-
-		memcpy(&tmpKeyinfo, &pKeyDesc->KeyInfo, sizeof(USHORT));
-		tmpKeyinfo = SWAP16(tmpKeyinfo);
-		memcpy(&pKeyDesc->KeyInfo, &tmpKeyinfo, sizeof(USHORT));
+	// if key is longer     than 64 bytes reset     it to key=SHA1(key)
+	if (key_len > 64) {
+		SHA_CTX tctx;
+		SHAInit(&tctx);
+		SHAUpdate(&tctx, key, key_len);
+		SHAFinal(&tctx, key);
+		key_len = 20;
 	}
-//          *(USHORT *)((UCHAR *)pKeyDesc+1) = SWAP16(*(USHORT *)((UCHAR *)pKeyDesc+1));
-#endif
+	memset(k_ipad, 0, sizeof(k_ipad));
+	memset(k_opad, 0, sizeof(k_opad));
+	memcpy(k_ipad, key, key_len);
+	memcpy(k_opad, key, key_len);
 
-	// Sanity check, this should only happen in WPA(2)-PSK mode
-	// 0. Debug print all bit information
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Description Version %d\n",
-		 pKeyDesc->KeyInfo.KeyDescVer);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Type %d\n",
-		 pKeyDesc->KeyInfo.KeyType);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Index %d\n",
-		 pKeyDesc->KeyInfo.KeyIndex);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Install %d\n",
-		 pKeyDesc->KeyInfo.Install);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Ack %d\n",
-		 pKeyDesc->KeyInfo.KeyAck);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key MIC %d\n",
-		 pKeyDesc->KeyInfo.KeyMic);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Secure %d\n",
-		 pKeyDesc->KeyInfo.Secure);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Error %d\n", pKeyDesc->KeyInfo.Error);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Request %d\n",
-		 pKeyDesc->KeyInfo.Request);
-	DBGPRINT(RT_DEBUG_INFO, "KeyInfo EKD_DL %d\n",
-		 pKeyDesc->KeyInfo.EKD_DL);
-
-	// 1. Check EAPOL frame version and type
-	if ((pAd->PortCfg.bWmmCapable)
-	    && (pHeader->FC.SubType == SUBTYPE_QDATA))
-		EapolVr =
-		    (UCHAR) Elem->Msg[LENGTH_802_11 + LENGTH_802_1_H +
-				      LENGTH_WMMQOS_H];
-	else
-		EapolVr = (UCHAR) Elem->Msg[LENGTH_802_11 + LENGTH_802_1_H];
-
-	if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) {
-
-		if ((EapolVr != EAPOL_VER) || (pKeyDesc->Type != WPA1_KEY_DESC)) {
-			DBGPRINT(RT_DEBUG_ERROR,
-				 "Key descripter does not match with WPA1 rule \n");
-			return;
-		}
-	} else if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK) {
-		if (pKeyDesc->Type != WPA2_KEY_DESC)	//some APs would send EapolVr = 2
-		{
-			DBGPRINT(RT_DEBUG_ERROR,
-				 "Key descripter does not match with WPA2 rule \n");
-			return;
-		}
+	// XOR key with ipad and opad values
+	for (i = 0; i < 64; i++) {
+		k_ipad[i] ^= 0x36;
+		k_opad[i] ^= 0x5c;
 	}
-	// First validate replay counter, only accept message with larger replay counter
-	// Let equal pass, some AP start with all zero replay counter
-	memset(ZeroReplay, 0, LEN_KEY_DESC_REPLAY);
 
-	if ((!pAd->PortCfg.bWmmCapable)
-	    && (pHeader->FC.SubType == SUBTYPE_QDATA))
-		if ((memcmp
-		     (pKeyDesc->ReplayCounter, pAd->PortCfg.ReplayCounter,
-		      LEN_KEY_DESC_REPLAY) <= 0)
-		    &&
-		    (memcmp
-		     (pKeyDesc->ReplayCounter, ZeroReplay,
-		      LEN_KEY_DESC_REPLAY) != 0)) {
-			DBGPRINT(RT_DEBUG_ERROR,
-				 "   ReplayCounter not match   \n");
-			return;
-		}
+	// perform inner SHA1
+	SHAInit(&context);	/* init context for 1st pass */
+	SHAUpdate(&context, k_ipad, 64);	/*      start with inner pad */
+	SHAUpdate(&context, text, text_len);	/*      then text of datagram */
+	SHAFinal(&context, digest);	/* finish up 1st pass */
+
+	//perform outer SHA1
+	SHAInit(&context);	/* init context for 2nd pass */
+	SHAUpdate(&context, k_opad, 64);	/*      start with outer pad */
+	SHAUpdate(&context, digest, 20);	/*      then results of 1st     hash */
+	SHAFinal(&context, digest);	/* finish up 2nd pass */
+}
 
 /*
-====================================================================
-        WPAPSK2     WPAPSK2         WPAPSK2     WPAPSK2
-======================================================================
+	========================================================================
+
+	Routine Description:
+		Count TPTK from PMK
+
+	Arguments:
+
+	Return Value:
+		Output		Store the TPTK
+
+	Note:
+
+	========================================================================
 */
-	if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK) {
-		if ((pKeyDesc->KeyInfo.KeyType == 1) &&
-		    (pKeyDesc->KeyInfo.EKD_DL == 0) &&
-		    (pKeyDesc->KeyInfo.KeyAck == 1) &&
-		    (pKeyDesc->KeyInfo.KeyMic == 0) &&
-		    (pKeyDesc->KeyInfo.Secure == 0) &&
-		    (pKeyDesc->KeyInfo.Error == 0) &&
-		    (pKeyDesc->KeyInfo.Request == 0)) {
-			MsgType = EAPOL_PAIR_MSG_1;
-			DBGPRINT(RT_DEBUG_ERROR,
-				 "Receive EAPOL Key Pairwise Message 1\n");
-		} else if ((pKeyDesc->KeyInfo.KeyType == 1)
-			   && (pKeyDesc->KeyInfo.EKD_DL == 1)
-			   && (pKeyDesc->KeyInfo.KeyAck == 1)
-			   && (pKeyDesc->KeyInfo.KeyMic == 1)
-			   && (pKeyDesc->KeyInfo.Secure == 1)
-			   && (pKeyDesc->KeyInfo.Error == 0)
-			   && (pKeyDesc->KeyInfo.Request == 0)) {
-			MsgType = EAPOL_PAIR_MSG_3;
-			DBGPRINT(RT_DEBUG_ERROR,
-				 "Receive EAPOL Key Pairwise Message 3\n");
-		} else if ((pKeyDesc->KeyInfo.KeyType == 0)
-			   && (pKeyDesc->KeyInfo.EKD_DL == 1)
-			   && (pKeyDesc->KeyInfo.KeyAck == 1)
-			   && (pKeyDesc->KeyInfo.KeyMic == 1)
-			   && (pKeyDesc->KeyInfo.Secure == 1)
-			   && (pKeyDesc->KeyInfo.Error == 0)
-			   && (pKeyDesc->KeyInfo.Request == 0)) {
-			MsgType = EAPOL_GROUP_MSG_1;
-			DBGPRINT(RT_DEBUG_ERROR,
-				 "Receive EAPOL Key Group Message 1\n");
-		}
-#ifdef BIG_ENDIAN
-		// recovery original byte order, before forward Elem to another routine
-		{
-			USHORT tmpKeyinfo;
+static VOID WpaCountPTK(IN UCHAR * PMK,
+		 IN UCHAR * ANonce,
+		 IN UCHAR * AA,
+		 IN UCHAR * SNonce,
+		 IN UCHAR * SA, OUT UCHAR * output, IN UINT len)
+{
+	UCHAR concatenation[76];
+	UINT CurrPos = 0;
+	UCHAR temp[32];
+	UCHAR Prefix[] =
+	    { 'P', 'a', 'i', 'r', 'w', 'i', 's', 'e', ' ', 'k', 'e', 'y', ' ',
+		'e', 'x', 'p', 'a', 'n', 's', 'i', 'o', 'n'
+	};
 
-			memcpy(&tmpKeyinfo, &pKeyDesc->KeyInfo, sizeof(USHORT));
-			tmpKeyinfo = SWAP16(tmpKeyinfo);
-			memcpy(&pKeyDesc->KeyInfo, &tmpKeyinfo, sizeof(USHORT));
-		}
-#endif
+	memset(temp, 0, sizeof(temp));
 
-		// We will assume link is up (assoc suceess and port not secured).
-		// All state has to be able to process message from previous state
-		switch (pAd->PortCfg.WpaState) {
-		case SS_START:
-			if (MsgType == EAPOL_PAIR_MSG_1) {
-				Wpa2PairMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
-			}
-			break;
+	// Get smaller address
+	if (memcmp(SA, AA, 6) > 0)
+		memcpy(concatenation, AA, 6);
+	else
+		memcpy(concatenation, SA, 6);
+	CurrPos += 6;
 
-		case SS_WAIT_MSG_3:
-			if (MsgType == EAPOL_PAIR_MSG_1) {
-				Wpa2PairMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
-			} else if (MsgType == EAPOL_PAIR_MSG_3) {
-				Wpa2PairMsg3Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
-			}
-			break;
+	// Get larger address
+	if (memcmp(SA, AA, 6) > 0)
+		memcpy(&concatenation[CurrPos], SA, 6);
+	else
+		memcpy(&concatenation[CurrPos], AA, 6);
+	CurrPos += 6;
 
-		case SS_WAIT_GROUP:	// When doing group key exchange
-		case SS_FINISH:	// This happened when update group key
-			if (MsgType == EAPOL_PAIR_MSG_1) {
-				Wpa2PairMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
-				// Reset port secured variable
-				pAd->PortCfg.PortSecured =
-				    WPA_802_1X_PORT_NOT_SECURED;
-			} else if (MsgType == EAPOL_PAIR_MSG_3) {
-				Wpa2PairMsg3Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
-				// Reset port secured variable
-				pAd->PortCfg.PortSecured =
-				    WPA_802_1X_PORT_NOT_SECURED;
-			} else if (MsgType == EAPOL_GROUP_MSG_1) {
-				WpaGroupMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_FINISH;
-			}
-			break;
+	// Get smaller address
+	if (memcmp(ANonce, SNonce, 32) > 1)
+		memcpy(&concatenation[CurrPos], SNonce, 32);
+	else
+		memcpy(&concatenation[CurrPos], ANonce, 32);
+	CurrPos += 32;
 
-		default:
-			break;
-		}
+	// Get larger address
+	if (memcmp(ANonce, SNonce, 32) > 0)
+		memcpy(&concatenation[CurrPos], ANonce, 32);
+	else
+		memcpy(&concatenation[CurrPos], SNonce, 32);
+	CurrPos += 32;
+
+	PRF(PMK, LEN_MASTER_KEY, Prefix, 22, concatenation, 76, output, len);
+
+}
+
+/*
+	========================================================================
+
+	Routine Description:
+		Misc function to Generate random number
+
+	Arguments:
+
+	Return Value:
+
+	Note:
+		802.1i  Annex F.9
+
+	========================================================================
+*/
+static VOID GenRandom(IN PRTMP_ADAPTER pAd, OUT UCHAR * random)
+{
+	INT i, curr;
+	UCHAR local[80], KeyCounter[32];
+	UCHAR result[80];
+	unsigned long CurrentTime;
+	UCHAR prefix[] =
+	    { 'I', 'n', 'i', 't', ' ', 'C', 'o', 'u', 'n', 't', 'e', 'r' };
+
+	memset(result, 0, 80);
+	memset(local, 0, 80);
+	memset(KeyCounter, 0, 32);
+	memcpy(local, pAd->CurrentAddress, ETH_ALEN);
+
+	for (i = 0; i < 32; i++) {
+		curr = ETH_ALEN;
+		CurrentTime = jiffies;
+		memcpy(local, pAd->CurrentAddress, ETH_ALEN);
+		curr += ETH_ALEN;
+		memcpy(&local[curr], &CurrentTime, sizeof(CurrentTime));
+		curr += sizeof(CurrentTime);
+		memcpy(&local[curr], result, 32);
+		curr += 32;
+		memcpy(&local[curr], &i, 2);
+		curr += 2;
+		PRF(KeyCounter, 32, prefix, 12, local, curr, result, 32);
 	}
-///*
-//====================================================================
-//          WPAPSK          WPAPSK          WPAPSK          WPAPSK
-//======================================================================
-//*/
-	// Classify message Type, either pairwise message 1, 3, or group message 1 for supplicant
-	else if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) {
-		if ((pKeyDesc->KeyInfo.KeyType == 1) &&
-		    (pKeyDesc->KeyInfo.KeyIndex == 0) &&
-		    (pKeyDesc->KeyInfo.KeyAck == 1) &&
-		    (pKeyDesc->KeyInfo.KeyMic == 0) &&
-		    (pKeyDesc->KeyInfo.Secure == 0) &&
-		    (pKeyDesc->KeyInfo.Error == 0) &&
-		    (pKeyDesc->KeyInfo.Request == 0)) {
-			MsgType = EAPOL_PAIR_MSG_1;
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "Receive EAPOL Key Pairwise Message 1\n");
-		} else if ((pKeyDesc->KeyInfo.KeyType == 1)
-			   && (pKeyDesc->KeyInfo.KeyIndex == 0)
-			   && (pKeyDesc->KeyInfo.KeyAck == 1)
-			   && (pKeyDesc->KeyInfo.KeyMic == 1)
-			   && (pKeyDesc->KeyInfo.Secure == 0)
-			   && (pKeyDesc->KeyInfo.Error == 0)
-			   && (pKeyDesc->KeyInfo.Request == 0)) {
-			MsgType = EAPOL_PAIR_MSG_3;
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "Receive EAPOL Key Pairwise Message 3\n");
-		} else if ((pKeyDesc->KeyInfo.KeyType == 0)
-			   && (pKeyDesc->KeyInfo.KeyIndex != 0)
-			   && (pKeyDesc->KeyInfo.KeyAck == 1)
-			   && (pKeyDesc->KeyInfo.KeyMic == 1)
-			   && (pKeyDesc->KeyInfo.Secure == 1)
-			   && (pKeyDesc->KeyInfo.Error == 0)
-			   && (pKeyDesc->KeyInfo.Request == 0)) {
-			MsgType = EAPOL_GROUP_MSG_1;
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "Receive EAPOL Key Group Message 1\n");
-		}
-#ifdef BIG_ENDIAN
-		// recovery original byte order, before forward Elem to another routine
-		{
-			USHORT tmpKeyinfo;
-
-			memcpy(&tmpKeyinfo, &pKeyDesc->KeyInfo, sizeof(USHORT));
-			tmpKeyinfo = SWAP16(tmpKeyinfo);
-			memcpy(&pKeyDesc->KeyInfo, &tmpKeyinfo, sizeof(USHORT));
-		}
-#endif
-
-		// We will assume link is up (assoc suceess and port not secured).
-		// All state has to be able to process message from previous state
-		switch (pAd->PortCfg.WpaState) {
-		case SS_START:
-			if (MsgType == EAPOL_PAIR_MSG_1) {
-				WpaPairMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
-			}
-			break;
-
-		case SS_WAIT_MSG_3:
-			if (MsgType == EAPOL_PAIR_MSG_1) {
-				WpaPairMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
-			} else if (MsgType == EAPOL_PAIR_MSG_3) {
-				WpaPairMsg3Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
-			}
-			break;
-
-		case SS_WAIT_GROUP:	// When doing group key exchange
-		case SS_FINISH:	// This happened when update group key
-			if (MsgType == EAPOL_PAIR_MSG_1) {
-				WpaPairMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
-				// Reset port secured variable
-				pAd->PortCfg.PortSecured =
-				    WPA_802_1X_PORT_NOT_SECURED;
-			} else if (MsgType == EAPOL_PAIR_MSG_3) {
-				WpaPairMsg3Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
-				// Reset port secured variable
-				pAd->PortCfg.PortSecured =
-				    WPA_802_1X_PORT_NOT_SECURED;
-			} else if (MsgType == EAPOL_GROUP_MSG_1) {
-				WpaGroupMsg1Action(pAd, Elem);
-				pAd->PortCfg.WpaState = SS_FINISH;
-			}
-			break;
-
-		default:
-			break;
-		}
-	}
-
-	DBGPRINT(RT_DEBUG_TRACE, "<----- WpaEAPOLKeyAction\n");
+	memcpy(random, result, 32);
 }
 
 /*
@@ -449,7 +323,7 @@ VOID WpaEAPOLKeyAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	========================================================================
 */
-VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PHEADER_802_11 pHeader;
 	UCHAR PTK[80];
@@ -626,7 +500,7 @@ VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	DBGPRINT(RT_DEBUG_TRACE, "WpaPairMsg1Action <-----\n");
 }
 
-VOID Wpa2PairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID Wpa2PairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PHEADER_802_11 pHeader;
 	UCHAR PTK[80];
@@ -813,7 +687,7 @@ VOID Wpa2PairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	========================================================================
 */
-VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PHEADER_802_11 pHeader;
 	PUCHAR pOutBuffer = NULL;
@@ -1049,7 +923,240 @@ VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	DBGPRINT(RT_DEBUG_TRACE, "WpaPairMsg3Action <-----\n");
 }
 
-VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+/*
+    ========================================================================
+
+    Routine Description:
+        Misc function to decrypt AES body
+
+    Arguments:
+
+    Return Value:
+
+    Note:
+        This function references to RFC 3394 for aes key unwrap algorithm.
+    ========================================================================
+*/
+static VOID AES_GTK_KEY_UNWRAP(IN UCHAR * key,
+			OUT UCHAR * plaintext,
+			IN UCHAR c_len, IN UCHAR * ciphertext)
+{
+	UCHAR A[8], BIN[16], BOUT[16];
+	UCHAR xor;
+	INT i, j;
+	aes_context aesctx;
+	UCHAR R[512];
+	INT num_blocks = c_len / 8;	// unit:64bits
+
+	// Initialize
+	memcpy(A, ciphertext, 8);
+	//Input plaintext
+	for (i = 0; i < (c_len - 8); i++) {
+		R[i] = ciphertext[i + 8];
+	}
+
+	aes_set_key(&aesctx, key, 128);
+
+	for (j = 5; j >= 0; j--) {
+		for (i = (num_blocks - 1); i > 0; i--) {
+			xor = (num_blocks - 1) * j + i;
+			memcpy(BIN, A, 8);
+			BIN[7] = A[7] ^ xor;
+			memcpy(&BIN[8], &R[(i - 1) * 8], 8);
+			aes_decrypt(&aesctx, BIN, BOUT);
+			memcpy(A, &BOUT[0], 8);
+			memcpy(&R[(i - 1) * 8], &BOUT[8], 8);
+		}
+	}
+
+	// OUTPUT
+	for (i = 0; i < c_len; i++) {
+		plaintext[i] = R[i];
+	}
+
+	DBGPRINT_RAW(RT_DEBUG_TRACE, "plaintext = \n");
+	for (i = 0; i < (num_blocks * 8); i++) {
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "%2x ", plaintext[i]);
+		if (i % 16 == 15)
+			DBGPRINT_RAW(RT_DEBUG_TRACE, "\n ");
+	}
+	DBGPRINT_RAW(RT_DEBUG_TRACE, "\n  \n");
+
+}
+
+/*
+    ========================================================================
+
+    Routine Description:
+    Parse KEYDATA field.  KEYDATA[] May contain 2 RSN IE and optionally GTK.
+    GTK  is encaptulated in KDE format at  p.83 802.11i D10
+
+    Arguments:
+
+    Return Value:
+
+    Note:
+        802.11i D10
+
+    ========================================================================
+*/
+static VOID ParseKeyData(IN PRTMP_ADAPTER pAd, IN PUCHAR pKeyData, IN UCHAR KeyDataLen)
+{
+	PKDE_ENCAP pKDE = NULL;
+	PNDIS_802_11_KEY pGroupKey = NULL;
+	PUCHAR pMyKeyData = pKeyData;
+	UCHAR KeyDataLength = KeyDataLen;
+	UCHAR GTKLEN;
+	INT i;
+
+	if (memcmp(pKeyData, pAd->PortCfg.RSN_IE, pAd->PortCfg.RSN_IELen) != 0) {
+		DBGPRINT(RT_DEBUG_ERROR, " RSN IE mismatched !!!!!!!!!! \n");
+	} else
+		DBGPRINT(RT_DEBUG_TRACE, " RSN IE matched !!!!!!!!!! \n");
+
+	DBGPRINT(RT_DEBUG_ERROR, "KeyDataLen = %d  \n", KeyDataLen);
+
+/*
+====================================================================
+======================================================================
+*/
+	if ((*pKeyData == WPARSNIE) && (*(pKeyData + 1) != 0)
+	    && (KeyDataLength >= (2 + *(pKeyData + 1)))) {
+		pMyKeyData = pKeyData + *(pKeyData + 1) + 2;
+		KeyDataLength -= (2 + *(pKeyData + 1));
+		DBGPRINT_RAW(RT_DEBUG_TRACE,
+			     "WPA RSN IE length %d contained in Msg3 = \n",
+			     (2 + *(pKeyData + 1)));
+	}
+	if ((*pMyKeyData == WPA2RSNIE) && (*(pMyKeyData + 1) != 0)
+	    && (KeyDataLength >= (2 + *(pMyKeyData + 1)))) {
+		pMyKeyData += (*(pMyKeyData + 1) + 2);
+		KeyDataLength -= (2 + *(pMyKeyData + 1));
+		DBGPRINT_RAW(RT_DEBUG_TRACE,
+			     "WPA2 RSN IE length %d contained in Msg3 = \n",
+			     (2 + *(pMyKeyData + 1)));
+	}
+
+	DBGPRINT_RAW(RT_DEBUG_TRACE, "KeyDataLength %d   \n", KeyDataLength);
+
+	if ((KeyDataLength >= 8) && (KeyDataLength <= sizeof(KDE_ENCAP))) {
+		pKDE = (PKDE_ENCAP) pMyKeyData;
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE = \n");
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->Type %x:", pKDE->Type);
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->Len 0x%x:", pKDE->Len);
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->OUI %x %x %x :",
+			     pKDE->OUI[0], pKDE->OUI[1], pKDE->OUI[2]);
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "\n");
+	}
+
+	if (pKDE->GTKEncap.Kid == 0) {
+		DBGPRINT_RAW(RT_DEBUG_ERROR, "GTK Key index zero , error\n");
+		return;
+	}
+
+	GTKLEN = pKDE->Len - 6;
+
+	DBGPRINT_RAW(RT_DEBUG_TRACE, "GTK Key[%d] len=%d ", pKDE->GTKEncap.Kid,
+		     GTKLEN);
+	for (i = 0; i < GTKLEN; i++) {
+		DBGPRINT_RAW(RT_DEBUG_TRACE, "%02x:", pKDE->GTKEncap.GTK[i]);
+	}
+	DBGPRINT_RAW(RT_DEBUG_TRACE, "\n");
+
+	// Update GTK
+	pGroupKey = kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
+	if (pGroupKey == NULL)
+		return;
+
+	memset(pGroupKey, 0, sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY);
+	pGroupKey->Length = sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY;
+	pGroupKey->KeyIndex = 0x20000000 | pKDE->GTKEncap.Kid;
+	pGroupKey->KeyLength = GTKLEN;
+
+	memcpy(pGroupKey->BSSID, pAd->PortCfg.Bssid, ETH_ALEN);
+	memcpy(pGroupKey->KeyMaterial, pKDE->GTKEncap.GTK, 32);
+
+	// Call Add peer key function
+	RTMPWPAAddKeyProc(pAd, pGroupKey);
+
+	kfree(pGroupKey);
+
+}
+
+
+static VOID WPAMake8023Hdr(IN PRTMP_ADAPTER pAd, IN PCHAR pDAddr, IN OUT PCHAR pHdr)
+{
+	// Addr1: DA, Addr2: BSSID, Addr3: SA
+	memcpy(pHdr, pDAddr, ETH_ALEN);
+	memcpy(&pHdr[ETH_ALEN], pAd->CurrentAddress, ETH_ALEN);
+	pHdr[2 * ETH_ALEN] = 0x88;
+	pHdr[2 * ETH_ALEN + 1] = 0x8e;
+
+}
+
+/*
+    ========================================================================
+    Routine Description:
+       Send all EAP frames to wireless station.
+       These frames don't come from normal SendPackets routine, but are EAPPacket, EAPOL,
+
+    Arguments:
+        pRxD        Pointer to the Rx descriptor
+
+    Return Value:
+    None
+    ========================================================================
+*/
+static VOID RTMPToWirelessSta(IN PRTMP_ADAPTER pAd, IN PUCHAR pFrame, IN UINT FrameLen)
+{
+	struct sk_buff *skb;
+	NDIS_STATUS Status;
+	UCHAR Index;
+	do {
+		// 1. build a NDIS packet and call RTMPSendPacket();
+		//    be careful about how/when to release this internal allocated NDIS PACKET buffer
+#ifdef RTMP_EMBEDDED
+		if ((skb =
+		     __dev_alloc_skb(FrameLen + 2,
+				     GFP_DMA | GFP_ATOMIC)) != NULL)
+#else
+		if ((skb = dev_alloc_skb(FrameLen + 2)) != NULL)
+#endif
+		{
+			skb->len = FrameLen;
+			skb->data_len = FrameLen;
+			memcpy((skb->data), pFrame, FrameLen);
+		} else {
+			break;
+		}
+
+		// 2. send out the packet
+		Status = RTMPSendPacket(pAd, skb);
+		if (Status == NDIS_STATUS_SUCCESS) {
+			// Dequeue one frame from TxSwQueue0..3 queue and process it
+			// There are three place calling dequeue for TX ring.
+			// 1. Here, right after queueing the frame.
+			// 2. At the end of TxRingTxDone service routine.
+			// 3. Upon NDIS call RTMPSendPackets
+			if ((!RTMP_TEST_FLAG
+			     (pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS))
+			    &&
+			    (!RTMP_TEST_FLAG
+			     (pAd, fRTMP_ADAPTER_RESET_IN_PROGRESS))) {
+				for (Index = 0; Index < 5; Index++)
+					RTMPDeQueuePacket(pAd, Index);
+			}
+		} else		// free this packet space
+		{
+			dev_kfree_skb_irq(skb);
+		}
+
+	} while (FALSE);
+
+}
+
+
+static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PHEADER_802_11 pHeader;
 	PUCHAR pOutBuffer = NULL;
@@ -1341,7 +1448,7 @@ VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	========================================================================
 */
-VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
+static VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PHEADER_802_11 pHeader;
 
@@ -1676,200 +1783,325 @@ VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 }
 
 /*
-	========================================================================
-
-	Routine Description:
-		Init WPA MAC header
-
-	Arguments:
-		pAd	Pointer	to our adapter
-
-	Return Value:
-		None
-
-	Note:
-
-	========================================================================
+	==========================================================================
+	Description:
+		This is	state machine function.
+		When receiving EAPOL packets which is  for 802.1x key management.
+		Use	both in	WPA, and WPAPSK	case.
+		In this	function, further dispatch to different	functions according	to the received	packet.	 3 categories are :
+		  1.  normal 4-way pairwisekey and 2-way groupkey handshake
+		  2.  MIC error	(Countermeasures attack)  report packet	from STA.
+		  3.  Request for pairwise/group key update	from STA
+	Return:
+	==========================================================================
 */
-VOID WpaMacHeaderInit(IN PRTMP_ADAPTER pAd,
-		      IN OUT PHEADER_802_11 pHdr80211,
-		      IN UCHAR wep, IN PUCHAR pAddr1)
+static VOID WpaEAPOLKeyAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
-	memset(pHdr80211, 0, sizeof(HEADER_802_11));
-	pHdr80211->FC.Type = BTYPE_DATA;
-	pHdr80211->FC.ToDs = 1;
-	if (wep == 1)
-		pHdr80211->FC.Wep = 1;
+	INT MsgType = EAPOL_MSG_INVALID;
+	PKEY_DESCRIPTER pKeyDesc;
+	PHEADER_802_11 pHeader;	//red
+	UCHAR ZeroReplay[LEN_KEY_DESC_REPLAY];
+	UCHAR EapolVr;
 
-	//     Addr1: DA, Addr2: BSSID, Addr3: SA
-	memcpy(pHdr80211->Addr1, pAddr1, ETH_ALEN);
-	memcpy(pHdr80211->Addr2, pAd->CurrentAddress, ETH_ALEN);
-	memcpy(pHdr80211->Addr3, pAd->PortCfg.Bssid, ETH_ALEN);
-	pHdr80211->Sequence = pAd->Sequence;
-}
+	DBGPRINT(RT_DEBUG_TRACE, "-----> WpaEAPOLKeyAction\n");
 
-/*
-	========================================================================
+	pHeader = (PHEADER_802_11) Elem->Msg;
 
-	Routine Description:
-		SHA1 function
+	// Get 802.11 header first
+	if ((pAd->PortCfg.bWmmCapable)
+	    && (pHeader->FC.SubType == SUBTYPE_QDATA))
+		pKeyDesc =
+		    (PKEY_DESCRIPTER) & Elem->
+		    Msg[(LENGTH_802_11 + LENGTH_802_1_H + LENGTH_WMMQOS_H +
+			 LENGTH_EAPOL_H)];
+	else
+		pKeyDesc =
+		    (PKEY_DESCRIPTER) & Elem->
+		    Msg[(LENGTH_802_11 + LENGTH_802_1_H + LENGTH_EAPOL_H)];
 
-	Arguments:
+#ifdef BIG_ENDIAN
+	// pMsg->KeyDesc.KeyInfo and pKeyDesc->KeyInfo both point to the same addr.
+	// Thus, it only needs swap once.
+	{
+		USHORT tmpKeyinfo;
 
-	Return Value:
-
-	Note:
-
-	========================================================================
-*/
-VOID HMAC_SHA1(IN UCHAR * text,
-	       IN UINT text_len,
-	       IN UCHAR * key, IN UINT key_len, IN UCHAR * digest)
-{
-	SHA_CTX context;
-	UCHAR k_ipad[65];	/* inner padding - key XORd with ipad       */
-	UCHAR k_opad[65];	/* outer padding - key XORd with opad       */
-	INT i;
-
-	// if key is longer     than 64 bytes reset     it to key=SHA1(key)
-	if (key_len > 64) {
-		SHA_CTX tctx;
-		SHAInit(&tctx);
-		SHAUpdate(&tctx, key, key_len);
-		SHAFinal(&tctx, key);
-		key_len = 20;
+		memcpy(&tmpKeyinfo, &pKeyDesc->KeyInfo, sizeof(USHORT));
+		tmpKeyinfo = SWAP16(tmpKeyinfo);
+		memcpy(&pKeyDesc->KeyInfo, &tmpKeyinfo, sizeof(USHORT));
 	}
-	memset(k_ipad, 0, sizeof(k_ipad));
-	memset(k_opad, 0, sizeof(k_opad));
-	memcpy(k_ipad, key, key_len);
-	memcpy(k_opad, key, key_len);
+//          *(USHORT *)((UCHAR *)pKeyDesc+1) = SWAP16(*(USHORT *)((UCHAR *)pKeyDesc+1));
+#endif
 
-	// XOR key with ipad and opad values
-	for (i = 0; i < 64; i++) {
-		k_ipad[i] ^= 0x36;
-		k_opad[i] ^= 0x5c;
+	// Sanity check, this should only happen in WPA(2)-PSK mode
+	// 0. Debug print all bit information
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Description Version %d\n",
+		 pKeyDesc->KeyInfo.KeyDescVer);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Type %d\n",
+		 pKeyDesc->KeyInfo.KeyType);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Index %d\n",
+		 pKeyDesc->KeyInfo.KeyIndex);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Install %d\n",
+		 pKeyDesc->KeyInfo.Install);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key Ack %d\n",
+		 pKeyDesc->KeyInfo.KeyAck);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Key MIC %d\n",
+		 pKeyDesc->KeyInfo.KeyMic);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Secure %d\n",
+		 pKeyDesc->KeyInfo.Secure);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Error %d\n", pKeyDesc->KeyInfo.Error);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo Request %d\n",
+		 pKeyDesc->KeyInfo.Request);
+	DBGPRINT(RT_DEBUG_INFO, "KeyInfo EKD_DL %d\n",
+		 pKeyDesc->KeyInfo.EKD_DL);
+
+	// 1. Check EAPOL frame version and type
+	if ((pAd->PortCfg.bWmmCapable)
+	    && (pHeader->FC.SubType == SUBTYPE_QDATA))
+		EapolVr =
+		    (UCHAR) Elem->Msg[LENGTH_802_11 + LENGTH_802_1_H +
+				      LENGTH_WMMQOS_H];
+	else
+		EapolVr = (UCHAR) Elem->Msg[LENGTH_802_11 + LENGTH_802_1_H];
+
+	if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) {
+
+		if ((EapolVr != EAPOL_VER) || (pKeyDesc->Type != WPA1_KEY_DESC)) {
+			DBGPRINT(RT_DEBUG_ERROR,
+				 "Key descripter does not match with WPA1 rule \n");
+			return;
+		}
+	} else if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK) {
+		if (pKeyDesc->Type != WPA2_KEY_DESC)	//some APs would send EapolVr = 2
+		{
+			DBGPRINT(RT_DEBUG_ERROR,
+				 "Key descripter does not match with WPA2 rule \n");
+			return;
+		}
 	}
+	// First validate replay counter, only accept message with larger replay counter
+	// Let equal pass, some AP start with all zero replay counter
+	memset(ZeroReplay, 0, LEN_KEY_DESC_REPLAY);
 
-	// perform inner SHA1
-	SHAInit(&context);	/* init context for 1st pass */
-	SHAUpdate(&context, k_ipad, 64);	/*      start with inner pad */
-	SHAUpdate(&context, text, text_len);	/*      then text of datagram */
-	SHAFinal(&context, digest);	/* finish up 1st pass */
-
-	//perform outer SHA1
-	SHAInit(&context);	/* init context for 2nd pass */
-	SHAUpdate(&context, k_opad, 64);	/*      start with outer pad */
-	SHAUpdate(&context, digest, 20);	/*      then results of 1st     hash */
-	SHAFinal(&context, digest);	/* finish up 2nd pass */
-}
-
-/*
-    ========================================================================
-
-    Routine Description:
-    Parse KEYDATA field.  KEYDATA[] May contain 2 RSN IE and optionally GTK.
-    GTK  is encaptulated in KDE format at  p.83 802.11i D10
-
-    Arguments:
-
-    Return Value:
-
-    Note:
-        802.11i D10
-
-    ========================================================================
-*/
-VOID ParseKeyData(IN PRTMP_ADAPTER pAd, IN PUCHAR pKeyData, IN UCHAR KeyDataLen)
-{
-	PKDE_ENCAP pKDE = NULL;
-	PNDIS_802_11_KEY pGroupKey = NULL;
-	PUCHAR pMyKeyData = pKeyData;
-	UCHAR KeyDataLength = KeyDataLen;
-	UCHAR GTKLEN;
-	INT i;
-
-	if (memcmp(pKeyData, pAd->PortCfg.RSN_IE, pAd->PortCfg.RSN_IELen) != 0) {
-		DBGPRINT(RT_DEBUG_ERROR, " RSN IE mismatched !!!!!!!!!! \n");
-	} else
-		DBGPRINT(RT_DEBUG_TRACE, " RSN IE matched !!!!!!!!!! \n");
-
-	DBGPRINT(RT_DEBUG_ERROR, "KeyDataLen = %d  \n", KeyDataLen);
+	if ((!pAd->PortCfg.bWmmCapable)
+	    && (pHeader->FC.SubType == SUBTYPE_QDATA))
+		if ((memcmp
+		     (pKeyDesc->ReplayCounter, pAd->PortCfg.ReplayCounter,
+		      LEN_KEY_DESC_REPLAY) <= 0)
+		    &&
+		    (memcmp
+		     (pKeyDesc->ReplayCounter, ZeroReplay,
+		      LEN_KEY_DESC_REPLAY) != 0)) {
+			DBGPRINT(RT_DEBUG_ERROR,
+				 "   ReplayCounter not match   \n");
+			return;
+		}
 
 /*
 ====================================================================
+        WPAPSK2     WPAPSK2         WPAPSK2     WPAPSK2
 ======================================================================
 */
-	if ((*pKeyData == WPARSNIE) && (*(pKeyData + 1) != 0)
-	    && (KeyDataLength >= (2 + *(pKeyData + 1)))) {
-		pMyKeyData = pKeyData + *(pKeyData + 1) + 2;
-		KeyDataLength -= (2 + *(pKeyData + 1));
-		DBGPRINT_RAW(RT_DEBUG_TRACE,
-			     "WPA RSN IE length %d contained in Msg3 = \n",
-			     (2 + *(pKeyData + 1)));
+	if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK) {
+		if ((pKeyDesc->KeyInfo.KeyType == 1) &&
+		    (pKeyDesc->KeyInfo.EKD_DL == 0) &&
+		    (pKeyDesc->KeyInfo.KeyAck == 1) &&
+		    (pKeyDesc->KeyInfo.KeyMic == 0) &&
+		    (pKeyDesc->KeyInfo.Secure == 0) &&
+		    (pKeyDesc->KeyInfo.Error == 0) &&
+		    (pKeyDesc->KeyInfo.Request == 0)) {
+			MsgType = EAPOL_PAIR_MSG_1;
+			DBGPRINT(RT_DEBUG_ERROR,
+				 "Receive EAPOL Key Pairwise Message 1\n");
+		} else if ((pKeyDesc->KeyInfo.KeyType == 1)
+			   && (pKeyDesc->KeyInfo.EKD_DL == 1)
+			   && (pKeyDesc->KeyInfo.KeyAck == 1)
+			   && (pKeyDesc->KeyInfo.KeyMic == 1)
+			   && (pKeyDesc->KeyInfo.Secure == 1)
+			   && (pKeyDesc->KeyInfo.Error == 0)
+			   && (pKeyDesc->KeyInfo.Request == 0)) {
+			MsgType = EAPOL_PAIR_MSG_3;
+			DBGPRINT(RT_DEBUG_ERROR,
+				 "Receive EAPOL Key Pairwise Message 3\n");
+		} else if ((pKeyDesc->KeyInfo.KeyType == 0)
+			   && (pKeyDesc->KeyInfo.EKD_DL == 1)
+			   && (pKeyDesc->KeyInfo.KeyAck == 1)
+			   && (pKeyDesc->KeyInfo.KeyMic == 1)
+			   && (pKeyDesc->KeyInfo.Secure == 1)
+			   && (pKeyDesc->KeyInfo.Error == 0)
+			   && (pKeyDesc->KeyInfo.Request == 0)) {
+			MsgType = EAPOL_GROUP_MSG_1;
+			DBGPRINT(RT_DEBUG_ERROR,
+				 "Receive EAPOL Key Group Message 1\n");
+		}
+#ifdef BIG_ENDIAN
+		// recovery original byte order, before forward Elem to another routine
+		{
+			USHORT tmpKeyinfo;
+
+			memcpy(&tmpKeyinfo, &pKeyDesc->KeyInfo, sizeof(USHORT));
+			tmpKeyinfo = SWAP16(tmpKeyinfo);
+			memcpy(&pKeyDesc->KeyInfo, &tmpKeyinfo, sizeof(USHORT));
+		}
+#endif
+
+		// We will assume link is up (assoc suceess and port not secured).
+		// All state has to be able to process message from previous state
+		switch (pAd->PortCfg.WpaState) {
+		case SS_START:
+			if (MsgType == EAPOL_PAIR_MSG_1) {
+				Wpa2PairMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
+			}
+			break;
+
+		case SS_WAIT_MSG_3:
+			if (MsgType == EAPOL_PAIR_MSG_1) {
+				Wpa2PairMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
+			} else if (MsgType == EAPOL_PAIR_MSG_3) {
+				Wpa2PairMsg3Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
+			}
+			break;
+
+		case SS_WAIT_GROUP:	// When doing group key exchange
+		case SS_FINISH:	// This happened when update group key
+			if (MsgType == EAPOL_PAIR_MSG_1) {
+				Wpa2PairMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
+				// Reset port secured variable
+				pAd->PortCfg.PortSecured =
+				    WPA_802_1X_PORT_NOT_SECURED;
+			} else if (MsgType == EAPOL_PAIR_MSG_3) {
+				Wpa2PairMsg3Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
+				// Reset port secured variable
+				pAd->PortCfg.PortSecured =
+				    WPA_802_1X_PORT_NOT_SECURED;
+			} else if (MsgType == EAPOL_GROUP_MSG_1) {
+				WpaGroupMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_FINISH;
+			}
+			break;
+
+		default:
+			break;
+		}
 	}
-	if ((*pMyKeyData == WPA2RSNIE) && (*(pMyKeyData + 1) != 0)
-	    && (KeyDataLength >= (2 + *(pMyKeyData + 1)))) {
-		pMyKeyData += (*(pMyKeyData + 1) + 2);
-		KeyDataLength -= (2 + *(pMyKeyData + 1));
-		DBGPRINT_RAW(RT_DEBUG_TRACE,
-			     "WPA2 RSN IE length %d contained in Msg3 = \n",
-			     (2 + *(pMyKeyData + 1)));
+///*
+//====================================================================
+//          WPAPSK          WPAPSK          WPAPSK          WPAPSK
+//======================================================================
+//*/
+	// Classify message Type, either pairwise message 1, 3, or group message 1 for supplicant
+	else if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) {
+		if ((pKeyDesc->KeyInfo.KeyType == 1) &&
+		    (pKeyDesc->KeyInfo.KeyIndex == 0) &&
+		    (pKeyDesc->KeyInfo.KeyAck == 1) &&
+		    (pKeyDesc->KeyInfo.KeyMic == 0) &&
+		    (pKeyDesc->KeyInfo.Secure == 0) &&
+		    (pKeyDesc->KeyInfo.Error == 0) &&
+		    (pKeyDesc->KeyInfo.Request == 0)) {
+			MsgType = EAPOL_PAIR_MSG_1;
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "Receive EAPOL Key Pairwise Message 1\n");
+		} else if ((pKeyDesc->KeyInfo.KeyType == 1)
+			   && (pKeyDesc->KeyInfo.KeyIndex == 0)
+			   && (pKeyDesc->KeyInfo.KeyAck == 1)
+			   && (pKeyDesc->KeyInfo.KeyMic == 1)
+			   && (pKeyDesc->KeyInfo.Secure == 0)
+			   && (pKeyDesc->KeyInfo.Error == 0)
+			   && (pKeyDesc->KeyInfo.Request == 0)) {
+			MsgType = EAPOL_PAIR_MSG_3;
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "Receive EAPOL Key Pairwise Message 3\n");
+		} else if ((pKeyDesc->KeyInfo.KeyType == 0)
+			   && (pKeyDesc->KeyInfo.KeyIndex != 0)
+			   && (pKeyDesc->KeyInfo.KeyAck == 1)
+			   && (pKeyDesc->KeyInfo.KeyMic == 1)
+			   && (pKeyDesc->KeyInfo.Secure == 1)
+			   && (pKeyDesc->KeyInfo.Error == 0)
+			   && (pKeyDesc->KeyInfo.Request == 0)) {
+			MsgType = EAPOL_GROUP_MSG_1;
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "Receive EAPOL Key Group Message 1\n");
+		}
+#ifdef BIG_ENDIAN
+		// recovery original byte order, before forward Elem to another routine
+		{
+			USHORT tmpKeyinfo;
+
+			memcpy(&tmpKeyinfo, &pKeyDesc->KeyInfo, sizeof(USHORT));
+			tmpKeyinfo = SWAP16(tmpKeyinfo);
+			memcpy(&pKeyDesc->KeyInfo, &tmpKeyinfo, sizeof(USHORT));
+		}
+#endif
+
+		// We will assume link is up (assoc suceess and port not secured).
+		// All state has to be able to process message from previous state
+		switch (pAd->PortCfg.WpaState) {
+		case SS_START:
+			if (MsgType == EAPOL_PAIR_MSG_1) {
+				WpaPairMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
+			}
+			break;
+
+		case SS_WAIT_MSG_3:
+			if (MsgType == EAPOL_PAIR_MSG_1) {
+				WpaPairMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
+			} else if (MsgType == EAPOL_PAIR_MSG_3) {
+				WpaPairMsg3Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
+			}
+			break;
+
+		case SS_WAIT_GROUP:	// When doing group key exchange
+		case SS_FINISH:	// This happened when update group key
+			if (MsgType == EAPOL_PAIR_MSG_1) {
+				WpaPairMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_MSG_3;
+				// Reset port secured variable
+				pAd->PortCfg.PortSecured =
+				    WPA_802_1X_PORT_NOT_SECURED;
+			} else if (MsgType == EAPOL_PAIR_MSG_3) {
+				WpaPairMsg3Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_WAIT_GROUP;
+				// Reset port secured variable
+				pAd->PortCfg.PortSecured =
+				    WPA_802_1X_PORT_NOT_SECURED;
+			} else if (MsgType == EAPOL_GROUP_MSG_1) {
+				WpaGroupMsg1Action(pAd, Elem);
+				pAd->PortCfg.WpaState = SS_FINISH;
+			}
+			break;
+
+		default:
+			break;
+		}
 	}
 
-	DBGPRINT_RAW(RT_DEBUG_TRACE, "KeyDataLength %d   \n", KeyDataLength);
-
-	if ((KeyDataLength >= 8) && (KeyDataLength <= sizeof(KDE_ENCAP))) {
-		pKDE = (PKDE_ENCAP) pMyKeyData;
-		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE = \n");
-		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->Type %x:", pKDE->Type);
-		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->Len 0x%x:", pKDE->Len);
-		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->OUI %x %x %x :",
-			     pKDE->OUI[0], pKDE->OUI[1], pKDE->OUI[2]);
-		DBGPRINT_RAW(RT_DEBUG_TRACE, "\n");
-	}
-
-	if (pKDE->GTKEncap.Kid == 0) {
-		DBGPRINT_RAW(RT_DEBUG_ERROR, "GTK Key index zero , error\n");
-		return;
-	}
-
-	GTKLEN = pKDE->Len - 6;
-
-	DBGPRINT_RAW(RT_DEBUG_TRACE, "GTK Key[%d] len=%d ", pKDE->GTKEncap.Kid,
-		     GTKLEN);
-	for (i = 0; i < GTKLEN; i++) {
-		DBGPRINT_RAW(RT_DEBUG_TRACE, "%02x:", pKDE->GTKEncap.GTK[i]);
-	}
-	DBGPRINT_RAW(RT_DEBUG_TRACE, "\n");
-
-	// Update GTK
-	pGroupKey = kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
-	if (pGroupKey == NULL)
-		return;
-
-	memset(pGroupKey, 0, sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY);
-	pGroupKey->Length = sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY;
-	pGroupKey->KeyIndex = 0x20000000 | pKDE->GTKEncap.Kid;
-	pGroupKey->KeyLength = GTKLEN;
-
-	memcpy(pGroupKey->BSSID, pAd->PortCfg.Bssid, ETH_ALEN);
-	memcpy(pGroupKey->KeyMaterial, pKDE->GTKEncap.GTK, 32);
-
-	// Call Add peer key function
-	RTMPWPAAddKeyProc(pAd, pGroupKey);
-
-	kfree(pGroupKey);
-
+	DBGPRINT(RT_DEBUG_TRACE, "<----- WpaEAPOLKeyAction\n");
 }
 
-VOID WPAMake8023Hdr(IN PRTMP_ADAPTER pAd, IN PCHAR pDAddr, IN OUT PCHAR pHdr)
+/*
+	==========================================================================
+	Description:
+		association	state machine init,	including state	transition and timer init
+	Parameters:
+		S -	pointer	to the association state machine
+	==========================================================================
+ */
+VOID WpaPskStateMachineInit(IN PRTMP_ADAPTER pAd,
+			    IN STATE_MACHINE * S,
+			    OUT STATE_MACHINE_FUNC Trans[])
 {
-	// Addr1: DA, Addr2: BSSID, Addr3: SA
-	memcpy(pHdr, pDAddr, ETH_ALEN);
-	memcpy(&pHdr[ETH_ALEN], pAd->CurrentAddress, ETH_ALEN);
-	pHdr[2 * ETH_ALEN] = 0x88;
-	pHdr[2 * ETH_ALEN + 1] = 0x8e;
-
+	StateMachineInit(S, (STATE_MACHINE_FUNC *) Trans, MAX_WPA_PSK_STATE,
+			 MAX_WPA_PSK_MSG, (STATE_MACHINE_FUNC) Drop,
+			 WPA_PSK_IDLE, WPA_MACHINE_BASE);
+	StateMachineSetAction(S, WPA_PSK_IDLE, MT2_EAPOLKey,
+			      (STATE_MACHINE_FUNC) WpaEAPOLKeyAction);
 }
 
 /*
@@ -1910,236 +2142,6 @@ VOID PRF(IN UCHAR * key,
 		currentindex += 20;
 		input[total_len - 1]++;
 	}
-}
-
-/*
-	========================================================================
-
-	Routine Description:
-		Count TPTK from PMK
-
-	Arguments:
-
-	Return Value:
-		Output		Store the TPTK
-
-	Note:
-
-	========================================================================
-*/
-VOID WpaCountPTK(IN UCHAR * PMK,
-		 IN UCHAR * ANonce,
-		 IN UCHAR * AA,
-		 IN UCHAR * SNonce,
-		 IN UCHAR * SA, OUT UCHAR * output, IN UINT len)
-{
-	UCHAR concatenation[76];
-	UINT CurrPos = 0;
-	UCHAR temp[32];
-	UCHAR Prefix[] =
-	    { 'P', 'a', 'i', 'r', 'w', 'i', 's', 'e', ' ', 'k', 'e', 'y', ' ',
-		'e', 'x', 'p', 'a', 'n', 's', 'i', 'o', 'n'
-	};
-
-	memset(temp, 0, sizeof(temp));
-
-	// Get smaller address
-	if (memcmp(SA, AA, 6) > 0)
-		memcpy(concatenation, AA, 6);
-	else
-		memcpy(concatenation, SA, 6);
-	CurrPos += 6;
-
-	// Get larger address
-	if (memcmp(SA, AA, 6) > 0)
-		memcpy(&concatenation[CurrPos], SA, 6);
-	else
-		memcpy(&concatenation[CurrPos], AA, 6);
-	CurrPos += 6;
-
-	// Get smaller address
-	if (memcmp(ANonce, SNonce, 32) > 1)
-		memcpy(&concatenation[CurrPos], SNonce, 32);
-	else
-		memcpy(&concatenation[CurrPos], ANonce, 32);
-	CurrPos += 32;
-
-	// Get larger address
-	if (memcmp(ANonce, SNonce, 32) > 0)
-		memcpy(&concatenation[CurrPos], ANonce, 32);
-	else
-		memcpy(&concatenation[CurrPos], SNonce, 32);
-	CurrPos += 32;
-
-	PRF(PMK, LEN_MASTER_KEY, Prefix, 22, concatenation, 76, output, len);
-
-}
-
-/*
-	========================================================================
-
-	Routine Description:
-		Misc function to Generate random number
-
-	Arguments:
-
-	Return Value:
-
-	Note:
-		802.1i  Annex F.9
-
-	========================================================================
-*/
-VOID GenRandom(IN PRTMP_ADAPTER pAd, OUT UCHAR * random)
-{
-	INT i, curr;
-	UCHAR local[80], KeyCounter[32];
-	UCHAR result[80];
-	unsigned long CurrentTime;
-	UCHAR prefix[] =
-	    { 'I', 'n', 'i', 't', ' ', 'C', 'o', 'u', 'n', 't', 'e', 'r' };
-
-	memset(result, 0, 80);
-	memset(local, 0, 80);
-	memset(KeyCounter, 0, 32);
-	memcpy(local, pAd->CurrentAddress, ETH_ALEN);
-
-	for (i = 0; i < 32; i++) {
-		curr = ETH_ALEN;
-		CurrentTime = jiffies;
-		memcpy(local, pAd->CurrentAddress, ETH_ALEN);
-		curr += ETH_ALEN;
-		memcpy(&local[curr], &CurrentTime, sizeof(CurrentTime));
-		curr += sizeof(CurrentTime);
-		memcpy(&local[curr], result, 32);
-		curr += 32;
-		memcpy(&local[curr], &i, 2);
-		curr += 2;
-		PRF(KeyCounter, 32, prefix, 12, local, curr, result, 32);
-	}
-	memcpy(random, result, 32);
-}
-
-/*
-    ========================================================================
-
-    Routine Description:
-        Misc function to decrypt AES body
-
-    Arguments:
-
-    Return Value:
-
-    Note:
-        This function references to RFC 3394 for aes key unwrap algorithm.
-    ========================================================================
-*/
-VOID AES_GTK_KEY_UNWRAP(IN UCHAR * key,
-			OUT UCHAR * plaintext,
-			IN UCHAR c_len, IN UCHAR * ciphertext)
-{
-	UCHAR A[8], BIN[16], BOUT[16];
-	UCHAR xor;
-	INT i, j;
-	aes_context aesctx;
-	UCHAR R[512];
-	INT num_blocks = c_len / 8;	// unit:64bits
-
-	// Initialize
-	memcpy(A, ciphertext, 8);
-	//Input plaintext
-	for (i = 0; i < (c_len - 8); i++) {
-		R[i] = ciphertext[i + 8];
-	}
-
-	aes_set_key(&aesctx, key, 128);
-
-	for (j = 5; j >= 0; j--) {
-		for (i = (num_blocks - 1); i > 0; i--) {
-			xor = (num_blocks - 1) * j + i;
-			memcpy(BIN, A, 8);
-			BIN[7] = A[7] ^ xor;
-			memcpy(&BIN[8], &R[(i - 1) * 8], 8);
-			aes_decrypt(&aesctx, BIN, BOUT);
-			memcpy(A, &BOUT[0], 8);
-			memcpy(&R[(i - 1) * 8], &BOUT[8], 8);
-		}
-	}
-
-	// OUTPUT
-	for (i = 0; i < c_len; i++) {
-		plaintext[i] = R[i];
-	}
-
-	DBGPRINT_RAW(RT_DEBUG_TRACE, "plaintext = \n");
-	for (i = 0; i < (num_blocks * 8); i++) {
-		DBGPRINT_RAW(RT_DEBUG_TRACE, "%2x ", plaintext[i]);
-		if (i % 16 == 15)
-			DBGPRINT_RAW(RT_DEBUG_TRACE, "\n ");
-	}
-	DBGPRINT_RAW(RT_DEBUG_TRACE, "\n  \n");
-
-}
-
-/*
-    ========================================================================
-    Routine Description:
-       Send all EAP frames to wireless station.
-       These frames don't come from normal SendPackets routine, but are EAPPacket, EAPOL,
-
-    Arguments:
-        pRxD        Pointer to the Rx descriptor
-
-    Return Value:
-    None
-    ========================================================================
-*/
-VOID RTMPToWirelessSta(IN PRTMP_ADAPTER pAd, IN PUCHAR pFrame, IN UINT FrameLen)
-{
-	struct sk_buff *skb;
-	NDIS_STATUS Status;
-	UCHAR Index;
-	do {
-		// 1. build a NDIS packet and call RTMPSendPacket();
-		//    be careful about how/when to release this internal allocated NDIS PACKET buffer
-#ifdef RTMP_EMBEDDED
-		if ((skb =
-		     __dev_alloc_skb(FrameLen + 2,
-				     GFP_DMA | GFP_ATOMIC)) != NULL)
-#else
-		if ((skb = dev_alloc_skb(FrameLen + 2)) != NULL)
-#endif
-		{
-			skb->len = FrameLen;
-			skb->data_len = FrameLen;
-			memcpy((skb->data), pFrame, FrameLen);
-		} else {
-			break;
-		}
-
-		// 2. send out the packet
-		Status = RTMPSendPacket(pAd, skb);
-		if (Status == NDIS_STATUS_SUCCESS) {
-			// Dequeue one frame from TxSwQueue0..3 queue and process it
-			// There are three place calling dequeue for TX ring.
-			// 1. Here, right after queueing the frame.
-			// 2. At the end of TxRingTxDone service routine.
-			// 3. Upon NDIS call RTMPSendPackets
-			if ((!RTMP_TEST_FLAG
-			     (pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS))
-			    &&
-			    (!RTMP_TEST_FLAG
-			     (pAd, fRTMP_ADAPTER_RESET_IN_PROGRESS))) {
-				for (Index = 0; Index < 5; Index++)
-					RTMPDeQueuePacket(pAd, Index);
-			}
-		} else		// free this packet space
-		{
-			dev_kfree_skb_irq(skb);
-		}
-
-	} while (FALSE);
-
 }
 
 //#ifdef WPA_SUPPLICANT_SUPPORT
