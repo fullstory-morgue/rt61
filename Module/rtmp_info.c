@@ -135,6 +135,1200 @@ struct iw_priv_args privtab[] = {
 	 "get_RaAP_Cfg"},
 };
 
+static INT Set_DriverVersion_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
+{
+	DBGPRINT(RT_DEBUG_TRACE, "Driver version-%s\n", DRIVER_VERSION);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Country Region.
+        This command will not work, if the field of CountryRegion in eeprom is programmed.
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_CountryRegion_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
+{
+	ULONG region;
+
+	region = simple_strtol(arg, 0, 10);
+
+	// Country can be set only when EEPROM not programmed
+	if (pAd->PortCfg.CountryRegion & 0x80) {
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "Set_CountryRegion_Proc::parameter of CountryRegion in eeprom is programmed \n");
+		return FALSE;
+	}
+
+	if (region <= REGION_MAXIMUM_BG_BAND) {
+		pAd->PortCfg.CountryRegion = (UCHAR) region;
+	} else {
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "Set_CountryRegion_Proc::parameters out of range\n");
+		return FALSE;
+	}
+
+	// if set country region, driver needs to be reset
+	BuildChannelList(pAd);
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_CountryRegion_Proc::(CountryRegion=%d)\n",
+		 pAd->PortCfg.CountryRegion);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Country Region for A band.
+        This command will not work, if the field of CountryRegion in eeprom is programmed.
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_CountryRegionABand_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
+{
+	ULONG region;
+
+	region = simple_strtol(arg, 0, 10);
+
+	// Country can be set only when EEPROM not programmed
+	if (pAd->PortCfg.CountryRegionForABand & 0x80) {
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "Set_CountryRegionABand_Proc::parameter of CountryRegion in eeprom is programmed \n");
+		return FALSE;
+	}
+
+	if (region <= REGION_MAXIMUM_A_BAND) {
+		pAd->PortCfg.CountryRegionForABand = (UCHAR) region;
+	} else {
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "Set_CountryRegionABand_Proc::parameters out of range\n");
+		return FALSE;
+	}
+
+	// if set country region, driver needs to be reset
+	BuildChannelList(pAd);
+
+	DBGPRINT(RT_DEBUG_TRACE,
+		 "Set_CountryRegionABand_Proc::(CountryRegion=%d)\n",
+		 pAd->PortCfg.CountryRegionForABand);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set SSID
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_SSID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	NDIS_802_11_SSID Ssid, *pSsid = NULL;
+	BOOLEAN StateMachineTouched = FALSE;
+	int success = TRUE;
+
+	printk
+	    ("'iwpriv <dev> set SSID' is deprecated, please use 'iwconfg <dev> essid' instead\n");
+
+	/* Protect against oops if net is down, this will not work with if-preup use iwconfig properly */
+	if (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE))
+		return FALSE;
+
+	if (strlen(arg) <= MAX_LEN_OF_SSID) {
+
+		memset(&Ssid, 0, MAX_LEN_OF_SSID);
+		if (strlen(arg) != 0) {
+			memcpy(Ssid.Ssid, arg, strlen(arg));
+			Ssid.SsidLength = strlen(arg);
+		} else		//ANY ssid
+		{
+			Ssid.SsidLength = 0;
+			memcpy(Ssid.Ssid, "", 0);
+			pAdapter->PortCfg.BssType = BSS_INFRA;
+			pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
+			pAdapter->PortCfg.WepStatus =
+			    Ndis802_11EncryptionDisabled;
+		}
+		pSsid = &Ssid;
+
+		if (pAdapter->Mlme.CntlMachine.CurrState != CNTL_IDLE) {
+			MlmeRestartStateMachine(pAdapter);
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "!!! MLME busy, reset MLME state machine !!!\n");
+		}
+		// tell CNTL state machine to call NdisMSetInformationComplete() after completing
+		// this request, because this request is initiated by NDIS.
+		pAdapter->MlmeAux.CurrReqIsFromNdis = FALSE;
+
+		pAdapter->bConfigChanged = TRUE;
+
+		MlmeEnqueue(pAdapter,
+			    MLME_CNTL_STATE_MACHINE,
+			    OID_802_11_SSID,
+			    sizeof(NDIS_802_11_SSID), (VOID *) pSsid);
+
+		StateMachineTouched = TRUE;
+		DBGPRINT(RT_DEBUG_TRACE, "Set_SSID_Proc::(Len=%d,Ssid=%s)\n",
+			 Ssid.SsidLength, Ssid.Ssid);
+	} else
+		success = FALSE;
+
+	if (StateMachineTouched)	// Upper layer sent a MLME-related operations
+		MlmeHandler(pAdapter);
+
+	return success;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Wireless Mode
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_WirelessMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	ULONG WirelessMode;
+	int success = TRUE;
+
+	WirelessMode = simple_strtol(arg, 0, 10);
+
+	if ((WirelessMode == PHY_11BG_MIXED) || (WirelessMode == PHY_11B) ||
+	    (WirelessMode == PHY_11A) || (WirelessMode == PHY_11ABG_MIXED) ||
+	    (WirelessMode == PHY_11G)) {
+		// protect no A-band support
+		if ((pAdapter->RfIcType != RFIC_5225)
+		    && (pAdapter->RfIcType != RFIC_5325)) {
+			if ((WirelessMode == PHY_11A)
+			    || (WirelessMode == PHY_11ABG_MIXED)) {
+				DBGPRINT(RT_DEBUG_ERROR,
+					 "!!!!! Not support A band in RfIcType= %d\n",
+					 pAdapter->RfIcType);
+				return FALSE;
+			}
+		}
+
+		RTMPSetPhyMode(pAdapter, WirelessMode);
+
+		// Set AdhocMode rates
+		if (pAdapter->PortCfg.BssType == BSS_ADHOC) {
+			if (WirelessMode == PHY_11B)
+				pAdapter->PortCfg.AdhocMode = 0;
+			else if ((WirelessMode == PHY_11BG_MIXED)
+				 || (WirelessMode == PHY_11ABG_MIXED))
+				pAdapter->PortCfg.AdhocMode = 1;
+			else if ((WirelessMode == PHY_11A)
+				 || (WirelessMode == PHY_11G))
+				pAdapter->PortCfg.AdhocMode = 2;
+
+			MlmeUpdateTxRates(pAdapter, FALSE);
+			MakeIbssBeacon(pAdapter);	// re-build BEACON frame
+			AsicEnableIbssSync(pAdapter);	// copy to on-chip memory
+		}
+
+		DBGPRINT(RT_DEBUG_TRACE, "Set_WirelessMode_Proc::(=%d)\n",
+			 WirelessMode);
+
+		return success;
+	} else {
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "Set_WirelessMode_Proc::parameters out of range\n");
+		return FALSE;
+	}
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set TxRate
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_TxRate_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	ULONG TxRate;
+	int success = TRUE;
+
+	TxRate = simple_strtol(arg, 0, 10);
+
+	if ((pAdapter->PortCfg.PhyMode == PHY_11B && TxRate <= 4) ||
+	    ((pAdapter->PortCfg.PhyMode == PHY_11BG_MIXED
+	      || pAdapter->PortCfg.PhyMode == PHY_11ABG_MIXED) && TxRate <= 12)
+	    ||
+	    ((pAdapter->PortCfg.PhyMode == PHY_11A
+	      || pAdapter->PortCfg.PhyMode == PHY_11G) && (TxRate == 0
+							   || (TxRate > 4
+							       && TxRate <=
+							       12)))) {
+		if (TxRate == 0)
+			RTMPSetDesiredRates(pAdapter, -1);
+		else
+			RTMPSetDesiredRates(pAdapter,
+					    (LONG) (RateIdToMbps[TxRate - 1] *
+						    1000000));
+
+		DBGPRINT(RT_DEBUG_TRACE, "Set_TxRate_Proc::(TxRate=%d)\n",
+			 TxRate);
+
+		return success;
+	} else {
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "Set_TxRate_Proc::parameters out of range\n");
+		return FALSE;	//Invalid argument
+	}
+
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Channel
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_Channel_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	int success = TRUE;
+	UCHAR Channel;
+
+	Channel = (UCHAR) simple_strtol(arg, 0, 10);
+
+	if (ChannelSanity(pAdapter, Channel) == TRUE) {
+		pAdapter->PortCfg.Channel = Channel;
+
+		if (pAdapter->PortCfg.BssType == BSS_ADHOC)
+			pAdapter->PortCfg.AdHocChannel = Channel;
+
+		DBGPRINT(RT_DEBUG_TRACE, "Set_Channel_Proc::(Channel=%d)\n",
+			 Channel);
+	} else
+		success = FALSE;
+
+	return success;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set 11B/11G Protection
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_BGProtection_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	switch (simple_strtol(arg, 0, 10)) {
+	case 0:		//AUTO
+		pAdapter->PortCfg.UseBGProtection = 0;
+		break;
+	case 1:		//Always On
+		pAdapter->PortCfg.UseBGProtection = 1;
+		break;
+	case 2:		//Always OFF
+		pAdapter->PortCfg.UseBGProtection = 2;
+		break;
+	default:		//Invalid argument
+		return FALSE;
+	}
+	DBGPRINT(RT_DEBUG_TRACE, "Set_BGProtection_Proc::(BGProtection=%d)\n",
+		 pAdapter->PortCfg.UseBGProtection);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set TxPreamble
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_TxPreamble_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	RT_802_11_PREAMBLE Preamble;
+
+	Preamble = simple_strtol(arg, 0, 10);
+	switch (Preamble) {
+	case Rt802_11PreambleShort:
+		pAdapter->PortCfg.TxPreamble = Preamble;
+		MlmeSetTxPreamble(pAdapter, Rt802_11PreambleShort);
+		break;
+	case Rt802_11PreambleLong:
+	case Rt802_11PreambleAuto:
+		// if user wants AUTO, initialize to LONG here, then change according to AP's
+		// capability upon association.
+		pAdapter->PortCfg.TxPreamble = Preamble;
+		MlmeSetTxPreamble(pAdapter, Rt802_11PreambleLong);
+		break;
+	default:		//Invalid argument
+		return FALSE;
+	}
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_TxPreamble_Proc::(TxPreamble=%d)\n",
+		 Preamble);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set RTS Threshold
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_RTSThreshold_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	NDIS_802_11_RTS_THRESHOLD RtsThresh;
+
+	printk
+	    ("'iwpriv <dev> set RTSThreshold' is deprecated, please use 'iwconfg <dev> rts' instead\n");
+
+	RtsThresh = simple_strtol(arg, 0, 10);
+
+	if ((RtsThresh > 0) && (RtsThresh <= MAX_RTS_THRESHOLD))
+		pAdapter->PortCfg.RtsThreshold = (USHORT) RtsThresh;
+	else if (RtsThresh == 0)
+		pAdapter->PortCfg.RtsThreshold = MAX_RTS_THRESHOLD;
+	else
+		return FALSE;
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_RTSThreshold_Proc::(RTSThreshold=%d)\n",
+		 pAdapter->PortCfg.RtsThreshold);
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Fragment Threshold
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_FragThreshold_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	NDIS_802_11_FRAGMENTATION_THRESHOLD FragThresh;
+
+	printk
+	    ("'iwpriv <dev> set FragThreshold' is deprecated, please use 'iwconfg <dev> frag' instead\n");
+
+	FragThresh = simple_strtol(arg, 0, 10);
+
+	if ((FragThresh >= MIN_FRAG_THRESHOLD)
+	    && (FragThresh <= MAX_FRAG_THRESHOLD))
+		pAdapter->PortCfg.FragmentThreshold = (USHORT) FragThresh;
+	else if (FragThresh == 0)
+		pAdapter->PortCfg.FragmentThreshold = MAX_FRAG_THRESHOLD;
+	else
+		return FALSE;	//Invalid argument
+
+	if (pAdapter->PortCfg.FragmentThreshold == MAX_FRAG_THRESHOLD)
+		pAdapter->PortCfg.bFragmentZeroDisable = TRUE;
+	else
+		pAdapter->PortCfg.bFragmentZeroDisable = FALSE;
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_FragThreshold_Proc::(FragThreshold=%d)\n",
+		 FragThresh);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set TxBurst
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_TxBurst_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	ULONG TxBurst;
+
+	TxBurst = simple_strtol(arg, 0, 10);
+
+	if (TxBurst == 1)
+		pAdapter->PortCfg.bEnableTxBurst = TRUE;
+	else if (TxBurst == 0)
+		pAdapter->PortCfg.bEnableTxBurst = FALSE;
+	else
+		return FALSE;	//Invalid argument
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_TxBurst_Proc::(TxBurst=%d)\n",
+		 pAdapter->PortCfg.bEnableTxBurst);
+
+	return TRUE;
+}
+
+#ifdef AGGREGATION_SUPPORT
+/*
+    ==========================================================================
+    Description:
+        Set TxBurst
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_PktAggregate_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
+{
+	ULONG aggre;
+
+	aggre = simple_strtol(arg, 0, 10);
+
+	if (aggre == 1)
+		pAd->PortCfg.bAggregationCapable = TRUE;
+	else if (aggre == 0)
+		pAd->PortCfg.bAggregationCapable = FALSE;
+	else
+		return FALSE;	//Invalid argument
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_PktAggregate_Proc::(AGGRE=%d)\n",
+		 pAd->PortCfg.bAggregationCapable);
+
+	return TRUE;
+}
+#endif
+
+/*
+    ==========================================================================
+    Description:
+        Set TurboRate Enable or Disable
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_TurboRate_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	ULONG TurboRate;
+
+	TurboRate = simple_strtol(arg, 0, 10);
+
+	if (TurboRate == 1)
+		pAdapter->PortCfg.EnableTurboRate = TRUE;
+	else if (TurboRate == 0)
+		pAdapter->PortCfg.EnableTurboRate = FALSE;
+	else
+		return FALSE;	//Invalid argument
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_TurboRate_Proc::(TurboRate=%d)\n",
+		 pAdapter->PortCfg.EnableTurboRate);
+
+	return TRUE;
+}
+
+#ifdef WMM_SUPPORT
+/*
+    ==========================================================================
+    Description:
+        Set WmmCapable Enable or Disable
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_WmmCapable_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
+{
+	BOOLEAN bWmmCapable;
+
+	bWmmCapable = simple_strtol(arg, 0, 10);
+
+	if (bWmmCapable == 1)
+		pAd->PortCfg.bWmmCapable = TRUE;
+	else if (bWmmCapable == 0)
+		pAd->PortCfg.bWmmCapable = FALSE;
+	else
+		return FALSE;	//Invalid argument
+
+	DBGPRINT(RT_DEBUG_TRACE,
+		 "IF(ra%d) Set_WmmCapable_Proc::(bWmmCapable=%d)\n",
+		 pAd->IoctlIF, pAd->PortCfg.bWmmCapable);
+
+	return TRUE;
+}
+#endif				/* WMM_SUPPORT */
+
+/*
+    ==========================================================================
+    Description:
+        Set Short Slot Time Enable or Disable
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_ShortSlot_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	ULONG ShortSlot;
+
+	ShortSlot = simple_strtol(arg, 0, 10);
+
+	if (ShortSlot == 1)
+		pAdapter->PortCfg.UseShortSlotTime = TRUE;
+	else if (ShortSlot == 0)
+		pAdapter->PortCfg.UseShortSlotTime = FALSE;
+	else
+		return FALSE;	//Invalid argument
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_ShortSlot_Proc::(ShortSlot=%d)\n",
+		 pAdapter->PortCfg.UseShortSlotTime);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set IEEE80211H.
+        This parameter is 1 when needs radar detection, otherwise 0
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_IEEE80211H_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
+{
+	ULONG ieee80211h;
+
+	ieee80211h = simple_strtol(arg, 0, 10);
+
+	if (ieee80211h == 1)
+		pAd->PortCfg.bIEEE80211H = TRUE;
+	else if (ieee80211h == 0)
+		pAd->PortCfg.bIEEE80211H = FALSE;
+	else
+		return FALSE;	//Invalid argument
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_IEEE80211H_Proc::(IEEE80211H=%d)\n",
+		 pAd->PortCfg.bIEEE80211H);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Network Type(Infrastructure/Adhoc mode)
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_NetworkType_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	printk
+	    ("'iwpriv <dev> set NetworkType' is deprecated, please use 'iwconfg <dev> mode' instead\n");
+
+	if (strcmp(arg, "Adhoc") == 0)
+		pAdapter->PortCfg.BssType = BSS_ADHOC;
+	else			//Default Infrastructure mode
+		pAdapter->PortCfg.BssType = BSS_INFRA;
+
+	// Reset Ralink supplicant to not use, it will be set to start when UI set PMK key
+	pAdapter->PortCfg.WpaState = SS_NOTUSE;
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_NetworkType_Proc::(NetworkType=%d)\n",
+		 pAdapter->PortCfg.BssType);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Authentication mode
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_AuthMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	if ((strcmp(arg, "WEPAUTO") == 0) || (strcmp(arg, "wepauto") == 0))
+		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeAutoSwitch;
+	else if ((strcmp(arg, "OPEN") == 0) || (strcmp(arg, "open") == 0))
+		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
+	else if ((strcmp(arg, "SHARED") == 0) || (strcmp(arg, "shared") == 0))
+		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeShared;
+	else if ((strcmp(arg, "WPAPSK") == 0) || (strcmp(arg, "wpapsk") == 0))
+		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPAPSK;
+	else if ((strcmp(arg, "WPANONE") == 0) || (strcmp(arg, "wpanone") == 0))
+		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPANone;
+	else if ((strcmp(arg, "WPA2PSK") == 0) || (strcmp(arg, "wpa2psk") == 0))
+		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPA2PSK;
+	else if ((strcmp(arg, "WPA") == 0) || (strcmp(arg, "wpa") == 0))
+		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPA;
+	else
+		return FALSE;
+
+	pAdapter->PortCfg.PortSecured = WPA_802_1X_PORT_NOT_SECURED;
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_AuthMode_Proc::(AuthMode=%d)\n",
+		 pAdapter->PortCfg.AuthMode);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Encryption Type
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_EncrypType_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	if ((strcmp(arg, "NONE") == 0) || (strcmp(arg, "none") == 0)) {
+		if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA)
+			return TRUE;	// do nothing
+
+		pAdapter->PortCfg.WepStatus = Ndis802_11WEPDisabled;
+		pAdapter->PortCfg.PairCipher = Ndis802_11WEPDisabled;
+		pAdapter->PortCfg.GroupCipher = Ndis802_11WEPDisabled;
+	} else if ((strcmp(arg, "WEP") == 0) || (strcmp(arg, "wep") == 0)) {
+		if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA)
+			return TRUE;	// do nothing
+
+		pAdapter->PortCfg.WepStatus = Ndis802_11WEPEnabled;
+		pAdapter->PortCfg.PairCipher = Ndis802_11WEPEnabled;
+		pAdapter->PortCfg.GroupCipher = Ndis802_11WEPEnabled;
+	} else if ((strcmp(arg, "TKIP") == 0) || (strcmp(arg, "tkip") == 0)) {
+		if (pAdapter->PortCfg.AuthMode < Ndis802_11AuthModeWPA)
+			return TRUE;	// do nothing
+
+		pAdapter->PortCfg.WepStatus = Ndis802_11Encryption2Enabled;
+		pAdapter->PortCfg.PairCipher = Ndis802_11Encryption2Enabled;
+		pAdapter->PortCfg.GroupCipher = Ndis802_11Encryption2Enabled;
+	} else if ((strcmp(arg, "AES") == 0) || (strcmp(arg, "aes") == 0)) {
+		if (pAdapter->PortCfg.AuthMode < Ndis802_11AuthModeWPA)
+			return TRUE;	// do nothing
+
+		pAdapter->PortCfg.WepStatus = Ndis802_11Encryption3Enabled;
+		pAdapter->PortCfg.PairCipher = Ndis802_11Encryption3Enabled;
+		pAdapter->PortCfg.GroupCipher = Ndis802_11Encryption3Enabled;
+	} else
+		return FALSE;
+
+	RTMPMakeRSNIE(pAdapter, pAdapter->PortCfg.GroupCipher);
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_EncrypType_Proc::(EncrypType=%d)\n",
+		 pAdapter->PortCfg.WepStatus);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Default Key ID
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_DefaultKeyID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	ULONG KeyIdx;
+
+	printk
+	    ("'iwpriv <dev> set DefaultKeyID' is deprecated, please use 'iwconfg <dev> key' instead\n");
+
+	KeyIdx = simple_strtol(arg, 0, 10);
+	if ((KeyIdx >= 1) && (KeyIdx <= 4))
+		pAdapter->PortCfg.DefaultKeyId = (UCHAR) (KeyIdx - 1);
+	else
+		return FALSE;	//Invalid argument
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_DefaultKeyID_Proc::(DefaultKeyID=%d)\n",
+		 pAdapter->PortCfg.DefaultKeyId);
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set WEP KEY1
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_Key1_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	int KeyLen;
+	int i;
+	UCHAR CipherAlg = CIPHER_WEP64;
+
+	printk
+	    ("'iwpriv <dev> set Key1' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
+
+	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
+	    pAdapter->PortCfg.DefaultKeyId != 0)
+		return TRUE;	// do nothing
+
+	KeyLen = strlen(arg);
+
+	switch (KeyLen) {
+	case 5:		//wep 40 Ascii type
+		pAdapter->SharedKey[0].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[0].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 10:		//wep 40 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[0].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[0].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg, "Hex");
+		break;
+	case 13:		//wep 104 Ascii type
+		pAdapter->SharedKey[0].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[0].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 26:		//wep 104 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[0].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[0].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg, "Hex");
+		break;
+	default:		//Invalid argument
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key1_Proc::Invalid argument (=%s)\n", arg);
+		return FALSE;
+	}
+
+	pAdapter->SharedKey[0].CipherAlg = CipherAlg;
+
+	// Set keys (into ASIC)
+	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
+	else			// Old WEP stuff
+	{
+		AsicAddSharedKeyEntry(pAdapter,
+				      0,
+				      0,
+				      pAdapter->SharedKey[0].CipherAlg,
+				      pAdapter->SharedKey[0].Key, NULL, NULL);
+	}
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+
+    Description:
+        Set WEP KEY2
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_Key2_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	int KeyLen;
+	int i;
+	UCHAR CipherAlg = CIPHER_WEP64;
+
+	printk
+	    ("'iwpriv <dev> set Key2' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
+
+	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
+	    pAdapter->PortCfg.DefaultKeyId != 1)
+		return TRUE;	// do nothing
+
+	KeyLen = strlen(arg);
+
+	switch (KeyLen) {
+	case 5:		//wep 40 Ascii type
+		pAdapter->SharedKey[1].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[1].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 10:		//wep 40 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[1].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[1].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg, "Hex");
+		break;
+	case 13:		//wep 104 Ascii type
+		pAdapter->SharedKey[1].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[1].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 26:		//wep 104 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[1].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[1].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg, "Hex");
+		break;
+	default:		//Invalid argument
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key2_Proc::Invalid argument (=%s)\n", arg);
+		return FALSE;
+	}
+	pAdapter->SharedKey[1].CipherAlg = CipherAlg;
+
+	// Set keys (into ASIC)
+	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
+	else			// Old WEP stuff
+	{
+		AsicAddSharedKeyEntry(pAdapter,
+				      0,
+				      1,
+				      pAdapter->SharedKey[1].CipherAlg,
+				      pAdapter->SharedKey[1].Key, NULL, NULL);
+	}
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set WEP KEY3
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_Key3_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	int KeyLen;
+	int i;
+	UCHAR CipherAlg = CIPHER_WEP64;
+
+	printk
+	    ("'iwpriv <dev> set Key3' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
+
+	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
+	    pAdapter->PortCfg.DefaultKeyId != 2)
+		return TRUE;	// do nothing
+
+	KeyLen = strlen(arg);
+
+	switch (KeyLen) {
+	case 5:		//wep 40 Ascii type
+		pAdapter->SharedKey[2].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[2].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 10:		//wep 40 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[2].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[2].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg, "Hex");
+		break;
+	case 13:		//wep 104 Ascii type
+		pAdapter->SharedKey[2].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[2].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 26:		//wep 104 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[2].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[2].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg, "Hex");
+		break;
+	default:		//Invalid argument
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key3_Proc::Invalid argument (=%s)\n", arg);
+		return FALSE;
+	}
+	pAdapter->SharedKey[2].CipherAlg = CipherAlg;
+
+	// Set keys (into ASIC)
+	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
+	else			// Old WEP stuff
+	{
+		AsicAddSharedKeyEntry(pAdapter,
+				      0,
+				      2,
+				      pAdapter->SharedKey[2].CipherAlg,
+				      pAdapter->SharedKey[2].Key, NULL, NULL);
+	}
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set WEP KEY4
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_Key4_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	int KeyLen;
+	int i;
+	UCHAR CipherAlg = CIPHER_WEP64;
+
+	printk
+	    ("'iwpriv <dev> set Key4' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
+
+	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
+	    pAdapter->PortCfg.DefaultKeyId != 3)
+		return TRUE;	// do nothing
+
+	KeyLen = strlen(arg);
+
+	switch (KeyLen) {
+	case 5:		//wep 40 Ascii type
+		pAdapter->SharedKey[3].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[3].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 10:		//wep 40 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[3].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[3].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP64;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg, "Hex");
+		break;
+	case 13:		//wep 104 Ascii type
+		pAdapter->SharedKey[3].KeyLen = KeyLen;
+		memcpy(pAdapter->SharedKey[3].Key, arg, KeyLen);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg,
+			 "Ascii");
+		break;
+	case 26:		//wep 104 Hex type
+		for (i = 0; i < KeyLen; i++) {
+			if (!isxdigit(*(arg + i)))
+				return FALSE;	//Not Hex value;
+		}
+		pAdapter->SharedKey[3].KeyLen = KeyLen / 2;
+		AtoH(arg, pAdapter->SharedKey[3].Key, KeyLen / 2);
+		CipherAlg = CIPHER_WEP128;
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg, "Hex");
+		break;
+	default:		//Invalid argument
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set_Key4_Proc::Invalid argument (=%s)\n", arg);
+		return FALSE;
+	}
+	pAdapter->SharedKey[3].CipherAlg = CipherAlg;
+
+	// Set keys (into ASIC)
+	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
+	else			// Old WEP stuff
+	{
+		AsicAddSharedKeyEntry(pAdapter,
+				      0,
+				      3,
+				      pAdapter->SharedKey[3].CipherAlg,
+				      pAdapter->SharedKey[3].Key, NULL, NULL);
+	}
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set WPA PSK key
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_WPAPSK_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	UCHAR keyMaterial[40];
+	INT Status;
+
+	if ((pAdapter->PortCfg.AuthMode != Ndis802_11AuthModeWPAPSK) &&
+	    (pAdapter->PortCfg.AuthMode != Ndis802_11AuthModeWPA2PSK) &&
+	    (pAdapter->PortCfg.AuthMode != Ndis802_11AuthModeWPANone))
+		return TRUE;	// do nothing
+
+	DBGPRINT(RT_DEBUG_TRACE, "Set_WPAPSK_Proc::(WPAPSK=%s)\n", arg);
+
+	memset(keyMaterial, 0, 40);
+
+	if ((strlen(arg) < 8) || (strlen(arg) > 64)) {
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "Set failed!!(WPAPSK=%s), WPAPSK key-string required 8 ~ 64 characters \n",
+			 arg);
+		return FALSE;
+	}
+
+	if (strlen(arg) == 64) {
+		AtoH(arg, keyMaterial, 32);
+		memcpy(pAdapter->PortCfg.PskKey.Key, keyMaterial, 32);
+
+	} else {
+		PasswordHash((char *)arg, pAdapter->MlmeAux.Ssid,
+			     pAdapter->MlmeAux.SsidLen, keyMaterial);
+		memcpy(pAdapter->PortCfg.PskKey.Key, keyMaterial, 32);
+	}
+
+	RTMPMakeRSNIE(pAdapter, pAdapter->PortCfg.GroupCipher);
+
+	if (pAdapter->PortCfg.BssType == BSS_ADHOC &&
+	    pAdapter->PortCfg.AuthMode == Ndis802_11AuthModeWPANone) {
+		Status = RTMPWPANoneAddKeyProc(pAdapter, &keyMaterial[0]);
+
+		if (Status != NDIS_STATUS_SUCCESS)
+			return FALSE;
+
+		pAdapter->PortCfg.WpaState = SS_NOTUSE;
+	} else			// Use RaConfig as PSK agent.
+	{
+		// Start STA supplicant state machine
+		pAdapter->PortCfg.WpaState = SS_START;
+	}
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Reset statistics counter
+
+    Arguments:
+        pAdapter            Pointer to our adapter
+        arg
+
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_ResetStatCounter_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
+{
+	DBGPRINT(RT_DEBUG_TRACE, "==>Set_ResetStatCounter_Proc\n");
+
+	// add the most up-to-date h/w raw counters into software counters
+	NICUpdateRawCounters(pAd);
+
+	memset(&pAd->WlanCounters, 0, sizeof(COUNTER_802_11));
+	memset(&pAd->Counters8023, 0, sizeof(COUNTER_802_3));
+	memset(&pAd->RalinkCounters, 0, sizeof(COUNTER_RALINK));
+
+	return TRUE;
+}
+
+/*
+    ==========================================================================
+    Description:
+        Set Power Saving mode
+    Return:
+        TRUE if all parameters are OK, FALSE otherwise
+    ==========================================================================
+*/
+static INT Set_PSMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
+{
+	if (pAdapter->PortCfg.BssType == BSS_INFRA) {
+		if ((strcmp(arg, "MAX_PSP") == 0)
+		    || (strcmp(arg, "max_psp") == 0)) {
+			// do NOT turn on PSM bit here, wait until MlmeCheckForPsmChange()
+			// to exclude certain situations.
+			//     MlmeSetPsmBit(pAdapter, PWR_SAVE);
+			if (pAdapter->PortCfg.bWindowsACCAMEnable == FALSE)
+				pAdapter->PortCfg.WindowsPowerMode =
+				    Ndis802_11PowerModeMAX_PSP;
+			pAdapter->PortCfg.WindowsBatteryPowerMode =
+			    Ndis802_11PowerModeMAX_PSP;
+			OPSTATUS_SET_FLAG(pAdapter, fOP_STATUS_RECEIVE_DTIM);
+			pAdapter->PortCfg.DefaultListenCount = 5;
+
+		} else if ((strcmp(arg, "Fast_PSP") == 0)
+			   || (strcmp(arg, "fast_psp") == 0)
+			   || (strcmp(arg, "FAST_PSP") == 0)) {
+			// do NOT turn on PSM bit here, wait until MlmeCheckForPsmChange()
+			// to exclude certain situations.
+			//     MlmeSetPsmBit(pAdapter, PWR_SAVE);
+			OPSTATUS_SET_FLAG(pAdapter, fOP_STATUS_RECEIVE_DTIM);
+			if (pAdapter->PortCfg.bWindowsACCAMEnable == FALSE)
+				pAdapter->PortCfg.WindowsPowerMode =
+				    Ndis802_11PowerModeFast_PSP;
+			pAdapter->PortCfg.WindowsBatteryPowerMode =
+			    Ndis802_11PowerModeFast_PSP;
+			pAdapter->PortCfg.DefaultListenCount = 3;
+		} else {
+			//Default Ndis802_11PowerModeCAM
+			// clear PSM bit immediately
+			MlmeSetPsmBit(pAdapter, PWR_ACTIVE);
+			OPSTATUS_SET_FLAG(pAdapter, fOP_STATUS_RECEIVE_DTIM);
+			if (pAdapter->PortCfg.bWindowsACCAMEnable == FALSE)
+				pAdapter->PortCfg.WindowsPowerMode =
+				    Ndis802_11PowerModeCAM;
+			pAdapter->PortCfg.WindowsBatteryPowerMode =
+			    Ndis802_11PowerModeCAM;
+		}
+
+		DBGPRINT(RT_DEBUG_TRACE, "Set_PSMode_Proc::(PSMode=%d)\n",
+			 pAdapter->PortCfg.WindowsPowerMode);
+	} else
+		return FALSE;
+
+	return TRUE;
+}
+
 static struct {
 	CHAR *name;
 	 INT(*set_proc) (PRTMP_ADAPTER pAdapter, PUCHAR arg);
@@ -202,7 +1396,7 @@ static struct {
 	NULL,}
 };
 
-char *rtstrchr(const char *s, int c)
+static char *rtstrchr(const char *s, int c)
 {
 	for (; *s != (char)c; ++s)
 		if (*s == '\0')
@@ -217,7 +1411,7 @@ char *rtstrchr(const char *s, int c)
  * * WARNING: strtok is deprecated, use strsep instead. However strsep is not compatible with old architecture.
  */
 char *__rstrtok;
-char *rstrtok(char *s, const char *ct)
+static char *rstrtok(char *s, const char *ct)
 {
 	char *sbegin, *send;
 
@@ -245,15 +1439,14 @@ char *rstrtok(char *s, const char *ct)
 This is required for LinEX2004/kernel2.6.7 to provide iwlist scanning function
 */
 
-int
-rt_ioctl_giwname(struct net_device *dev,
+static int rt_ioctl_giwname(struct net_device *dev,
 		 struct iw_request_info *info, char *name, char *extra)
 {
 	strncpy(name, "RT61 Wireless", IFNAMSIZ);
 	return 0;
 }
 
-int rt_ioctl_siwfreq(struct net_device *dev,
+static int rt_ioctl_siwfreq(struct net_device *dev,
 		     struct iw_request_info *info,
 		     struct iw_freq *freq, char *extra)
 {
@@ -282,7 +1475,7 @@ int rt_ioctl_siwfreq(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_giwfreq(struct net_device *dev,
+static int rt_ioctl_giwfreq(struct net_device *dev,
 		     struct iw_request_info *info,
 		     struct iw_freq *freq, char *extra)
 {
@@ -297,7 +1490,7 @@ int rt_ioctl_giwfreq(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_siwmode(struct net_device *dev,
+static int rt_ioctl_siwmode(struct net_device *dev,
 		     struct iw_request_info *info, __u32 * mode, char *extra)
 {
 	PRTMP_ADAPTER pAdapter = (PRTMP_ADAPTER) dev->priv;
@@ -353,7 +1546,7 @@ int rt_ioctl_siwmode(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_giwmode(struct net_device *dev,
+static int rt_ioctl_giwmode(struct net_device *dev,
 		     struct iw_request_info *info, __u32 * mode, char *extra)
 {
 	PRTMP_ADAPTER pAdapter = (PRTMP_ADAPTER) dev->priv;
@@ -371,19 +1564,19 @@ int rt_ioctl_giwmode(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_siwsens(struct net_device *dev,
+static int rt_ioctl_siwsens(struct net_device *dev,
 		     struct iw_request_info *info, char *name, char *extra)
 {
 	return 0;
 }
 
-int rt_ioctl_giwsens(struct net_device *dev,
+static int rt_ioctl_giwsens(struct net_device *dev,
 		     struct iw_request_info *info, char *name, char *extra)
 {
 	return 0;
 }
 
-int rt_ioctl_giwrange(struct net_device *dev,
+static int rt_ioctl_giwrange(struct net_device *dev,
 		      struct iw_request_info *info,
 		      struct iw_point *data, char *extra)
 {
@@ -481,7 +1674,7 @@ int rt_ioctl_giwrange(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_giwap(struct net_device *dev,
+static int rt_ioctl_giwap(struct net_device *dev,
 		   struct iw_request_info *info,
 		   struct sockaddr *ap_addr, char *extra)
 {
@@ -548,7 +1741,7 @@ static void set_quality(PRTMP_ADAPTER pAdapter,
 	iq->updated = pAdapter->iw_stats.qual.updated;
 }
 
-int rt_ioctl_iwaplist(struct net_device *dev,
+static int rt_ioctl_iwaplist(struct net_device *dev,
 		      struct iw_request_info *info,
 		      struct iw_point *data, char *extra)
 {
@@ -576,7 +1769,7 @@ int rt_ioctl_iwaplist(struct net_device *dev,
 }
 
 #ifdef SIOCGIWSCAN
-int rt_ioctl_siwscan(struct net_device *dev,
+static int rt_ioctl_siwscan(struct net_device *dev,
 		     struct iw_request_info *info,
 		     struct iw_point *data, char *extra)
 {
@@ -640,8 +1833,7 @@ int rt_ioctl_siwscan(struct net_device *dev,
 
 #define MAX_CUSTOM_LEN 64	//Baron 2006/03/14
 
-int
-rt_ioctl_giwscan(struct net_device *dev,
+static int rt_ioctl_giwscan(struct net_device *dev,
 		 struct iw_request_info *info,
 		 struct iw_point *data, char *extra)
 {
@@ -897,7 +2089,7 @@ rt_ioctl_giwscan(struct net_device *dev,
 }
 #endif
 
-int rt_ioctl_siwessid(struct net_device *dev,
+static int rt_ioctl_siwessid(struct net_device *dev,
 		      struct iw_request_info *info,
 		      struct iw_point *data, char *essid)
 {
@@ -969,7 +2161,7 @@ int rt_ioctl_siwessid(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_giwessid(struct net_device *dev,
+static int rt_ioctl_giwessid(struct net_device *dev,
 		      struct iw_request_info *info,
 		      struct iw_point *data, char *essid)
 {
@@ -987,7 +2179,7 @@ int rt_ioctl_giwessid(struct net_device *dev,
 
 }
 
-int rt_ioctl_siwnickn(struct net_device *dev,
+static int rt_ioctl_siwnickn(struct net_device *dev,
 		      struct iw_request_info *info,
 		      struct iw_point *data, char *nickname)
 {
@@ -1002,7 +2194,7 @@ int rt_ioctl_siwnickn(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_giwnickn(struct net_device *dev,
+static int rt_ioctl_giwnickn(struct net_device *dev,
 		      struct iw_request_info *info,
 		      struct iw_point *data, char *nickname)
 {
@@ -1017,7 +2209,7 @@ int rt_ioctl_giwnickn(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_siwrts(struct net_device *dev,
+static int rt_ioctl_siwrts(struct net_device *dev,
 		    struct iw_request_info *info,
 		    struct iw_param *rts, char *extra)
 {
@@ -1039,7 +2231,7 @@ int rt_ioctl_siwrts(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_giwrts(struct net_device *dev,
+static int rt_ioctl_giwrts(struct net_device *dev,
 		    struct iw_request_info *info,
 		    struct iw_param *rts, char *extra)
 {
@@ -1052,7 +2244,7 @@ int rt_ioctl_giwrts(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_siwfrag(struct net_device *dev,
+static int rt_ioctl_siwfrag(struct net_device *dev,
 		     struct iw_request_info *info,
 		     struct iw_param *rts, char *extra)
 {
@@ -1079,7 +2271,7 @@ int rt_ioctl_siwfrag(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_giwfrag(struct net_device *dev,
+static int rt_ioctl_giwfrag(struct net_device *dev,
 		     struct iw_request_info *info,
 		     struct iw_param *rts, char *extra)
 {
@@ -1092,7 +2284,7 @@ int rt_ioctl_giwfrag(struct net_device *dev,
 	return 0;
 }
 
-int rt_ioctl_siwencode(struct net_device *dev,
+static int rt_ioctl_siwencode(struct net_device *dev,
 		       struct iw_request_info *info,
 		       struct iw_point *erq, char *keybuf)
 {
@@ -1220,8 +2412,7 @@ int rt_ioctl_siwencode(struct net_device *dev,
 	return 0;
 }
 
-int
-rt_ioctl_giwencode(struct net_device *dev,
+static int rt_ioctl_giwencode(struct net_device *dev,
 		   struct iw_request_info *info,
 		   struct iw_point *erq, char *key)
 {
@@ -1270,8 +2461,7 @@ rt_ioctl_giwencode(struct net_device *dev,
 	return 0;
 }
 
-static int
-rt_ioctl_setparam(struct net_device *dev, struct iw_request_info *info,
+static int rt_ioctl_setparam(struct net_device *dev, struct iw_request_info *info,
 		  void *w, char *extra)
 {
 	PRTMP_ADAPTER pAdapter = (PRTMP_ADAPTER) dev->priv;
@@ -4107,1199 +5297,6 @@ VOID RTMPSetDesiredRates(IN PRTMP_ADAPTER pAdapter, IN LONG Rates)
 	MlmeUpdateTxRates(pAdapter, FALSE);
 }
 
-INT Set_DriverVersion_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
-{
-	DBGPRINT(RT_DEBUG_TRACE, "Driver version-%s\n", DRIVER_VERSION);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Country Region.
-        This command will not work, if the field of CountryRegion in eeprom is programmed.
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_CountryRegion_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
-{
-	ULONG region;
-
-	region = simple_strtol(arg, 0, 10);
-
-	// Country can be set only when EEPROM not programmed
-	if (pAd->PortCfg.CountryRegion & 0x80) {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "Set_CountryRegion_Proc::parameter of CountryRegion in eeprom is programmed \n");
-		return FALSE;
-	}
-
-	if (region <= REGION_MAXIMUM_BG_BAND) {
-		pAd->PortCfg.CountryRegion = (UCHAR) region;
-	} else {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "Set_CountryRegion_Proc::parameters out of range\n");
-		return FALSE;
-	}
-
-	// if set country region, driver needs to be reset
-	BuildChannelList(pAd);
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_CountryRegion_Proc::(CountryRegion=%d)\n",
-		 pAd->PortCfg.CountryRegion);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Country Region for A band.
-        This command will not work, if the field of CountryRegion in eeprom is programmed.
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_CountryRegionABand_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
-{
-	ULONG region;
-
-	region = simple_strtol(arg, 0, 10);
-
-	// Country can be set only when EEPROM not programmed
-	if (pAd->PortCfg.CountryRegionForABand & 0x80) {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "Set_CountryRegionABand_Proc::parameter of CountryRegion in eeprom is programmed \n");
-		return FALSE;
-	}
-
-	if (region <= REGION_MAXIMUM_A_BAND) {
-		pAd->PortCfg.CountryRegionForABand = (UCHAR) region;
-	} else {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "Set_CountryRegionABand_Proc::parameters out of range\n");
-		return FALSE;
-	}
-
-	// if set country region, driver needs to be reset
-	BuildChannelList(pAd);
-
-	DBGPRINT(RT_DEBUG_TRACE,
-		 "Set_CountryRegionABand_Proc::(CountryRegion=%d)\n",
-		 pAd->PortCfg.CountryRegionForABand);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set SSID
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_SSID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	NDIS_802_11_SSID Ssid, *pSsid = NULL;
-	BOOLEAN StateMachineTouched = FALSE;
-	int success = TRUE;
-
-	printk
-	    ("'iwpriv <dev> set SSID' is deprecated, please use 'iwconfg <dev> essid' instead\n");
-
-	/* Protect against oops if net is down, this will not work with if-preup use iwconfig properly */
-	if (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE))
-		return FALSE;
-
-	if (strlen(arg) <= MAX_LEN_OF_SSID) {
-
-		memset(&Ssid, 0, MAX_LEN_OF_SSID);
-		if (strlen(arg) != 0) {
-			memcpy(Ssid.Ssid, arg, strlen(arg));
-			Ssid.SsidLength = strlen(arg);
-		} else		//ANY ssid
-		{
-			Ssid.SsidLength = 0;
-			memcpy(Ssid.Ssid, "", 0);
-			pAdapter->PortCfg.BssType = BSS_INFRA;
-			pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
-			pAdapter->PortCfg.WepStatus =
-			    Ndis802_11EncryptionDisabled;
-		}
-		pSsid = &Ssid;
-
-		if (pAdapter->Mlme.CntlMachine.CurrState != CNTL_IDLE) {
-			MlmeRestartStateMachine(pAdapter);
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "!!! MLME busy, reset MLME state machine !!!\n");
-		}
-		// tell CNTL state machine to call NdisMSetInformationComplete() after completing
-		// this request, because this request is initiated by NDIS.
-		pAdapter->MlmeAux.CurrReqIsFromNdis = FALSE;
-
-		pAdapter->bConfigChanged = TRUE;
-
-		MlmeEnqueue(pAdapter,
-			    MLME_CNTL_STATE_MACHINE,
-			    OID_802_11_SSID,
-			    sizeof(NDIS_802_11_SSID), (VOID *) pSsid);
-
-		StateMachineTouched = TRUE;
-		DBGPRINT(RT_DEBUG_TRACE, "Set_SSID_Proc::(Len=%d,Ssid=%s)\n",
-			 Ssid.SsidLength, Ssid.Ssid);
-	} else
-		success = FALSE;
-
-	if (StateMachineTouched)	// Upper layer sent a MLME-related operations
-		MlmeHandler(pAdapter);
-
-	return success;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Wireless Mode
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_WirelessMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	ULONG WirelessMode;
-	int success = TRUE;
-
-	WirelessMode = simple_strtol(arg, 0, 10);
-
-	if ((WirelessMode == PHY_11BG_MIXED) || (WirelessMode == PHY_11B) ||
-	    (WirelessMode == PHY_11A) || (WirelessMode == PHY_11ABG_MIXED) ||
-	    (WirelessMode == PHY_11G)) {
-		// protect no A-band support
-		if ((pAdapter->RfIcType != RFIC_5225)
-		    && (pAdapter->RfIcType != RFIC_5325)) {
-			if ((WirelessMode == PHY_11A)
-			    || (WirelessMode == PHY_11ABG_MIXED)) {
-				DBGPRINT(RT_DEBUG_ERROR,
-					 "!!!!! Not support A band in RfIcType= %d\n",
-					 pAdapter->RfIcType);
-				return FALSE;
-			}
-		}
-
-		RTMPSetPhyMode(pAdapter, WirelessMode);
-
-		// Set AdhocMode rates
-		if (pAdapter->PortCfg.BssType == BSS_ADHOC) {
-			if (WirelessMode == PHY_11B)
-				pAdapter->PortCfg.AdhocMode = 0;
-			else if ((WirelessMode == PHY_11BG_MIXED)
-				 || (WirelessMode == PHY_11ABG_MIXED))
-				pAdapter->PortCfg.AdhocMode = 1;
-			else if ((WirelessMode == PHY_11A)
-				 || (WirelessMode == PHY_11G))
-				pAdapter->PortCfg.AdhocMode = 2;
-
-			MlmeUpdateTxRates(pAdapter, FALSE);
-			MakeIbssBeacon(pAdapter);	// re-build BEACON frame
-			AsicEnableIbssSync(pAdapter);	// copy to on-chip memory
-		}
-
-		DBGPRINT(RT_DEBUG_TRACE, "Set_WirelessMode_Proc::(=%d)\n",
-			 WirelessMode);
-
-		return success;
-	} else {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "Set_WirelessMode_Proc::parameters out of range\n");
-		return FALSE;
-	}
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set TxRate
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_TxRate_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	ULONG TxRate;
-	int success = TRUE;
-
-	TxRate = simple_strtol(arg, 0, 10);
-
-	if ((pAdapter->PortCfg.PhyMode == PHY_11B && TxRate <= 4) ||
-	    ((pAdapter->PortCfg.PhyMode == PHY_11BG_MIXED
-	      || pAdapter->PortCfg.PhyMode == PHY_11ABG_MIXED) && TxRate <= 12)
-	    ||
-	    ((pAdapter->PortCfg.PhyMode == PHY_11A
-	      || pAdapter->PortCfg.PhyMode == PHY_11G) && (TxRate == 0
-							   || (TxRate > 4
-							       && TxRate <=
-							       12)))) {
-		if (TxRate == 0)
-			RTMPSetDesiredRates(pAdapter, -1);
-		else
-			RTMPSetDesiredRates(pAdapter,
-					    (LONG) (RateIdToMbps[TxRate - 1] *
-						    1000000));
-
-		DBGPRINT(RT_DEBUG_TRACE, "Set_TxRate_Proc::(TxRate=%d)\n",
-			 TxRate);
-
-		return success;
-	} else {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "Set_TxRate_Proc::parameters out of range\n");
-		return FALSE;	//Invalid argument
-	}
-
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Channel
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_Channel_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	int success = TRUE;
-	UCHAR Channel;
-
-	Channel = (UCHAR) simple_strtol(arg, 0, 10);
-
-	if (ChannelSanity(pAdapter, Channel) == TRUE) {
-		pAdapter->PortCfg.Channel = Channel;
-
-		if (pAdapter->PortCfg.BssType == BSS_ADHOC)
-			pAdapter->PortCfg.AdHocChannel = Channel;
-
-		DBGPRINT(RT_DEBUG_TRACE, "Set_Channel_Proc::(Channel=%d)\n",
-			 Channel);
-	} else
-		success = FALSE;
-
-	return success;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set 11B/11G Protection
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_BGProtection_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	switch (simple_strtol(arg, 0, 10)) {
-	case 0:		//AUTO
-		pAdapter->PortCfg.UseBGProtection = 0;
-		break;
-	case 1:		//Always On
-		pAdapter->PortCfg.UseBGProtection = 1;
-		break;
-	case 2:		//Always OFF
-		pAdapter->PortCfg.UseBGProtection = 2;
-		break;
-	default:		//Invalid argument
-		return FALSE;
-	}
-	DBGPRINT(RT_DEBUG_TRACE, "Set_BGProtection_Proc::(BGProtection=%d)\n",
-		 pAdapter->PortCfg.UseBGProtection);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set TxPreamble
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_TxPreamble_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	RT_802_11_PREAMBLE Preamble;
-
-	Preamble = simple_strtol(arg, 0, 10);
-	switch (Preamble) {
-	case Rt802_11PreambleShort:
-		pAdapter->PortCfg.TxPreamble = Preamble;
-		MlmeSetTxPreamble(pAdapter, Rt802_11PreambleShort);
-		break;
-	case Rt802_11PreambleLong:
-	case Rt802_11PreambleAuto:
-		// if user wants AUTO, initialize to LONG here, then change according to AP's
-		// capability upon association.
-		pAdapter->PortCfg.TxPreamble = Preamble;
-		MlmeSetTxPreamble(pAdapter, Rt802_11PreambleLong);
-		break;
-	default:		//Invalid argument
-		return FALSE;
-	}
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_TxPreamble_Proc::(TxPreamble=%d)\n",
-		 Preamble);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set RTS Threshold
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_RTSThreshold_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	NDIS_802_11_RTS_THRESHOLD RtsThresh;
-
-	printk
-	    ("'iwpriv <dev> set RTSThreshold' is deprecated, please use 'iwconfg <dev> rts' instead\n");
-
-	RtsThresh = simple_strtol(arg, 0, 10);
-
-	if ((RtsThresh > 0) && (RtsThresh <= MAX_RTS_THRESHOLD))
-		pAdapter->PortCfg.RtsThreshold = (USHORT) RtsThresh;
-	else if (RtsThresh == 0)
-		pAdapter->PortCfg.RtsThreshold = MAX_RTS_THRESHOLD;
-	else
-		return FALSE;
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_RTSThreshold_Proc::(RTSThreshold=%d)\n",
-		 pAdapter->PortCfg.RtsThreshold);
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Fragment Threshold
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_FragThreshold_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	NDIS_802_11_FRAGMENTATION_THRESHOLD FragThresh;
-
-	printk
-	    ("'iwpriv <dev> set FragThreshold' is deprecated, please use 'iwconfg <dev> frag' instead\n");
-
-	FragThresh = simple_strtol(arg, 0, 10);
-
-	if ((FragThresh >= MIN_FRAG_THRESHOLD)
-	    && (FragThresh <= MAX_FRAG_THRESHOLD))
-		pAdapter->PortCfg.FragmentThreshold = (USHORT) FragThresh;
-	else if (FragThresh == 0)
-		pAdapter->PortCfg.FragmentThreshold = MAX_FRAG_THRESHOLD;
-	else
-		return FALSE;	//Invalid argument
-
-	if (pAdapter->PortCfg.FragmentThreshold == MAX_FRAG_THRESHOLD)
-		pAdapter->PortCfg.bFragmentZeroDisable = TRUE;
-	else
-		pAdapter->PortCfg.bFragmentZeroDisable = FALSE;
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_FragThreshold_Proc::(FragThreshold=%d)\n",
-		 FragThresh);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set TxBurst
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_TxBurst_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	ULONG TxBurst;
-
-	TxBurst = simple_strtol(arg, 0, 10);
-
-	if (TxBurst == 1)
-		pAdapter->PortCfg.bEnableTxBurst = TRUE;
-	else if (TxBurst == 0)
-		pAdapter->PortCfg.bEnableTxBurst = FALSE;
-	else
-		return FALSE;	//Invalid argument
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_TxBurst_Proc::(TxBurst=%d)\n",
-		 pAdapter->PortCfg.bEnableTxBurst);
-
-	return TRUE;
-}
-
-#ifdef AGGREGATION_SUPPORT
-/*
-    ==========================================================================
-    Description:
-        Set TxBurst
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_PktAggregate_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
-{
-	ULONG aggre;
-
-	aggre = simple_strtol(arg, 0, 10);
-
-	if (aggre == 1)
-		pAd->PortCfg.bAggregationCapable = TRUE;
-	else if (aggre == 0)
-		pAd->PortCfg.bAggregationCapable = FALSE;
-	else
-		return FALSE;	//Invalid argument
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_PktAggregate_Proc::(AGGRE=%d)\n",
-		 pAd->PortCfg.bAggregationCapable);
-
-	return TRUE;
-}
-#endif
-
-/*
-    ==========================================================================
-    Description:
-        Set TurboRate Enable or Disable
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_TurboRate_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	ULONG TurboRate;
-
-	TurboRate = simple_strtol(arg, 0, 10);
-
-	if (TurboRate == 1)
-		pAdapter->PortCfg.EnableTurboRate = TRUE;
-	else if (TurboRate == 0)
-		pAdapter->PortCfg.EnableTurboRate = FALSE;
-	else
-		return FALSE;	//Invalid argument
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_TurboRate_Proc::(TurboRate=%d)\n",
-		 pAdapter->PortCfg.EnableTurboRate);
-
-	return TRUE;
-}
-
-#ifdef WMM_SUPPORT
-/*
-    ==========================================================================
-    Description:
-        Set WmmCapable Enable or Disable
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_WmmCapable_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
-{
-	BOOLEAN bWmmCapable;
-
-	bWmmCapable = simple_strtol(arg, 0, 10);
-
-	if (bWmmCapable == 1)
-		pAd->PortCfg.bWmmCapable = TRUE;
-	else if (bWmmCapable == 0)
-		pAd->PortCfg.bWmmCapable = FALSE;
-	else
-		return FALSE;	//Invalid argument
-
-	DBGPRINT(RT_DEBUG_TRACE,
-		 "IF(ra%d) Set_WmmCapable_Proc::(bWmmCapable=%d)\n",
-		 pAd->IoctlIF, pAd->PortCfg.bWmmCapable);
-
-	return TRUE;
-}
-#endif				/* WMM_SUPPORT */
-
-/*
-    ==========================================================================
-    Description:
-        Set Short Slot Time Enable or Disable
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_ShortSlot_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	ULONG ShortSlot;
-
-	ShortSlot = simple_strtol(arg, 0, 10);
-
-	if (ShortSlot == 1)
-		pAdapter->PortCfg.UseShortSlotTime = TRUE;
-	else if (ShortSlot == 0)
-		pAdapter->PortCfg.UseShortSlotTime = FALSE;
-	else
-		return FALSE;	//Invalid argument
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_ShortSlot_Proc::(ShortSlot=%d)\n",
-		 pAdapter->PortCfg.UseShortSlotTime);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set IEEE80211H.
-        This parameter is 1 when needs radar detection, otherwise 0
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_IEEE80211H_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
-{
-	ULONG ieee80211h;
-
-	ieee80211h = simple_strtol(arg, 0, 10);
-
-	if (ieee80211h == 1)
-		pAd->PortCfg.bIEEE80211H = TRUE;
-	else if (ieee80211h == 0)
-		pAd->PortCfg.bIEEE80211H = FALSE;
-	else
-		return FALSE;	//Invalid argument
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_IEEE80211H_Proc::(IEEE80211H=%d)\n",
-		 pAd->PortCfg.bIEEE80211H);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Network Type(Infrastructure/Adhoc mode)
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_NetworkType_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	printk
-	    ("'iwpriv <dev> set NetworkType' is deprecated, please use 'iwconfg <dev> mode' instead\n");
-
-	if (strcmp(arg, "Adhoc") == 0)
-		pAdapter->PortCfg.BssType = BSS_ADHOC;
-	else			//Default Infrastructure mode
-		pAdapter->PortCfg.BssType = BSS_INFRA;
-
-	// Reset Ralink supplicant to not use, it will be set to start when UI set PMK key
-	pAdapter->PortCfg.WpaState = SS_NOTUSE;
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_NetworkType_Proc::(NetworkType=%d)\n",
-		 pAdapter->PortCfg.BssType);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Authentication mode
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_AuthMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	if ((strcmp(arg, "WEPAUTO") == 0) || (strcmp(arg, "wepauto") == 0))
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeAutoSwitch;
-	else if ((strcmp(arg, "OPEN") == 0) || (strcmp(arg, "open") == 0))
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
-	else if ((strcmp(arg, "SHARED") == 0) || (strcmp(arg, "shared") == 0))
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeShared;
-	else if ((strcmp(arg, "WPAPSK") == 0) || (strcmp(arg, "wpapsk") == 0))
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPAPSK;
-	else if ((strcmp(arg, "WPANONE") == 0) || (strcmp(arg, "wpanone") == 0))
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPANone;
-	else if ((strcmp(arg, "WPA2PSK") == 0) || (strcmp(arg, "wpa2psk") == 0))
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPA2PSK;
-	else if ((strcmp(arg, "WPA") == 0) || (strcmp(arg, "wpa") == 0))
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeWPA;
-	else
-		return FALSE;
-
-	pAdapter->PortCfg.PortSecured = WPA_802_1X_PORT_NOT_SECURED;
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_AuthMode_Proc::(AuthMode=%d)\n",
-		 pAdapter->PortCfg.AuthMode);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Encryption Type
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_EncrypType_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	if ((strcmp(arg, "NONE") == 0) || (strcmp(arg, "none") == 0)) {
-		if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA)
-			return TRUE;	// do nothing
-
-		pAdapter->PortCfg.WepStatus = Ndis802_11WEPDisabled;
-		pAdapter->PortCfg.PairCipher = Ndis802_11WEPDisabled;
-		pAdapter->PortCfg.GroupCipher = Ndis802_11WEPDisabled;
-	} else if ((strcmp(arg, "WEP") == 0) || (strcmp(arg, "wep") == 0)) {
-		if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA)
-			return TRUE;	// do nothing
-
-		pAdapter->PortCfg.WepStatus = Ndis802_11WEPEnabled;
-		pAdapter->PortCfg.PairCipher = Ndis802_11WEPEnabled;
-		pAdapter->PortCfg.GroupCipher = Ndis802_11WEPEnabled;
-	} else if ((strcmp(arg, "TKIP") == 0) || (strcmp(arg, "tkip") == 0)) {
-		if (pAdapter->PortCfg.AuthMode < Ndis802_11AuthModeWPA)
-			return TRUE;	// do nothing
-
-		pAdapter->PortCfg.WepStatus = Ndis802_11Encryption2Enabled;
-		pAdapter->PortCfg.PairCipher = Ndis802_11Encryption2Enabled;
-		pAdapter->PortCfg.GroupCipher = Ndis802_11Encryption2Enabled;
-	} else if ((strcmp(arg, "AES") == 0) || (strcmp(arg, "aes") == 0)) {
-		if (pAdapter->PortCfg.AuthMode < Ndis802_11AuthModeWPA)
-			return TRUE;	// do nothing
-
-		pAdapter->PortCfg.WepStatus = Ndis802_11Encryption3Enabled;
-		pAdapter->PortCfg.PairCipher = Ndis802_11Encryption3Enabled;
-		pAdapter->PortCfg.GroupCipher = Ndis802_11Encryption3Enabled;
-	} else
-		return FALSE;
-
-	RTMPMakeRSNIE(pAdapter, pAdapter->PortCfg.GroupCipher);
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_EncrypType_Proc::(EncrypType=%d)\n",
-		 pAdapter->PortCfg.WepStatus);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Default Key ID
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_DefaultKeyID_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	ULONG KeyIdx;
-
-	printk
-	    ("'iwpriv <dev> set DefaultKeyID' is deprecated, please use 'iwconfg <dev> key' instead\n");
-
-	KeyIdx = simple_strtol(arg, 0, 10);
-	if ((KeyIdx >= 1) && (KeyIdx <= 4))
-		pAdapter->PortCfg.DefaultKeyId = (UCHAR) (KeyIdx - 1);
-	else
-		return FALSE;	//Invalid argument
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_DefaultKeyID_Proc::(DefaultKeyID=%d)\n",
-		 pAdapter->PortCfg.DefaultKeyId);
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set WEP KEY1
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_Key1_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	int KeyLen;
-	int i;
-	UCHAR CipherAlg = CIPHER_WEP64;
-
-	printk
-	    ("'iwpriv <dev> set Key1' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
-
-	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
-	    pAdapter->PortCfg.DefaultKeyId != 0)
-		return TRUE;	// do nothing
-
-	KeyLen = strlen(arg);
-
-	switch (KeyLen) {
-	case 5:		//wep 40 Ascii type
-		pAdapter->SharedKey[0].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[0].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 10:		//wep 40 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[0].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[0].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg, "Hex");
-		break;
-	case 13:		//wep 104 Ascii type
-		pAdapter->SharedKey[0].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[0].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 26:		//wep 104 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[0].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[0].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key1_Proc::(Key1=%s and type=%s)\n", arg, "Hex");
-		break;
-	default:		//Invalid argument
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key1_Proc::Invalid argument (=%s)\n", arg);
-		return FALSE;
-	}
-
-	pAdapter->SharedKey[0].CipherAlg = CipherAlg;
-
-	// Set keys (into ASIC)
-	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
-	else			// Old WEP stuff
-	{
-		AsicAddSharedKeyEntry(pAdapter,
-				      0,
-				      0,
-				      pAdapter->SharedKey[0].CipherAlg,
-				      pAdapter->SharedKey[0].Key, NULL, NULL);
-	}
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-
-    Description:
-        Set WEP KEY2
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_Key2_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	int KeyLen;
-	int i;
-	UCHAR CipherAlg = CIPHER_WEP64;
-
-	printk
-	    ("'iwpriv <dev> set Key2' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
-
-	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
-	    pAdapter->PortCfg.DefaultKeyId != 1)
-		return TRUE;	// do nothing
-
-	KeyLen = strlen(arg);
-
-	switch (KeyLen) {
-	case 5:		//wep 40 Ascii type
-		pAdapter->SharedKey[1].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[1].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 10:		//wep 40 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[1].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[1].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg, "Hex");
-		break;
-	case 13:		//wep 104 Ascii type
-		pAdapter->SharedKey[1].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[1].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 26:		//wep 104 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[1].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[1].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key2_Proc::(Key2=%s and type=%s)\n", arg, "Hex");
-		break;
-	default:		//Invalid argument
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key2_Proc::Invalid argument (=%s)\n", arg);
-		return FALSE;
-	}
-	pAdapter->SharedKey[1].CipherAlg = CipherAlg;
-
-	// Set keys (into ASIC)
-	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
-	else			// Old WEP stuff
-	{
-		AsicAddSharedKeyEntry(pAdapter,
-				      0,
-				      1,
-				      pAdapter->SharedKey[1].CipherAlg,
-				      pAdapter->SharedKey[1].Key, NULL, NULL);
-	}
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set WEP KEY3
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_Key3_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	int KeyLen;
-	int i;
-	UCHAR CipherAlg = CIPHER_WEP64;
-
-	printk
-	    ("'iwpriv <dev> set Key3' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
-
-	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
-	    pAdapter->PortCfg.DefaultKeyId != 2)
-		return TRUE;	// do nothing
-
-	KeyLen = strlen(arg);
-
-	switch (KeyLen) {
-	case 5:		//wep 40 Ascii type
-		pAdapter->SharedKey[2].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[2].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 10:		//wep 40 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[2].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[2].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg, "Hex");
-		break;
-	case 13:		//wep 104 Ascii type
-		pAdapter->SharedKey[2].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[2].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 26:		//wep 104 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[2].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[2].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key3_Proc::(Key3=%s and type=%s)\n", arg, "Hex");
-		break;
-	default:		//Invalid argument
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key3_Proc::Invalid argument (=%s)\n", arg);
-		return FALSE;
-	}
-	pAdapter->SharedKey[2].CipherAlg = CipherAlg;
-
-	// Set keys (into ASIC)
-	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
-	else			// Old WEP stuff
-	{
-		AsicAddSharedKeyEntry(pAdapter,
-				      0,
-				      2,
-				      pAdapter->SharedKey[2].CipherAlg,
-				      pAdapter->SharedKey[2].Key, NULL, NULL);
-	}
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set WEP KEY4
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_Key4_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	int KeyLen;
-	int i;
-	UCHAR CipherAlg = CIPHER_WEP64;
-
-	printk
-	    ("'iwpriv <dev> set Key4' is deprecated, please use 'iwconfg <dev> key [2] ' instead\n");
-
-	if (pAdapter->PortCfg.WepStatus != Ndis802_11WEPEnabled ||
-	    pAdapter->PortCfg.DefaultKeyId != 3)
-		return TRUE;	// do nothing
-
-	KeyLen = strlen(arg);
-
-	switch (KeyLen) {
-	case 5:		//wep 40 Ascii type
-		pAdapter->SharedKey[3].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[3].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 10:		//wep 40 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[3].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[3].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP64;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg, "Hex");
-		break;
-	case 13:		//wep 104 Ascii type
-		pAdapter->SharedKey[3].KeyLen = KeyLen;
-		memcpy(pAdapter->SharedKey[3].Key, arg, KeyLen);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg,
-			 "Ascii");
-		break;
-	case 26:		//wep 104 Hex type
-		for (i = 0; i < KeyLen; i++) {
-			if (!isxdigit(*(arg + i)))
-				return FALSE;	//Not Hex value;
-		}
-		pAdapter->SharedKey[3].KeyLen = KeyLen / 2;
-		AtoH(arg, pAdapter->SharedKey[3].Key, KeyLen / 2);
-		CipherAlg = CIPHER_WEP128;
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key4_Proc::(Key4=%s and type=%s)\n", arg, "Hex");
-		break;
-	default:		//Invalid argument
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set_Key4_Proc::Invalid argument (=%s)\n", arg);
-		return FALSE;
-	}
-	pAdapter->SharedKey[3].CipherAlg = CipherAlg;
-
-	// Set keys (into ASIC)
-	if (pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) ;	// not support
-	else			// Old WEP stuff
-	{
-		AsicAddSharedKeyEntry(pAdapter,
-				      0,
-				      3,
-				      pAdapter->SharedKey[3].CipherAlg,
-				      pAdapter->SharedKey[3].Key, NULL, NULL);
-	}
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set WPA PSK key
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_WPAPSK_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	UCHAR keyMaterial[40];
-	INT Status;
-
-	if ((pAdapter->PortCfg.AuthMode != Ndis802_11AuthModeWPAPSK) &&
-	    (pAdapter->PortCfg.AuthMode != Ndis802_11AuthModeWPA2PSK) &&
-	    (pAdapter->PortCfg.AuthMode != Ndis802_11AuthModeWPANone))
-		return TRUE;	// do nothing
-
-	DBGPRINT(RT_DEBUG_TRACE, "Set_WPAPSK_Proc::(WPAPSK=%s)\n", arg);
-
-	memset(keyMaterial, 0, 40);
-
-	if ((strlen(arg) < 8) || (strlen(arg) > 64)) {
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "Set failed!!(WPAPSK=%s), WPAPSK key-string required 8 ~ 64 characters \n",
-			 arg);
-		return FALSE;
-	}
-
-	if (strlen(arg) == 64) {
-		AtoH(arg, keyMaterial, 32);
-		memcpy(pAdapter->PortCfg.PskKey.Key, keyMaterial, 32);
-
-	} else {
-		PasswordHash((char *)arg, pAdapter->MlmeAux.Ssid,
-			     pAdapter->MlmeAux.SsidLen, keyMaterial);
-		memcpy(pAdapter->PortCfg.PskKey.Key, keyMaterial, 32);
-	}
-
-	RTMPMakeRSNIE(pAdapter, pAdapter->PortCfg.GroupCipher);
-
-	if (pAdapter->PortCfg.BssType == BSS_ADHOC &&
-	    pAdapter->PortCfg.AuthMode == Ndis802_11AuthModeWPANone) {
-		Status = RTMPWPANoneAddKeyProc(pAdapter, &keyMaterial[0]);
-
-		if (Status != NDIS_STATUS_SUCCESS)
-			return FALSE;
-
-		pAdapter->PortCfg.WpaState = SS_NOTUSE;
-	} else			// Use RaConfig as PSK agent.
-	{
-		// Start STA supplicant state machine
-		pAdapter->PortCfg.WpaState = SS_START;
-	}
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Reset statistics counter
-
-    Arguments:
-        pAdapter            Pointer to our adapter
-        arg
-
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_ResetStatCounter_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
-{
-	DBGPRINT(RT_DEBUG_TRACE, "==>Set_ResetStatCounter_Proc\n");
-
-	// add the most up-to-date h/w raw counters into software counters
-	NICUpdateRawCounters(pAd);
-
-	memset(&pAd->WlanCounters, 0, sizeof(COUNTER_802_11));
-	memset(&pAd->Counters8023, 0, sizeof(COUNTER_802_3));
-	memset(&pAd->RalinkCounters, 0, sizeof(COUNTER_RALINK));
-
-	return TRUE;
-}
-
-/*
-    ==========================================================================
-    Description:
-        Set Power Saving mode
-    Return:
-        TRUE if all parameters are OK, FALSE otherwise
-    ==========================================================================
-*/
-INT Set_PSMode_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
-{
-	if (pAdapter->PortCfg.BssType == BSS_INFRA) {
-		if ((strcmp(arg, "MAX_PSP") == 0)
-		    || (strcmp(arg, "max_psp") == 0)) {
-			// do NOT turn on PSM bit here, wait until MlmeCheckForPsmChange()
-			// to exclude certain situations.
-			//     MlmeSetPsmBit(pAdapter, PWR_SAVE);
-			if (pAdapter->PortCfg.bWindowsACCAMEnable == FALSE)
-				pAdapter->PortCfg.WindowsPowerMode =
-				    Ndis802_11PowerModeMAX_PSP;
-			pAdapter->PortCfg.WindowsBatteryPowerMode =
-			    Ndis802_11PowerModeMAX_PSP;
-			OPSTATUS_SET_FLAG(pAdapter, fOP_STATUS_RECEIVE_DTIM);
-			pAdapter->PortCfg.DefaultListenCount = 5;
-
-		} else if ((strcmp(arg, "Fast_PSP") == 0)
-			   || (strcmp(arg, "fast_psp") == 0)
-			   || (strcmp(arg, "FAST_PSP") == 0)) {
-			// do NOT turn on PSM bit here, wait until MlmeCheckForPsmChange()
-			// to exclude certain situations.
-			//     MlmeSetPsmBit(pAdapter, PWR_SAVE);
-			OPSTATUS_SET_FLAG(pAdapter, fOP_STATUS_RECEIVE_DTIM);
-			if (pAdapter->PortCfg.bWindowsACCAMEnable == FALSE)
-				pAdapter->PortCfg.WindowsPowerMode =
-				    Ndis802_11PowerModeFast_PSP;
-			pAdapter->PortCfg.WindowsBatteryPowerMode =
-			    Ndis802_11PowerModeFast_PSP;
-			pAdapter->PortCfg.DefaultListenCount = 3;
-		} else {
-			//Default Ndis802_11PowerModeCAM
-			// clear PSM bit immediately
-			MlmeSetPsmBit(pAdapter, PWR_ACTIVE);
-			OPSTATUS_SET_FLAG(pAdapter, fOP_STATUS_RECEIVE_DTIM);
-			if (pAdapter->PortCfg.bWindowsACCAMEnable == FALSE)
-				pAdapter->PortCfg.WindowsPowerMode =
-				    Ndis802_11PowerModeCAM;
-			pAdapter->PortCfg.WindowsBatteryPowerMode =
-			    Ndis802_11PowerModeCAM;
-		}
-
-		DBGPRINT(RT_DEBUG_TRACE, "Set_PSMode_Proc::(PSMode=%d)\n",
-			 pAdapter->PortCfg.WindowsPowerMode);
-	} else
-		return FALSE;
-
-	return TRUE;
-}
 
 #ifdef RT61_DBG
 /*

@@ -55,7 +55,7 @@
 
 	========================================================================
 */
-ULONG RTMPTkipGetUInt32(IN PUCHAR pMICKey)
+static inline ULONG RTMPTkipGetUInt32(IN PUCHAR pMICKey)
 {
 	ULONG res = 0;
 	INT i;
@@ -84,7 +84,7 @@ ULONG RTMPTkipGetUInt32(IN PUCHAR pMICKey)
 
 	========================================================================
 */
-VOID RTMPTkipPutUInt32(IN OUT PUCHAR pDst, IN ULONG val)
+static inline VOID RTMPTkipPutUInt32(IN OUT PUCHAR pDst, IN ULONG val)
 {
 	INT i;
 
@@ -111,7 +111,7 @@ VOID RTMPTkipPutUInt32(IN OUT PUCHAR pDst, IN ULONG val)
 
 	========================================================================
 */
-VOID RTMPTkipSetMICKey(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pMICKey)
+static inline VOID RTMPTkipSetMICKey(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pMICKey)
 {
 	// Set the key
 	pTkip->K0 = RTMPTkipGetUInt32(pMICKey);
@@ -140,7 +140,7 @@ VOID RTMPTkipSetMICKey(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pMICKey)
 
 	========================================================================
 */
-VOID RTMPTkipAppendByte(IN PTKIP_KEY_INFO pTkip, IN UCHAR uChar)
+static inline VOID RTMPTkipAppendByte(IN PTKIP_KEY_INFO pTkip, IN UCHAR uChar)
 {
 	// Append the byte to our word-sized buffer
 	pTkip->M |= (uChar << (8 * pTkip->nBytesInM));
@@ -182,7 +182,7 @@ VOID RTMPTkipAppendByte(IN PTKIP_KEY_INFO pTkip, IN UCHAR uChar)
 
 	========================================================================
 */
-VOID RTMPTkipAppend(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pSrc, IN UINT nBytes)
+static inline VOID RTMPTkipAppend(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pSrc, IN UINT nBytes)
 {
 	// This is simple
 	while (nBytes > 0) {
@@ -207,7 +207,7 @@ VOID RTMPTkipAppend(IN PTKIP_KEY_INFO pTkip, IN PUCHAR pSrc, IN UINT nBytes)
 		the MIC Value is store in pAdapter->PrivateInfo.MIC
 	========================================================================
 */
-VOID RTMPTkipGetMIC(IN PTKIP_KEY_INFO pTkip)
+static inline VOID RTMPTkipGetMIC(IN PTKIP_KEY_INFO pTkip)
 {
 	// Append the minimum padding
 	RTMPTkipAppendByte(pTkip, 0x5a);
@@ -287,7 +287,7 @@ VOID RTMPInitTkipEngine(IN PRTMP_ADAPTER pAdapter,
 
 	========================================================================
 */
-VOID RTMPInitMICEngine(IN PRTMP_ADAPTER pAdapter,
+static inline VOID RTMPInitMICEngine(IN PRTMP_ADAPTER pAdapter,
 		       IN PUCHAR pKey,
 		       IN PUCHAR pDA,
 		       IN PUCHAR pSA, IN UCHAR UserPriority, IN PUCHAR pMICKey)
@@ -395,7 +395,7 @@ BOOLEAN RTMPTkipCompareMICValue(IN PRTMP_ADAPTER pAdapter,
 
 	========================================================================
 */
-BOOLEAN RTMPTkipCompareMICValueWithLLC(IN PRTMP_ADAPTER pAdapter,
+static BOOLEAN RTMPTkipCompareMICValueWithLLC(IN PRTMP_ADAPTER pAdapter,
 				       IN PUCHAR pLLC,
 				       IN PUCHAR pSrc,
 				       IN PUCHAR pDA,

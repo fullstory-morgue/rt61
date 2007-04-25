@@ -1,8 +1,8 @@
-rt61 (1.1.0.dfsg.2+cvs20070414-3) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070425-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream snapshot.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 17 Apr 2007 17:42:51 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Wed, 25 Apr 2007 14:15:57 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070414-2) unstable; urgency=low
 

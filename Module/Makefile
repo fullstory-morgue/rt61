@@ -55,6 +55,7 @@ endif
 
 EXTRA_CFLAGS += -I$(src)
 EXTRA_CFLAGS += -DAGGREGATION_SUPPORT -DWMM_SUPPORT
+#EXTRA_CFLAGS += -DNO_RX_TASKLET
 #EXTRA_CFLAGS += -DRALINK_ATE
 #EXTRA_CFLAGS += -DSINGLE_ADHOC_LINKUP
 
@@ -120,7 +121,10 @@ clean:
 	@rm -f $(MODULE_NAME).{o,ko,mod.{o,c}} built-in.o $(VERSION_HEADER) *~
 	@rm -fr .tmp_versions Module.symvers
 
-modules_install: module
+modules_install:
+	@if ! [ -f $(MODULE_OBJECT) ]; then \
+		$(MAKE) module; \
+	fi
 ifeq ($(PATCHLEVEL),4)
 	@echo "install '$(MODULE_OBJECT)' to $(MODULE_ROOT)"
 	install -m 755 -o 0 -g 0 -d $(MODULE_ROOT)

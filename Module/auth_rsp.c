@@ -36,47 +36,9 @@
 /*
     ==========================================================================
     Description:
-        authentication state machine init procedure
-    Parameters:
-        Sm - the state machine
-    Note:
-        the state machine looks like the following
-
-                                    AUTH_RSP_IDLE                       AUTH_RSP_WAIT_CHAL
-    MT2_AUTH_CHALLENGE_TIMEOUT      auth_rsp_challenge_timeout_action   auth_rsp_challenge_timeout_action
-    MT2_PEER_AUTH_ODD               peer_auth_at_auth_rsp_idle_action   peer_auth_at_auth_rsp_wait_action
-    MT2_PEER_DEAUTH                 peer_deauth_action                  peer_deauth_action
-    ==========================================================================
- */
-VOID AuthRspStateMachineInit(IN PRTMP_ADAPTER pAd,
-			     IN PSTATE_MACHINE Sm,
-			     IN STATE_MACHINE_FUNC Trans[])
-{
-	unsigned long Now;
-
-	StateMachineInit(Sm, (STATE_MACHINE_FUNC *) Trans, MAX_AUTH_RSP_STATE,
-			 MAX_AUTH_RSP_MSG, (STATE_MACHINE_FUNC) Drop,
-			 AUTH_RSP_IDLE, AUTH_RSP_MACHINE_BASE);
-
-	// column 1
-	StateMachineSetAction(Sm, AUTH_RSP_IDLE, MT2_PEER_DEAUTH,
-			      (STATE_MACHINE_FUNC) PeerDeauthAction);
-
-	// column 2
-	StateMachineSetAction(Sm, AUTH_RSP_WAIT_CHAL, MT2_PEER_DEAUTH,
-			      (STATE_MACHINE_FUNC) PeerDeauthAction);
-
-	// initialize the random number generator
-	Now = jiffies;
-	LfsrInit(pAd, Now);
-}
-
-/*
-    ==========================================================================
-    Description:
     ==========================================================================
 */
-VOID PeerAuthSimpleRspGenAndSend(IN PRTMP_ADAPTER pAd,
+static VOID PeerAuthSimpleRspGenAndSend(IN PRTMP_ADAPTER pAd,
 				 IN PHEADER_802_11 pHdr80211,
 				 IN USHORT Alg,
 				 IN USHORT Seq,
@@ -110,7 +72,7 @@ VOID PeerAuthSimpleRspGenAndSend(IN PRTMP_ADAPTER pAd,
     Description:
     ==========================================================================
 */
-VOID PeerDeauthAction(IN PRTMP_ADAPTER pAd, IN PMLME_QUEUE_ELEM Elem)
+static VOID PeerDeauthAction(IN PRTMP_ADAPTER pAd, IN PMLME_QUEUE_ELEM Elem)
 {
 	UCHAR Addr2[ETH_ALEN];
 	USHORT Reason;
@@ -127,4 +89,42 @@ VOID PeerDeauthAction(IN PRTMP_ADAPTER pAd, IN PMLME_QUEUE_ELEM Elem)
 		DBGPRINT(RT_DEBUG_TRACE,
 			 "AUTH_RSP - PeerDeauthAction() sanity check fail\n");
 	}
+}
+
+/*
+    ==========================================================================
+    Description:
+        authentication state machine init procedure
+    Parameters:
+        Sm - the state machine
+    Note:
+        the state machine looks like the following
+
+                                    AUTH_RSP_IDLE                       AUTH_RSP_WAIT_CHAL
+    MT2_AUTH_CHALLENGE_TIMEOUT      auth_rsp_challenge_timeout_action   auth_rsp_challenge_timeout_action
+    MT2_PEER_AUTH_ODD               peer_auth_at_auth_rsp_idle_action   peer_auth_at_auth_rsp_wait_action
+    MT2_PEER_DEAUTH                 peer_deauth_action                  peer_deauth_action
+    ==========================================================================
+ */
+VOID AuthRspStateMachineInit(IN PRTMP_ADAPTER pAd,
+			     IN PSTATE_MACHINE Sm,
+			     IN STATE_MACHINE_FUNC Trans[])
+{
+	unsigned long Now;
+
+	StateMachineInit(Sm, (STATE_MACHINE_FUNC *) Trans, MAX_AUTH_RSP_STATE,
+			 MAX_AUTH_RSP_MSG, (STATE_MACHINE_FUNC) Drop,
+			 AUTH_RSP_IDLE, AUTH_RSP_MACHINE_BASE);
+
+	// column 1
+	StateMachineSetAction(Sm, AUTH_RSP_IDLE, MT2_PEER_DEAUTH,
+			      (STATE_MACHINE_FUNC) PeerDeauthAction);
+
+	// column 2
+	StateMachineSetAction(Sm, AUTH_RSP_WAIT_CHAL, MT2_PEER_DEAUTH,
+			      (STATE_MACHINE_FUNC) PeerDeauthAction);
+
+	// initialize the random number generator
+	Now = jiffies;
+	LfsrInit(pAd, Now);
 }

@@ -173,180 +173,364 @@ static struct pci_device_id rt61_pci_tbl[] __devinitdata = {
 int const rt61_pci_tbl_len =
     sizeof(rt61_pci_tbl) / sizeof(struct pci_device_id);
 
-static INT __devinit RT61_init_one(IN struct pci_dev *pPci_Dev,
-				   IN const struct pci_device_id *ent)
-{
-	INT rc;
 
-	DBGPRINT(RT_DEBUG_TRACE, "===> RT61_init_one\n");
+/*
+    ========================================================================
 
-	// wake up and enable device
-	if (pci_enable_device(pPci_Dev))
-		rc = -EIO;
-	else {
-		rc = RT61_probe(pPci_Dev, ent);
-		if (rc)
-			pci_disable_device(pPci_Dev);
-	}
+    Routine Description:
+        Interrupt handler
 
-	DBGPRINT(RT_DEBUG_TRACE, "<=== RT61_init_one\n");
-	return rc;
-}
+    Arguments:
+        irq                         interrupt line
+        dev_instance                Pointer to net_device
 
-//
-// PCI device probe & initialization function
-//
-INT __devinit RT61_probe(IN struct pci_dev * pPci_Dev,
-			 IN const struct pci_device_id * ent)
-{
-	struct net_device *net_dev;
-	RTMP_ADAPTER *pAd;
-	CHAR *print_name;
-	INT chip_id = (INT) ent->driver_data;
-	void __iomem *csr_addr;
-	INT Status = -ENODEV;
-	INT i;
+    Return Value:
+        VOID
 
-	printk("%s %s %s http://rt2x00.serialmonkey.com\n",
-	       KERN_INFO DRIVER_NAME, DRIVER_VERSION, DRIVER_RELDATE);
+    Note:
 
-	print_name = pPci_Dev ? pci_name(pPci_Dev) : "rt61";
-
-	// alloc_etherdev() will set net_dev->name
-	net_dev = alloc_etherdev(sizeof(PRTMP_ADAPTER));
-	if (net_dev == NULL) {
-		DBGPRINT(RT_DEBUG_TRACE, "init_ethernet failed\n");
-		goto err_out;
-	}
-
-	SET_MODULE_OWNER(net_dev);
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
-	SET_NETDEV_DEV(net_dev, &(pPci_Dev->dev));
+    ========================================================================
+*/
+static
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+ irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance, IN struct pt_regs * rgs)
+#else
+ irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance)
 #endif
+{
+	struct net_device *net_dev = dev_instance;
+	PRTMP_ADAPTER pAdapter = net_dev->priv;
+	INT_SOURCE_CSR_STRUC IntSource;
+	MCU_INT_SOURCE_STRUC McuIntSource;
+	int ret = 0;
 
-	if (pci_request_regions(pPci_Dev, print_name))
-		goto err_out_free_netdev;
+	DBGPRINT(RT_DEBUG_INFO, "====> RTMPHandleInterrupt\n");
 
-	for (i = 0; i < rt61_pci_tbl_len; i++) {
-		if (pPci_Dev->vendor == rt61_pci_tbl[i].vendor &&
-		    pPci_Dev->device == rt61_pci_tbl[i].device) {
-			printk("RT61: Vendor = 0x%04x, Product = 0x%04x \n",
-			       pPci_Dev->vendor, pPci_Dev->device);
-			break;
+	// 1. Disable interrupt
+	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE)
+	    		&& RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_ACTIVE))
+		NICDisableInterrupt(pAdapter);
+
+	// Exit if Reset in progress (won't re-enable interrupts)
+	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
+	    		RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
+	    ret++;
+		goto out;
+	}
+	
+	//
+	// Handle interrupt, walking through all bits.
+	// Should start from highest priority interrupt.
+	// The priority can be adjust by altering processing if statement
+	// If required spinlock, each interrupt service routine has to acquire
+	// and release itself.
+	//
+
+	// Get interrupt source & save it to local variable
+	IntSource.word = 0x00000000L;
+	RTMP_IO_READ32(pAdapter, INT_SOURCE_CSR, &IntSource.word);
+	if (IntSource.word) {
+		RTMP_IO_WRITE32(pAdapter, INT_SOURCE_CSR, IntSource.word);	// write 1 to clear
+		if (IntSource.field.MgmtDmaDone) {
+			RTMPHandleMgmtRingDmaDoneInterrupt(pAdapter);
+			ret++;
+		}
+		if (IntSource.field.RxDone) {
+			RTMPHandleRxDoneInterrupt(pAdapter);
+			ret++;
+		}
+		if (IntSource.field.TxDone) {
+			RTMPHandleTxDoneInterrupt(pAdapter);
+			ret++;
+		}
+		if (IntSource.word & 0x002f0000) {
+			RTMPHandleTxRingDmaDoneInterrupt(pAdapter, IntSource);
+			ret++;
 		}
 	}
-	if (i == rt61_pci_tbl_len) {
-		printk("Device PID/VID not matching!!!\n");
-		goto err_out_free_netdev;
+
+	McuIntSource.word = 0x00000000L;
+	RTMP_IO_READ32(pAdapter, MCU_INT_SOURCE_CSR, &McuIntSource.word);
+	if (McuIntSource.word) {
+		RTMP_IO_WRITE32(pAdapter, MCU_INT_SOURCE_CSR, McuIntSource.word);
+		if (McuIntSource.word & 0xff) {
+			ULONG M2hCmdDoneCsr;
+			RTMP_IO_READ32(pAdapter, M2H_CMD_DONE_CSR, &M2hCmdDoneCsr);
+			RTMP_IO_WRITE32(pAdapter, M2H_CMD_DONE_CSR, 0xffffffff);
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "MCU command done - INT bitmap=0x%02x, M2H mbox=0x%08x\n",
+				 McuIntSource.word, M2hCmdDoneCsr);
+			ret++;
+		}
+		if (McuIntSource.field.TBTTExpire) {
+			RTMPHandleTBTTInterrupt(pAdapter);
+			ret++;
+		}
+		if (McuIntSource.field.Twakeup) {
+			RTMPHandleTwakeupInterrupt(pAdapter);
+			ret++;
+		}
 	}
-	// Interrupt IRQ number
-	net_dev->irq = pPci_Dev->irq;
 
-	// map physical address to virtual address for accessing register
-	csr_addr =
-	    ioremap(pci_resource_start(pPci_Dev, 0),
-		    pci_resource_len(pPci_Dev, 0));
-	if (!csr_addr) {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "ioremap failed for device %s, region 0x%X @ 0x%X\n",
-			 print_name, (ULONG) pci_resource_len(pPci_Dev, 0),
-			 (ULONG) pci_resource_start(pPci_Dev, 0));
-		goto err_out_free_res;
-	}
+	//
+	// Re-enable the interrupt (disabled in RTMPIsr)
+	//
+	if (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_ACTIVE))
+		NICEnableInterrupt(pAdapter);
 
-	net_dev->priv =
-	    pci_alloc_consistent(pPci_Dev, sizeof(RTMP_ADAPTER), &dma_adapter);
+out:
 
-	// Zero init RTMP_ADAPTER
-	memset(net_dev->priv, 0, sizeof(RTMP_ADAPTER));
-
-	// Save CSR virtual address and irq to device structure
-	net_dev->base_addr = (unsigned long)csr_addr;
-	pAd = net_dev->priv;
-	pAd->CSRBaseAddress = csr_addr;
-	pAd->net_dev = net_dev;
-
-	// Set DMA master
-	pci_set_master(pPci_Dev);
-
-	pAd->chip_id = chip_id;
-	pAd->pPci_Dev = pPci_Dev;
-
-	// The chip-specific entries in the device structure.
-	net_dev->open = RT61_open;
-	net_dev->hard_start_xmit = RTMPSendPackets;
-	net_dev->stop = RT61_close;
-	net_dev->get_stats = RT61_get_ether_stats;
-
-#if WIRELESS_EXT >= 12
-#if WIRELESS_EXT < 17
-	net_dev->get_wireless_stats = RT61_get_wireless_stats;
-#endif
-	net_dev->wireless_handlers =
-	    (struct iw_handler_def *)&rt61_iw_handler_def;
-#endif
-
-	net_dev->set_multicast_list = RT61_set_rx_mode;
-	net_dev->do_ioctl = RT61_ioctl;
-	net_dev->set_mac_address = rt61_set_mac_address;
-
-	// register_netdev() will call dev_alloc_name() for us
-	// TODO: Remove the following line to keep the default eth%d name
-	if (ifname == NULL)
-		strcpy(net_dev->name, "ra%d");
-	else
-		strncpy(net_dev->name, ifname, IFNAMSIZ);
-
-	// Register this device
-	Status = register_netdev(net_dev);
-	if (Status)
-		goto err_out_unmap;
-
-	DBGPRINT(RT_DEBUG_TRACE, "%s: at 0x%x, VA 0x%lx, IRQ %d. \n",
-		 net_dev->name, (ULONG) pci_resource_start(pPci_Dev, 0),
-		 (unsigned long)csr_addr, pPci_Dev->irq);
-
-	// Set driver data
-	pci_set_drvdata(pPci_Dev, net_dev);
-
-	// moved to here by GertjanW (RobinC) so if-preup can work
-	// When driver now loads it is loaded up with "factory" defaults
-	// All this occurs while the net iface is down
-	// iwconfig can then be used to configure card BEFORE
-	// ifconfig ra0 up is applied.
-	// Note the rt61sta.dat file will still overwrite settings
-	// but it is useful for the settings iwconfig doesn't let you at
-	PortCfgInit(pAd);
-
-	Status = MlmeQueueInit(&pAd->Mlme.Queue);
-	if (Status != NDIS_STATUS_SUCCESS)
-		goto err_out_unmap;
-
-	// Build channel list for default physical mode
-	BuildChannelList(pAd);
-
-	rt61pci_open_debugfs(pAd);
-
-	return 0;
-
-      err_out_unmap:
-	iounmap(csr_addr);
-      err_out_free_res:
-	pci_release_regions(pPci_Dev);
-
-      err_out_free_netdev:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-	kfree(net_dev);
-#else
-	free_netdev(net_dev);
-#endif
-
-      err_out:
-	return Status;
+	DBGPRINT(RT_DEBUG_INFO, "<==== RTMPHandleInterrupt (%d handled)\n", ret);
+	return IRQ_RETVAL(ret);
 }
 
-INT RT61_open(IN struct net_device * net_dev)
+/*
+    ========================================================================
+
+    Routine Description:
+        hard_start_xmit handler
+
+    Arguments:
+        skb             point to sk_buf which upper layer transmit
+        net_dev         point to net_dev
+    Return Value:
+        None
+
+    Note:
+
+    ========================================================================
+*/
+static INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
+{
+	UCHAR Index;
+	PRTMP_ADAPTER pAdapter = net_dev->priv;
+
+	DBGPRINT(RT_DEBUG_INFO, "===> RTMPSendPackets\n");
+
+#ifdef RALINK_ATE
+	if (pAdapter->ate.Mode != ATE_STASTART) {
+		dev_kfree_skb(pSkb);
+		return 0;
+	}
+#endif
+
+	if (pAdapter->PortCfg.BssType == BSS_MONITOR
+	    && pAdapter->PortCfg.RFMONTX != TRUE) {
+		dev_kfree_skb(pSkb);
+		return 0;
+	}
+	// Drop packets if no associations
+	if (pAdapter->PortCfg.BssType != BSS_MONITOR &&
+	    !INFRA_ON(pAdapter) && !ADHOC_ON(pAdapter)) {
+		// Drop send request since there are no physical connection yet
+		// Check the association status for infrastructure mode
+		// And Mibss for Ad-hoc mode setup
+		dev_kfree_skb(pSkb);
+		return 0;
+	}
+	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
+		   RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
+		// Drop send request since hardware is in reset state
+		dev_kfree_skb(pSkb);
+		return 0;
+	}
+
+	// initial pSkb->data_len=0, we will use this variable to store data size when fragment(in TKIP)
+	// and pSkb->len is actual data len
+	pSkb->data_len = pSkb->len;
+
+	// Record that orignal packet source is from protocol layer,so that
+	// later on driver knows how to release this skb buffer
+	RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_NDIS);
+	pAdapter->RalinkCounters.PendingNdisPacketCount++;
+	RTMPSendPacket(pAdapter, pSkb);
+	for (Index = 0; Index < 5; Index++)
+		RTMPDeQueuePacket(pAdapter, Index);
+	return 0;
+}
+
+
+static int rt61_set_mac_address(struct net_device *net_dev, void *addr)
+{
+	RTMP_ADAPTER *pAd = net_dev->priv;
+	struct sockaddr *mac = (struct sockaddr *)addr;
+	u32 set_mac;
+
+	if (netif_running(net_dev))
+		return -EBUSY;
+
+	if (!is_valid_ether_addr(&mac->sa_data[0]))
+		return -EINVAL;
+
+	BUG_ON(net_dev->addr_len != ETH_ALEN);
+
+	memcpy(net_dev->dev_addr, mac->sa_data, ETH_ALEN);
+	memcpy(pAd->CurrentAddress, mac->sa_data, ETH_ALEN);
+	pAd->bLocalAdminMAC = TRUE;
+
+	memset(&set_mac, 0x00, sizeof(INT));
+	set_mac =
+	    (net_dev->dev_addr[0]) | (net_dev->dev_addr[1] << 8) | (net_dev->
+								    dev_addr[2]
+								    << 16) |
+	    (net_dev->dev_addr[3] << 24);
+
+	RTMP_IO_WRITE32(pAd, MAC_CSR2, set_mac);
+
+	memset(&set_mac, 0x00, sizeof(INT));
+	set_mac = (net_dev->dev_addr[4]) | (net_dev->dev_addr[5] << 8);
+
+	RTMP_IO_WRITE32(pAd, MAC_CSR3, set_mac);
+
+	printk(KERN_INFO
+	       "***rt2x00***: Info - Mac address changed to: %02x:%02x:%02x:%02x:%02x:%02x.\n",
+	       net_dev->dev_addr[0], net_dev->dev_addr[1], net_dev->dev_addr[2],
+	       net_dev->dev_addr[3], net_dev->dev_addr[4],
+	       net_dev->dev_addr[5]);
+
+	return 0;
+}
+
+#if WIRELESS_EXT >= 12
+/*
+    ========================================================================
+
+    Routine Description:
+        get wireless statistics
+
+    Arguments:
+        net_dev                     Pointer to net_device
+
+    Return Value:
+        struct iw_statistics
+
+    Note:
+        This function will be called when query /proc
+
+    ========================================================================
+*/
+long rt_abs(long arg)
+{
+	return (arg < 0) ? -arg : arg;
+}
+struct iw_statistics *RT61_get_wireless_stats(IN struct net_device *net_dev)
+{
+	RTMP_ADAPTER *pAd = net_dev->priv;
+
+	// TODO: All elements are zero before be implemented
+
+	pAd->iw_stats.status = 0;	// Status - device dependent for now
+
+	pAd->iw_stats.qual.qual = pAd->Mlme.ChannelQuality;	// link quality (%retries, SNR, %missed beacons or better...)
+#ifdef RTMP_EMBEDDED
+	pAd->iw_stats.qual.level = rt_abs(pAd->PortCfg.LastRssi);	// signal level (dBm)
+#else
+	pAd->iw_stats.qual.level = abs(pAd->PortCfg.LastRssi);	// signal level (dBm)
+#endif
+	pAd->iw_stats.qual.level += 256 - pAd->BbpRssiToDbmDelta;
+
+	pAd->iw_stats.qual.noise = (pAd->BbpWriteLatch[17] > pAd->BbpTuning.R17UpperBoundG) ? pAd->BbpTuning.R17UpperBoundG : ((ULONG) pAd->BbpWriteLatch[17]);	// noise level (dBm)
+	pAd->iw_stats.qual.noise += 256 - 143;
+	pAd->iw_stats.qual.updated = 1;	// Flags to know if updated
+
+	pAd->iw_stats.discard.nwid = 0;	// Rx : Wrong nwid/essid
+	pAd->iw_stats.miss.beacon = 0;	// Missed beacons/superframe
+
+	// pAd->iw_stats.discard.code, discard.fragment, discard.retries, discard.misc has counted in other place
+
+	return &pAd->iw_stats;
+}
+#endif
+
+/*
+    ========================================================================
+
+    Routine Description:
+        return ethernet statistics counter
+
+    Arguments:
+        net_dev                     Pointer to net_device
+
+    Return Value:
+        net_device_stats*
+
+    Note:
+
+    ========================================================================
+*/
+static struct net_device_stats *RT61_get_ether_stats(IN struct net_device *net_dev)
+{
+	RTMP_ADAPTER *pAd = net_dev->priv;
+
+	DBGPRINT(RT_DEBUG_INFO, "RT61_get_ether_stats --->\n");
+
+	pAd->stats.rx_packets = pAd->WlanCounters.ReceivedFragmentCount.vv.LowPart;	// total packets received
+	pAd->stats.tx_packets = pAd->WlanCounters.TransmittedFragmentCount.vv.LowPart;	// total packets transmitted
+
+	pAd->stats.rx_bytes = pAd->RalinkCounters.ReceivedByteCount;	// total bytes received
+	pAd->stats.tx_bytes = pAd->RalinkCounters.TransmittedByteCount;	// total bytes transmitted
+
+	pAd->stats.rx_errors = pAd->Counters8023.RxErrors;	// bad packets received
+	pAd->stats.tx_errors = pAd->Counters8023.TxErrors;	// packet transmit problems
+
+	pAd->stats.rx_dropped = pAd->Counters8023.RxNoBuffer;	// no space in linux buffers
+	pAd->stats.tx_dropped = pAd->WlanCounters.FailedCount.vv.LowPart;	// no space available in linux
+
+	pAd->stats.multicast = pAd->WlanCounters.MulticastReceivedFrameCount.vv.LowPart;	// multicast packets received
+	pAd->stats.collisions = pAd->Counters8023.OneCollision + pAd->Counters8023.MoreCollisions;	// Collision packets
+
+	pAd->stats.rx_length_errors = 0;
+	pAd->stats.rx_over_errors = pAd->Counters8023.RxNoBuffer;	// receiver ring buff overflow
+	pAd->stats.rx_crc_errors = 0;	//pAd->WlanCounters.FCSErrorCount;         // recved pkt with crc error
+	pAd->stats.rx_frame_errors = pAd->Counters8023.RcvAlignmentErrors;	// recv'd frame alignment error
+	pAd->stats.rx_fifo_errors = pAd->Counters8023.RxNoBuffer;	// recv'r fifo overrun
+	pAd->stats.rx_missed_errors = 0;	// receiver missed packet
+
+	// detailed tx_errors
+	pAd->stats.tx_aborted_errors = 0;
+	pAd->stats.tx_carrier_errors = 0;
+	pAd->stats.tx_fifo_errors = 0;
+	pAd->stats.tx_heartbeat_errors = 0;
+	pAd->stats.tx_window_errors = 0;
+
+	// for cslip etc
+	pAd->stats.rx_compressed = 0;
+	pAd->stats.tx_compressed = 0;
+
+	return &pAd->stats;
+}
+
+/*
+    ========================================================================
+
+    Routine Description:
+        Set to filter multicast list
+
+    Arguments:
+        net_dev                     Pointer to net_device
+
+    Return Value:
+        VOID
+
+    Note:
+
+    ========================================================================
+*/
+static VOID RT61_set_rx_mode(IN struct net_device * net_dev)
+{
+	RTMP_ADAPTER *pAd = net_dev->priv;
+
+	if (net_dev->flags & IFF_PROMISC) {
+		pAd->bAcceptPromiscuous = TRUE;
+		DBGPRINT(RT_DEBUG_TRACE, "rt61 acknowledge PROMISC on\n");
+	} else {
+		pAd->bAcceptPromiscuous = FALSE;
+		DBGPRINT(RT_DEBUG_TRACE, "rt61 acknowledge PROMISC off\n");
+	}
+	RTMPWriteTXRXCsr0(pAd, FALSE, TRUE);
+}
+
+static INT RT61_open(IN struct net_device * net_dev)
 {
 	PRTMP_ADAPTER pAd = net_dev->priv;
 	INT status = NDIS_STATUS_SUCCESS;
@@ -514,384 +698,16 @@ INT RT61_open(IN struct net_device * net_dev)
 	return status;
 }
 
-/*
-    ========================================================================
-
-    Routine Description:
-        hard_start_xmit handler
-
-    Arguments:
-        skb             point to sk_buf which upper layer transmit
-        net_dev         point to net_dev
-    Return Value:
-        None
-
-    Note:
-
-    ========================================================================
-*/
-INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
-{
-	UCHAR Index;
-	PRTMP_ADAPTER pAdapter = net_dev->priv;
-
-	DBGPRINT(RT_DEBUG_INFO, "===> RTMPSendPackets\n");
-
-#ifdef RALINK_ATE
-	if (pAdapter->ate.Mode != ATE_STASTART) {
-		dev_kfree_skb(pSkb);
-		return 0;
-	}
-#endif
-
-	if (pAdapter->PortCfg.BssType == BSS_MONITOR
-	    && pAdapter->PortCfg.RFMONTX != TRUE) {
-		dev_kfree_skb(pSkb);
-		return 0;
-	}
-	// Drop packets if no associations
-	if (pAdapter->PortCfg.BssType != BSS_MONITOR &&
-	    !INFRA_ON(pAdapter) && !ADHOC_ON(pAdapter)) {
-		// Drop send request since there are no physical connection yet
-		// Check the association status for infrastructure mode
-		// And Mibss for Ad-hoc mode setup
-		dev_kfree_skb(pSkb);
-		return 0;
-	}
-	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
-		   RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
-		// Drop send request since hardware is in reset state
-		dev_kfree_skb(pSkb);
-		return 0;
-	}
-
-	// initial pSkb->data_len=0, we will use this variable to store data size when fragment(in TKIP)
-	// and pSkb->len is actual data len
-	pSkb->data_len = pSkb->len;
-
-	// Record that orignal packet source is from protocol layer,so that
-	// later on driver knows how to release this skb buffer
-	RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_NDIS);
-	pAdapter->RalinkCounters.PendingNdisPacketCount++;
-	RTMPSendPacket(pAdapter, pSkb);
-	for (Index = 0; Index < 5; Index++)
-		RTMPDeQueuePacket(pAdapter, Index);
-	return 0;
-}
-
-/*
-    ========================================================================
-
-    Routine Description:
-        Interrupt handler
-
-    Arguments:
-        irq                         interrupt line
-        dev_instance                Pointer to net_device
-
-    Return Value:
-        VOID
-
-    Note:
-
-    ========================================================================
-*/
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
-irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance, IN struct pt_regs * rgs)
-#else
-irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance)
-#endif
-{
-	struct net_device *net_dev = dev_instance;
-	PRTMP_ADAPTER pAdapter = net_dev->priv;
-	INT_SOURCE_CSR_STRUC IntSource;
-	MCU_INT_SOURCE_STRUC McuIntSource;
-	BOOLEAN InterruptDisabled = FALSE;
-	int ret = 0;
-
-	DBGPRINT(RT_DEBUG_INFO, "====> RTMPHandleInterrupt\n");
-
-	// 1. Disable interrupt
-	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE)
-	    && RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_ACTIVE)) {
-		NICDisableInterrupt(pAdapter);
-	    InterruptDisabled = TRUE;
-	}
-
-	//
-	// Init the Interrupt source.
-	//
-	IntSource.word = 0x00000000L;
-	McuIntSource.word = 0x00000000L;
-	//
-	// Get the interrupt sources & saved to local variable
-	//
-	RTMP_IO_READ32(pAdapter, MCU_INT_SOURCE_CSR, &McuIntSource.word);
-	RTMP_IO_READ32(pAdapter, INT_SOURCE_CSR, &IntSource.word);
-	if (!McuIntSource.word && !IntSource.word) {
-		if (InterruptDisabled)
-			NICEnableInterrupt(pAdapter);
-        return IRQ_NONE;
-	}
-	RTMP_IO_WRITE32(pAdapter, MCU_INT_SOURCE_CSR, McuIntSource.word);
-	RTMP_IO_WRITE32(pAdapter, INT_SOURCE_CSR, IntSource.word);	// write 1 to clear
-
-	//
-	// Handle interrupt, walk through all bits
-	// Should start from highest priority interrupt
-	// The priority can be adjust by altering processing if statement
-	//
-
-	// If required spinlock, each interrupt service routine has to acquire
-	// and release itself.
-	//
-
-	if (IntSource.field.MgmtDmaDone) {
-		RTMPHandleMgmtRingDmaDoneInterrupt(pAdapter);
-		ret = 1;
-	}
-
-	if (IntSource.field.RxDone) {
-		RTMPHandleRxDoneInterrupt(pAdapter);
-		ret = 1;
-	}
-
-	if (IntSource.field.TxDone) {
-		RTMPHandleTxDoneInterrupt(pAdapter);
-		ret = 1;
-	}
-
-	if (IntSource.word & 0x002f0000) {
-		RTMPHandleTxRingDmaDoneInterrupt(pAdapter, IntSource);
-		ret = 1;
-	}
-
-	if (McuIntSource.word & 0xff) {
-		ULONG M2hCmdDoneCsr;
-		RTMP_IO_READ32(pAdapter, M2H_CMD_DONE_CSR, &M2hCmdDoneCsr);
-		RTMP_IO_WRITE32(pAdapter, M2H_CMD_DONE_CSR, 0xffffffff);
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "MCU command done - INT bitmap=0x%02x, M2H mbox=0x%08x\n",
-			 McuIntSource.word, M2hCmdDoneCsr);
-		ret = 1;
-	}
-
-	if (McuIntSource.field.TBTTExpire) {
-		RTMPHandleTBTTInterrupt(pAdapter);
-		ret = 1;
-	}
-
-	if (McuIntSource.field.Twakeup) {
-		RTMPHandleTwakeupInterrupt(pAdapter);
-		ret = 1;
-	}
-	// Do nothing if Reset in progress
-	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
-	    RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
-		ret = 1;
-		goto out;
-	}
-	//
-	// Re-enable the interrupt (disabled in RTMPIsr)
-	//
-	if (InterruptDisabled)
-		NICEnableInterrupt(pAdapter);
-
-	DBGPRINT(RT_DEBUG_INFO, "<==== RTMPHandleInterrupt\n");
-      out:
-	if (ret)
-		return IRQ_RETVAL(IRQ_HANDLED);
-	else
-		return IRQ_RETVAL(IRQ_NONE);
-}
-
-int rt61_set_mac_address(struct net_device *net_dev, void *addr)
-{
-	RTMP_ADAPTER *pAd = net_dev->priv;
-	struct sockaddr *mac = (struct sockaddr *)addr;
-	u32 set_mac;
-
-	if (netif_running(net_dev))
-		return -EBUSY;
-
-	if (!is_valid_ether_addr(&mac->sa_data[0]))
-		return -EINVAL;
-
-	BUG_ON(net_dev->addr_len != ETH_ALEN);
-
-	memcpy(net_dev->dev_addr, mac->sa_data, ETH_ALEN);
-	memcpy(pAd->CurrentAddress, mac->sa_data, ETH_ALEN);
-	pAd->bLocalAdminMAC = TRUE;
-
-	memset(&set_mac, 0x00, sizeof(INT));
-	set_mac =
-	    (net_dev->dev_addr[0]) | (net_dev->dev_addr[1] << 8) | (net_dev->
-								    dev_addr[2]
-								    << 16) |
-	    (net_dev->dev_addr[3] << 24);
-
-	RTMP_IO_WRITE32(pAd, MAC_CSR2, set_mac);
-
-	memset(&set_mac, 0x00, sizeof(INT));
-	set_mac = (net_dev->dev_addr[4]) | (net_dev->dev_addr[5] << 8);
-
-	RTMP_IO_WRITE32(pAd, MAC_CSR3, set_mac);
-
-	printk(KERN_INFO
-	       "***rt2x00***: Info - Mac address changed to: %02x:%02x:%02x:%02x:%02x:%02x.\n",
-	       net_dev->dev_addr[0], net_dev->dev_addr[1], net_dev->dev_addr[2],
-	       net_dev->dev_addr[3], net_dev->dev_addr[4],
-	       net_dev->dev_addr[5]);
-
-	return 0;
-}
-
-#if WIRELESS_EXT >= 12
-/*
-    ========================================================================
-
-    Routine Description:
-        get wireless statistics
-
-    Arguments:
-        net_dev                     Pointer to net_device
-
-    Return Value:
-        struct iw_statistics
-
-    Note:
-        This function will be called when query /proc
-
-    ========================================================================
-*/
-long rt_abs(long arg)
-{
-	return (arg < 0) ? -arg : arg;
-}
-struct iw_statistics *RT61_get_wireless_stats(IN struct net_device *net_dev)
-{
-	RTMP_ADAPTER *pAd = net_dev->priv;
-
-	// TODO: All elements are zero before be implemented
-
-	pAd->iw_stats.status = 0;	// Status - device dependent for now
-
-	pAd->iw_stats.qual.qual = pAd->Mlme.ChannelQuality;	// link quality (%retries, SNR, %missed beacons or better...)
-#ifdef RTMP_EMBEDDED
-	pAd->iw_stats.qual.level = rt_abs(pAd->PortCfg.LastRssi);	// signal level (dBm)
-#else
-	pAd->iw_stats.qual.level = abs(pAd->PortCfg.LastRssi);	// signal level (dBm)
-#endif
-	pAd->iw_stats.qual.level += 256 - pAd->BbpRssiToDbmDelta;
-
-	pAd->iw_stats.qual.noise = (pAd->BbpWriteLatch[17] > pAd->BbpTuning.R17UpperBoundG) ? pAd->BbpTuning.R17UpperBoundG : ((ULONG) pAd->BbpWriteLatch[17]);	// noise level (dBm)
-	pAd->iw_stats.qual.noise += 256 - 143;
-	pAd->iw_stats.qual.updated = 1;	// Flags to know if updated
-
-	pAd->iw_stats.discard.nwid = 0;	// Rx : Wrong nwid/essid
-	pAd->iw_stats.miss.beacon = 0;	// Missed beacons/superframe
-
-	// pAd->iw_stats.discard.code, discard.fragment, discard.retries, discard.misc has counted in other place
-
-	return &pAd->iw_stats;
-}
-#endif
-
-/*
-    ========================================================================
-
-    Routine Description:
-        return ethernet statistics counter
-
-    Arguments:
-        net_dev                     Pointer to net_device
-
-    Return Value:
-        net_device_stats*
-
-    Note:
-
-    ========================================================================
-*/
-struct net_device_stats *RT61_get_ether_stats(IN struct net_device *net_dev)
-{
-	RTMP_ADAPTER *pAd = net_dev->priv;
-
-	DBGPRINT(RT_DEBUG_INFO, "RT61_get_ether_stats --->\n");
-
-	pAd->stats.rx_packets = pAd->WlanCounters.ReceivedFragmentCount.vv.LowPart;	// total packets received
-	pAd->stats.tx_packets = pAd->WlanCounters.TransmittedFragmentCount.vv.LowPart;	// total packets transmitted
-
-	pAd->stats.rx_bytes = pAd->RalinkCounters.ReceivedByteCount;	// total bytes received
-	pAd->stats.tx_bytes = pAd->RalinkCounters.TransmittedByteCount;	// total bytes transmitted
-
-	pAd->stats.rx_errors = pAd->Counters8023.RxErrors;	// bad packets received
-	pAd->stats.tx_errors = pAd->Counters8023.TxErrors;	// packet transmit problems
-
-	pAd->stats.rx_dropped = pAd->Counters8023.RxNoBuffer;	// no space in linux buffers
-	pAd->stats.tx_dropped = pAd->WlanCounters.FailedCount.vv.LowPart;	// no space available in linux
-
-	pAd->stats.multicast = pAd->WlanCounters.MulticastReceivedFrameCount.vv.LowPart;	// multicast packets received
-	pAd->stats.collisions = pAd->Counters8023.OneCollision + pAd->Counters8023.MoreCollisions;	// Collision packets
-
-	pAd->stats.rx_length_errors = 0;
-	pAd->stats.rx_over_errors = pAd->Counters8023.RxNoBuffer;	// receiver ring buff overflow
-	pAd->stats.rx_crc_errors = 0;	//pAd->WlanCounters.FCSErrorCount;         // recved pkt with crc error
-	pAd->stats.rx_frame_errors = pAd->Counters8023.RcvAlignmentErrors;	// recv'd frame alignment error
-	pAd->stats.rx_fifo_errors = pAd->Counters8023.RxNoBuffer;	// recv'r fifo overrun
-	pAd->stats.rx_missed_errors = 0;	// receiver missed packet
-
-	// detailed tx_errors
-	pAd->stats.tx_aborted_errors = 0;
-	pAd->stats.tx_carrier_errors = 0;
-	pAd->stats.tx_fifo_errors = 0;
-	pAd->stats.tx_heartbeat_errors = 0;
-	pAd->stats.tx_window_errors = 0;
-
-	// for cslip etc
-	pAd->stats.rx_compressed = 0;
-	pAd->stats.tx_compressed = 0;
-
-	return &pAd->stats;
-}
-
-/*
-    ========================================================================
-
-    Routine Description:
-        Set to filter multicast list
-
-    Arguments:
-        net_dev                     Pointer to net_device
-
-    Return Value:
-        VOID
-
-    Note:
-
-    ========================================================================
-*/
-VOID RT61_set_rx_mode(IN struct net_device * net_dev)
-{
-	RTMP_ADAPTER *pAd = net_dev->priv;
-
-	if (net_dev->flags & IFF_PROMISC) {
-		pAd->bAcceptPromiscuous = TRUE;
-		DBGPRINT(RT_DEBUG_TRACE, "rt61 acknowledge PROMISC on\n");
-	} else {
-		pAd->bAcceptPromiscuous = FALSE;
-		DBGPRINT(RT_DEBUG_TRACE, "rt61 acknowledge PROMISC off\n");
-	}
-	RTMPWriteTXRXCsr0(pAd, FALSE, TRUE);
-}
-
 //
 // Close driver function
 //
-INT RT61_close(IN struct net_device *net_dev)
+static INT RT61_close(IN struct net_device *net_dev)
 {
 	RTMP_ADAPTER *pAd = net_dev->priv;
 	// LONG            ioaddr = net_dev->base_addr;
+#ifdef RX_TASKLET
+	struct sk_buff *skb;
+#endif
 
 	DBGPRINT(RT_DEBUG_TRACE, "===> RT61_close\n");
 
@@ -901,6 +717,17 @@ INT RT61_close(IN struct net_device *net_dev)
 	del_timer_sync(&pAd->RfTuningTimer);
 	MlmeHalt(pAd);
 
+#ifdef RX_TASKLET
+	// Stop tasklet 
+	tasklet_kill(&pAd->RxTasklet);
+	while (TRUE) {
+		skb = skb_dequeue(&pAd->RxQueue);
+		if (!skb)
+			break;
+		dev_kfree_skb_irq(skb);
+	}
+
+#endif
 	netif_stop_queue(net_dev);
 	netif_carrier_off(net_dev);
 
@@ -927,6 +754,181 @@ INT RT61_close(IN struct net_device *net_dev)
 
 	return 0;
 }
+
+//
+// PCI device probe & initialization function
+//
+static INT __devinit RT61_probe(IN struct pci_dev * pPci_Dev,
+			 IN const struct pci_device_id * ent)
+{
+	struct net_device *net_dev;
+	RTMP_ADAPTER *pAd;
+	CHAR *print_name;
+	INT chip_id = (INT) ent->driver_data;
+	void __iomem *csr_addr;
+	INT Status = -ENODEV;
+	INT i;
+
+	printk("%s %s %s http://rt2x00.serialmonkey.com\n",
+	       KERN_INFO DRIVER_NAME, DRIVER_VERSION, DRIVER_RELDATE);
+
+	print_name = pPci_Dev ? pci_name(pPci_Dev) : "rt61";
+
+	// alloc_etherdev() will set net_dev->name
+	net_dev = alloc_etherdev(0);
+	if (net_dev == NULL) {
+		DBGPRINT(RT_DEBUG_TRACE, "init_ethernet failed\n");
+		goto err_out;
+	}
+
+	SET_MODULE_OWNER(net_dev);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
+	SET_NETDEV_DEV(net_dev, &(pPci_Dev->dev));
+#endif
+
+	if (pci_request_regions(pPci_Dev, print_name))
+		goto err_out_free_netdev;
+
+	for (i = 0; i < rt61_pci_tbl_len; i++) {
+		if (pPci_Dev->vendor == rt61_pci_tbl[i].vendor &&
+		    pPci_Dev->device == rt61_pci_tbl[i].device) {
+			printk("RT61: Vendor = 0x%04x, Product = 0x%04x \n",
+			       pPci_Dev->vendor, pPci_Dev->device);
+			break;
+		}
+	}
+	if (i == rt61_pci_tbl_len) {
+		printk("Device PID/VID not matching!!!\n");
+		goto err_out_free_netdev;
+	}
+	// Interrupt IRQ number
+	net_dev->irq = pPci_Dev->irq;
+
+	// map physical address to virtual address for accessing register
+	csr_addr =
+	    ioremap(pci_resource_start(pPci_Dev, 0),
+		    pci_resource_len(pPci_Dev, 0));
+	if (!csr_addr) {
+		DBGPRINT(RT_DEBUG_ERROR,
+			 "ioremap failed for device %s, region 0x%X @ 0x%X\n",
+			 print_name, (ULONG) pci_resource_len(pPci_Dev, 0),
+			 (ULONG) pci_resource_start(pPci_Dev, 0));
+		goto err_out_free_res;
+	}
+
+	net_dev->priv =
+	    pci_alloc_consistent(pPci_Dev, sizeof(RTMP_ADAPTER), &dma_adapter);
+
+	// Zero init RTMP_ADAPTER
+	memset(net_dev->priv, 0, sizeof(RTMP_ADAPTER));
+
+	// Save CSR virtual address and irq to device structure
+	net_dev->base_addr = (unsigned long)csr_addr;
+	pAd = net_dev->priv;
+	pAd->CSRBaseAddress = csr_addr;
+	pAd->net_dev = net_dev;
+
+	// Set DMA master
+	pci_set_master(pPci_Dev);
+
+	pAd->chip_id = chip_id;
+	pAd->pPci_Dev = pPci_Dev;
+
+	// The chip-specific entries in the device structure.
+	net_dev->open = RT61_open;
+	net_dev->hard_start_xmit = RTMPSendPackets;
+	net_dev->stop = RT61_close;
+	net_dev->get_stats = RT61_get_ether_stats;
+
+#if WIRELESS_EXT >= 12
+#if WIRELESS_EXT < 17
+	net_dev->get_wireless_stats = RT61_get_wireless_stats;
+#endif
+	net_dev->wireless_handlers =
+	    (struct iw_handler_def *)&rt61_iw_handler_def;
+#endif
+
+	net_dev->set_multicast_list = RT61_set_rx_mode;
+	net_dev->do_ioctl = RT61_ioctl;
+	net_dev->set_mac_address = rt61_set_mac_address;
+
+	// register_netdev() will call dev_alloc_name() for us
+	// TODO: Remove the following line to keep the default eth%d name
+	if (ifname == NULL)
+		strcpy(net_dev->name, "ra%d");
+	else
+		strncpy(net_dev->name, ifname, IFNAMSIZ);
+
+	// Register this device
+	Status = register_netdev(net_dev);
+	if (Status)
+		goto err_out_unmap;
+
+	DBGPRINT(RT_DEBUG_TRACE, "%s: at 0x%x, VA 0x%lx, IRQ %d. \n",
+		 net_dev->name, (ULONG) pci_resource_start(pPci_Dev, 0),
+		 (unsigned long)csr_addr, pPci_Dev->irq);
+
+	// Set driver data
+	pci_set_drvdata(pPci_Dev, net_dev);
+
+	// moved to here by GertjanW (RobinC) so if-preup can work
+	// When driver now loads it is loaded up with "factory" defaults
+	// All this occurs while the net iface is down
+	// iwconfig can then be used to configure card BEFORE
+	// ifconfig ra0 up is applied.
+	// Note the rt61sta.dat file will still overwrite settings
+	// but it is useful for the settings iwconfig doesn't let you at
+	PortCfgInit(pAd);
+
+	Status = MlmeQueueInit(&pAd->Mlme.Queue);
+	if (Status != NDIS_STATUS_SUCCESS)
+		goto err_out_unmap;
+
+	// Build channel list for default physical mode
+	BuildChannelList(pAd);
+
+	rt61pci_open_debugfs(pAd);
+
+	return 0;
+
+      err_out_unmap:
+	iounmap(csr_addr);
+      err_out_free_res:
+	pci_release_regions(pPci_Dev);
+
+      err_out_free_netdev:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
+	kfree(net_dev);
+#else
+	free_netdev(net_dev);
+#endif
+
+      err_out:
+	return Status;
+}
+
+
+static INT __devinit RT61_init_one(IN struct pci_dev *pPci_Dev,
+				   IN const struct pci_device_id *ent)
+{
+	INT rc;
+
+	DBGPRINT(RT_DEBUG_TRACE, "===> RT61_init_one\n");
+
+	// wake up and enable device
+	if (pci_enable_device(pPci_Dev))
+		rc = -EIO;
+	else {
+		rc = RT61_probe(pPci_Dev, ent);
+		if (rc)
+			pci_disable_device(pPci_Dev);
+	}
+
+	DBGPRINT(RT_DEBUG_TRACE, "<=== RT61_init_one\n");
+	return rc;
+}
+
 
 //
 // Remove driver function
