@@ -775,7 +775,7 @@ static INT __devinit RT61_probe(IN struct pci_dev * pPci_Dev,
 	print_name = pPci_Dev ? pci_name(pPci_Dev) : "rt61";
 
 	// alloc_etherdev() will set net_dev->name
-	net_dev = alloc_etherdev(sizeof(PRTMP_ADAPTER));
+	net_dev = alloc_etherdev(0);
 	if (net_dev == NULL) {
 		DBGPRINT(RT_DEBUG_TRACE, "init_ethernet failed\n");
 		goto err_out;
