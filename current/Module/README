@@ -1,0 +1,332 @@
+Installation instructions for the rt61 Module
+
+=======================================================================
+Build Instructions:
+===================
+For 2.4 or 2.6 series kernel:
+a. $tar -xvzf rt61-x.x.x.tar.gz
+    go to "./rt61-x.x.x/Module" directory.
+
+b. $make                # compile driver source code
+
+c. $make install       # installs kernel module driver
+
+(read end of file for FedoraCore3 specific information)
+
+=======================================================================
+Installation of firmware files:
+===============================
+
+In order for the rt61 driver to function correctly the correct firmware file
+needs to be installed in /etc/Wireless/RT61STA.
+
+a. $mkdir /etc/Wireless/RT61STA
+
+b. $cp *.bin /etc/Wireless/RT61STA
+
+Alternatively, the firmware files can be downloaded from the Ralink web-site
+(http://www.ralinktech.com/supp-1.htm), and manually be installed in
+/etc/Wireless/RT61STA.
+
+The mapping of the firmware files is as follows:
+
+- rt2561.bin - Ralink rt2561 chipset
+- rt2561s.bin - Ralink rt2561Turbo chipset
+- rt2661.bin - Ralink rt2661 chipset.
+
+=======================================================================
+Configuration:
+==============
+RT61 driver can be configured via following interfaces, 
+i.e. (i)"iwconfig" command, (ii)"iwpriv" command, (iii) configuration file
+
+i)  iwconfig comes with kernel.  
+ii) iwpriv usage, please refer to file "iwpriv_usage.txt" for details.
+iii)copy configuration file "rt61sta.dat" to /etc/Wireless/RT61STA/rt61sta.dat.
+           
+Configuration File : rt61sta.dat
+---------------------------------------
+# Copy this file to /etc/Wireless/RT61STA/rt61sta.dat
+# This file is a binary file and will be read on loading rt.o module.
+#
+# Use "vi -b rt61sta.dat" to modify settings according to your need.
+# 
+# 1.) set NetworkType to "Adhoc" for using Adhoc-mode, otherwise using Infrastructure
+# 2.) set Channel to "0" for auto-select on Infrastructure mode
+# 3.) set SSID for connecting to your Accss-point.
+# 4.) AuthMode can be "WEPAUTO", "OPEN", "SHARED", "WPAPSK", "WPA2PSK", "WPANONE"
+# 5.) EncrypType can be "NONE", "WEP", "TKIP", "AES"
+# for more information refer to the Readme file.
+# 
+# The word of "[Default]" must not be removed
+[Default]
+CountryRegion=0
+CountryRegionABand=7
+WirelessMode=0
+SSID=AP350
+NetworkType=Infra
+Channel=0
+AuthMode=OPEN
+EncrypType=NONE
+DefaultKeyID=1
+Key1Type=0
+Key1Str=0123456789
+Key2Type=0
+Key2Str=
+Key3Type=0
+Key3Str=
+Key4Type=0
+Key4Str=
+WPAPSK=abcdefghijklmnopqrstuvwxyz
+TxBurst=0
+PktAggregate=0
+TurboRate=0
+WmmCapable=0
+AckPolicy1=0
+AckPolicy2=0
+AckPolicy3=0
+AckPolicy4=0
+BGProtection=0
+ShortSlot=0
+IEEE80211H=0
+TxRate=0
+RTSThreshold=2347
+FragThreshold=2346
+PSMode=CAM
+TxPreamble=0
+
+-----------------------------------------------
+*NOTE:
+	WMM parameters
+			WmmCapable			Set it as 1 to turn on WMM Qos support				
+			AckPolicy1~4		Ack policy which support normal Ack or no Ack
+								(AC_BK, AC_BE, AC_VI, AC_VO)		
+	
+	All WMM parameters do not support iwpriv command but ¡¥WmmCapable¡¦¡¦, 
+	please store all parameter to rt61sta.dat, and restart driver. 	
+
+-----------------------------------------------
+syntax is 'Param'='Value' and describes below. 
+
+1. CountryRegion=value                                 
+	value
+		0: use 1 ~ 11 Channel
+		1: use 1 ~ 13 Channel
+		2: use 10, 11 Channel
+		3: use 10 ~ 13 Channel
+		4: use 14 Channel
+		5: use 1 ~ 14 Channel
+		6: use 3 ~ 9 Channel
+   	 	                                      
+2. CountryRegionForABand=value      							
+	value	
+		0: use 36, 40, 44, 48, 52, 56, 60, 64, 149, 153, 157, 161, 165 Channel
+		1: use 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140 Channel
+		2: use 36, 40, 44, 48, 52, 56, 60, 64 Channel
+		3: use 52, 56, 60, 64, 149, 153, 157, 161 Channel
+		4: use 149, 153, 157, 161, 165 Channel
+		5: use 149, 153, 157, 161 Channel
+		6: use 36, 40, 44, 48 Channel
+		7: use 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165 Channel
+                                                           
+3. SSID=value                	
+	value
+		0~z, 1~32 ascii characters.
+                    	
+4. WirelessMode=value
+	value	
+		0: 11b/g mixed 
+		1: 11B only 
+		2: 11A only          //Not support in RfIcType=1(id=RFIC_5225) and RfIcType=2(id=RFIC_5325)
+		3: 11a/b/g mixed     //Not support in RfIcType=1(id=RFIC_5225) and RfIcType=2(id=RFIC_5325)
+		4: 11G only
+		
+5. TxRate=value
+	value
+		 0: Auto    	//WirelessMode=0~4	
+		 1: 1 Mbps	 	//WirelessMode=0 or 1 or 3
+         2: 2 Mbps	 	//WirelessMode=0 or 1 or 3
+         3: 5.5 Mbps 	//WirelessMode=0 or 1 or 3
+         4: 11 Mbps 	//WirelessMode=0 or 1 or 3
+         5: 6  Mbps  	//WirelessMode=0 or 2 or 3 or 4
+         6: 9  Mbps  	//WirelessMode=0 or 2 or 3 or 4
+         7: 12 Mbps  	//WirelessMode=0 or 2 or 3 or 4
+         8: 18 Mbps  	//WirelessMode=0 or 2 or 3 or 4
+         9: 24 Mbps  	//WirelessMode=0 or 2 or 3 or 4
+        10: 36 Mbps  	//WirelessMode=0 or 2 or 3 or 4
+        11: 48 Mbps  	//WirelessMode=0 or 2 or 3 or 4
+        12: 54 Mbps  	//WirelessMode=0 or 2 or 3 or 4
+ 	                                       
+6. Channel=value
+	value
+		depends on CountryRegion or CountryRegionForABand
+                    	
+7. BGProtection=value
+	value
+		0: Auto 
+		1: Always on 
+		2: Always off
+                    	
+8. TxPreamble=value
+  	value
+		0:Preamble Long
+		1:Preamble Short 
+		2:Auto
+                    	
+9. RTSThreshold=value
+	value
+		1~2347                                                       
+                    	                                       
+10. FragThreshold=value
+	value       	
+		256~2346
+                    	
+11. TxBurst=value
+	value
+		0: Disable
+		1: Enable
+
+12. NetworkType=value	    		
+	value 
+		Infra: infrastructure mode
+       	Adhoc: adhoc mode
+                                                                                                                                                        	                                                          
+13. AuthMode=value
+	value
+		OPEN	 	For open system	
+		SHARED	  	For shared key system	
+		WEPAUTO     Auto switch between OPEN and SHARED
+		WPAPSK      For WPA pre-shared key  (Infra)
+		WPA2PSK     For WPA2 pre-shared key (Infra)
+		WPANONE		For WPA pre-shared key  (Adhoc)
+
+14. EncrypType=value
+	value
+		NONE		For AuthMode=OPEN                    
+		WEP			For AuthMode=OPEN or AuthMode=SHARED 
+		TKIP		For AuthMode=WPAPSK or WPA2PSK                    
+		AES			For AuthMode=WPAPSK or WPA2PSK                     
+		
+15. DefaultKeyID=value
+	value
+		1~4
+
+16. Key1=value
+    Key2=value
+    Key3=value
+    Key4=value
+	value
+		10 or 26 hexadecimal characters eg: 012345678
+        5 or 13 ascii characters eg: passd
+    (usage : "iwpriv" only)     
+
+17. Key1Type=vaule
+    Key2Type=value
+    Key3Type=vaule
+    Key4Type=vaule
+    value
+		0   hexadecimal type
+		1   assic type
+    (usage : reading profile only)
+
+18. Key1Str=value
+    Key2Str=value
+    Key3Str=vaule
+    Key4Str=vaule
+    value
+		10 or 26 characters (key type=0)
+		5 or 13 characters  (key type=1)
+    (usage : reading profile only)	
+
+19. WPAPSK=value              	
+	value
+		8~63 ASCII  		or 
+		64 HEX characters
+
+20. PktAggregate=value
+	value
+		0: Disable
+		1: Enable when the peer supports it
+																
+21. TurboRate=value
+	value
+		0: Disable
+		1: Enable 72/100 Mbps whenever applicable
+    (Not support yet!!!)
+                    																		
+22. WmmCapable=value				
+	value
+		0: Disable WMM
+		1: Enable WMM
+    (Not support yet!!!)
+        
+23. PSMode=value
+    value
+    	CAM			    Constantly Awake Mode
+		Max_PSP		    Max Power Savings
+		Fast_PSP		Power Save Mode
+		
+24. IEEE80211H=value
+	value
+		0:	Disable
+		1:	Enable	Spectrum management
+		(This field can be enable only in A band)
+
+
+MORE INFORMATION
+=================================================================================
+If you want for rt61 driver to auto-load at boot time:
+A) choose ra0 for first RT61 WLAN card, ra1 for second RT61 WLAN card, etc.
+   
+B) create(edit) 'ifcfg-ra0' file in /etc/sysconfig/network-scripts/,      
+   edit( or add the line) in /etc/modules.conf:
+       alias ra0 rt61        
+   
+C) edit(create) the file /etc/sysconfig/network-scripts/ifcfg-ra0  
+   DEVICE='ra0'
+   ONBOOT='yes'     
+
+
+NOTE:
+   if you use dhcp, add this line too .
+    BOOTPROTO='dhcp'
+
+*D) To ease the Default Gateway setting, 
+    add the line
+    GATEWAY=x.x.x.x   
+    in /etc/sysconfig/network
+
+INFORMATION FOR FEDORA CORE 3 USERS (USE AT YOUR OWN RISK !!!)
+=================================================================================
+While this information is directed to Fedora Core 3 users, there is no harm in
+trying some hints and clues in other distros.
+
+Before starting, make sure you don't have any ifcfg-ra* or ifcfg-eth* that has
+information about Ralink wireless cards. Check also /etc/modprobe.conf for
+additional 'alias' definitions.
+
+If you have any of the files above and/or entries in modprobe.conf, please delete
+them now.
+
+Compile the module as you would do normally with:
+
+a) $make
+
+and as root do:
+
+b) $make install-fedora
+
+the module should be installed to the correct location and the rt61 alias as
+been added to modprobe.conf .
+
+Start 'system-config-network',
+New->Wireless connection,
+select 'RaLink Ralink RT2600 802.11 MIMO (wlan0)'
+If it does not appear, well then it didn't work for you :)
+
+But if it did appear then configure the rest of the parameters and activate
+the card in the end.
+
+Save configuration and enjoy your new wireless device.
+
+Note : the device is now called wlanX instead of raX. (X stands for autonumber)
