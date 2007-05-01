@@ -1,8 +1,10 @@
 rt61 (1.1.0.dfsg.2+cvs20070501-2) UNRELEASED; urgency=low
 
   * NOT RELEASED YET
+  * prune WPA_Supplicant/ from the generated upstream tarball due to missing
+    licenses.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 01 May 2007 03:12:40 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 01 May 2007 14:53:06 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070501-1) unstable; urgency=low
 

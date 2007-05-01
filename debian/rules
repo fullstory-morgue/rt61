@@ -43,7 +43,7 @@ get-orig-source:
 		export -d rt61-$(DATE) -D $(DATE) source/rt61/
 	@test -d ../rt61-$(DATE)
 	tar zcf ../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz \
-		--exclude='*.bin' -C .. rt61-$(DATE)
+		--exclude='*.bin' --exclude='WPA_Supplicant' -C .. rt61-$(DATE)
 	@rm -rf ../rt61-$(DATE)
 	@echo "Don't forget to update your upstream with " \
 		"../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz"

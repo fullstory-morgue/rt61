@@ -17,6 +17,13 @@ The contents of rt61 is entirely GPL, apart from the binary firmware images:
 	Module/rt2561s.bin
 	Module/rt2661.bin
 
+and the wpasupplicant support code, which doesn't show any license at all
+
+	WPA_Supplicant/
+
+by using debian/rules get-orig-source these parts are automatically stripped
+from the upstream CVS export.
+
 These files are distributed as is, and without modification.
 
    This package is free software; you can redistribute it and/or modify
