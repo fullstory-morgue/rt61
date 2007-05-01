@@ -497,9 +497,9 @@ static VOID CntlOidSsidProc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) ||
 		     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2) ||
 		     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK)
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 		     || (pAd->PortCfg.IEEE8021X == TRUE)
-//#endif
+#endif
 		    ) &&
 		    (pAd->PortCfg.PortSecured == WPA_802_1X_PORT_NOT_SECURED)) {
 			// case 1.1 For WPA, WPA-PSK, if the 1x port is not secured, we have to redo
@@ -1325,6 +1325,8 @@ VOID LinkUp(IN PRTMP_ADAPTER pAd, IN UCHAR BssType)
 */
 VOID LinkDown(IN PRTMP_ADAPTER pAd, IN BOOLEAN IsReqFromAP)
 {
+	TXRX_CSR4_STRUC CurTxRxCsr4;
+
 	DBGPRINT(RT_DEBUG_TRACE, "!!! LINK DOWN !!!\n");
 
 	OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_AGGREGATION_INUSED);
@@ -1436,6 +1438,8 @@ VOID LinkDown(IN PRTMP_ADAPTER pAd, IN BOOLEAN IsReqFromAP)
 	//
 	pAd->PortCfg.AvgRssi = 0;
 	pAd->PortCfg.AvgRssiX8 = 0;
+	pAd->PortCfg.AvgRssi2 = 0;
+	pAd->PortCfg.AvgRssi2X8 = 0;
 
 	// Restore MlmeRate
 	pAd->PortCfg.MlmeRate = pAd->PortCfg.BasicMlmeRate;
@@ -1453,6 +1457,15 @@ VOID LinkDown(IN PRTMP_ADAPTER pAd, IN BOOLEAN IsReqFromAP)
 	}
 
 	//
+	// After Link down, Set to Collect Rssi-A/Rssi-B mode.
+	//
+	if ((pAd->RfIcType == RFIC_5325) || (pAd->RfIcType == RFIC_2529)) {
+		pAd->Mlme.bTxRateReportPeriod = FALSE;
+		RTMP_IO_WRITE32(pAd, TXRX_CSR1, 0x9eb39eb3);
+		DBGPRINT(RT_DEBUG_INFO, "Collect Rssi-A/Rssi-B\n");
+	}
+
+	//
 	// After Link down, reset piggy-back setting in ASIC
 	//
 	{
@@ -1461,6 +1474,14 @@ VOID LinkDown(IN PRTMP_ADAPTER pAd, IN BOOLEAN IsReqFromAP)
 		OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_PIGGYBACK_INUSED);
 	}
 
+	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MAX_RETRY_ENABLED)) {
+		RTMP_IO_READ32(pAd, TXRX_CSR4, &CurTxRxCsr4.word);
+		CurTxRxCsr4.field.ShortRetryLimit = 0x07;
+		CurTxRxCsr4.field.LongRetryLimit = 0x04;
+		RTMP_IO_WRITE32(pAd, TXRX_CSR4, CurTxRxCsr4.word);
+		OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_MAX_RETRY_ENABLED);
+	}
+	OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_RTS_PROTECTION_ENABLE);
 }
 
 /*

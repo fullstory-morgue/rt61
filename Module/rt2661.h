@@ -330,6 +330,7 @@ typedef struct _HW_PAIRWISE_TA_ENTRY {	// 8-byte per entry
 #define	EEPROM_G_TX_PWR_OFFSET		0x46
 #define EEPROM_LED_OFFSET			0x60
 #define EEPROM_A_TX_PWR_OFFSET      0x62
+#define EEPROM_J52_TX_PWR_OFFSET    0x7d
 //#define EEPROM_TSSI_REF_OFFSET        0x54
 //#define EEPROM_TSSI_DELTA_OFFSET      0x24
 //#define EEPROM_CCK_TX_PWR_OFFSET  0x62

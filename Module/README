@@ -80,12 +80,9 @@ Key4Str=
 WPAPSK=abcdefghijklmnopqrstuvwxyz
 TxBurst=0
 PktAggregate=0
-TurboRate=0
 WmmCapable=0
-AckPolicy1=0
-AckPolicy2=0
-AckPolicy3=0
-AckPolicy4=0
+APSDCapable=0
+APSDAC=0;0;0;0
 BGProtection=0
 ShortSlot=0
 IEEE80211H=0
@@ -97,12 +94,18 @@ TxPreamble=0
 
 -----------------------------------------------
 *NOTE:
-	WMM parameters
-			WmmCapable			Set it as 1 to turn on WMM Qos support				
-			AckPolicy1~4		Ack policy which support normal Ack or no Ack
-								(AC_BK, AC_BE, AC_VI, AC_VO)		
-	
-	All WMM parameters do not support iwpriv command but ¡¥WmmCapable¡¦¡¦, 
+WMM parameters:
+1.) WmmCapable
+    Set it as 1 to turn on WMM Qos support
+
+2.) APSDCapable
+	Set it as 1 to use automatic power-save delivery(APSD) on an Non-AP QSTA
+
+3.) APSDAC
+	Set ACs corresponding BE, BK, VI and VO as delivery-enabled or delivery-disabled
+
+
+All WMM parameters do not support iwpriv command but WmmCapable,
 	please store all parameter to rt61sta.dat, and restart driver. 	
 
 -----------------------------------------------
@@ -117,8 +120,9 @@ syntax is 'Param'='Value' and describes below.
 		4: use 14 Channel
 		5: use 1 ~ 14 Channel
 		6: use 3 ~ 9 Channel
+		7: use 5 ~ 13 Channel
    	 	                                      
-2. CountryRegionForABand=value      							
+2. CountryRegionABand=value      							
 	value	
 		0: use 36, 40, 44, 48, 52, 56, 60, 64, 149, 153, 157, 161, 165 Channel
 		1: use 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140 Channel
@@ -128,7 +132,10 @@ syntax is 'Param'='Value' and describes below.
 		5: use 149, 153, 157, 161 Channel
 		6: use 36, 40, 44, 48 Channel
 		7: use 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165 Channel
-                                                           
+		8: 52, 56, 60, 64 Channel
+		9: 34, 38, 42, 46 Channel
+		10: 34, 36, 38, 40, 42, 44, 46, 48, 52, 56, 60, 64 Channel
+
 3. SSID=value                	
 	value
 		0~z, 1~32 ascii characters.
@@ -159,7 +166,7 @@ syntax is 'Param'='Value' and describes below.
  	                                       
 6. Channel=value
 	value
-		depends on CountryRegion or CountryRegionForABand
+		depends on CountryRegion or CountryRegionABand
                     	
 7. BGProtection=value
 	value
@@ -247,30 +254,46 @@ syntax is 'Param'='Value' and describes below.
 	value
 		0: Disable
 		1: Enable when the peer supports it
-																
-21. TurboRate=value
-	value
-		0: Disable
-		1: Enable 72/100 Mbps whenever applicable
-    (Not support yet!!!)
-                    																		
-22. WmmCapable=value				
+
+21. WmmCapable=value				
 	value
 		0: Disable WMM
 		1: Enable WMM
-    (Not support yet!!!)
-        
-23. PSMode=value
-    value
-    	CAM			    Constantly Awake Mode
-		Max_PSP		    Max Power Savings
-		Fast_PSP		Power Save Mode
+
+22. PSMode=value
+	value
+		CAM		Constantly Awake Mode
+		Fast_PSP	Power Save Mode
 		
-24. IEEE80211H=value
+23. IEEE80211H=value
 	value
 		0:	Disable
 		1:	Enable	Spectrum management
 		(This field can be enable only in A band)
+
+24. FastRoaming=value
+	value
+		0: Disable Fast Roaming
+		1: Enable Fast Roaming
+
+25. RoamThreshold=value
+	value [Valid on FastRoaming=1]
+		60~90
+
+26. APSDCapable=value
+	value [Valid on WmmCapable=1]
+		0: Disable APSD
+		1: Enable APSD
+
+27. APSDAC=value
+	value [Valid on APSDCapable=1]
+		0: Delivery-disabled AC
+		1: Delivery-enabled AC
+
+		//========================//
+		AC_BE  AC_BK  AC_VI  AC_VO
+		{0, 1};{0, 1};{0, 1};{0, 1}
+		//========================//
 
 
 MORE INFORMATION
@@ -288,8 +311,11 @@ C) edit(create) the file /etc/sysconfig/network-scripts/ifcfg-ra0
 
 
 NOTE:
-   if you use dhcp, add this line too .
-    BOOTPROTO='dhcp'
+	if you use dhcp,
+	add this line
+	BOOTPROTO='dhcp'
+	in the file ifcfg-ra0 .
+
 
 *D) To ease the Default Gateway setting, 
     add the line

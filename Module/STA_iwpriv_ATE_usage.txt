@@ -85,7 +85,6 @@ For example:
 	iwpriv ra0 set ATE=STASTOP
 	iwpriv ra0 set ATETXRATE=11				; Set Tx Rate 0~11
 	iwpriv ra0 set ATETXCNT=50				; Tx frame count(decmial)
-	iwpriv ra0 set ATE=TXFRAME				; Start Tx Frame
 	iwpriv ra0 set ATE=TXCONT				; Start continuous TX
 	...										; Measure specturm mask with instrument
 	iwpriv ra0 set ATE=STASTOP

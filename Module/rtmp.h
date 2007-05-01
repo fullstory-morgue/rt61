@@ -511,40 +511,53 @@ typedef struct _RTMP_SCATTER_GATHER_LIST {
 	}                                                                   \
 }
 
-#define RECORD_LATEST_RX_DATA_RATE(_pAd, _pRxD)                                 \
-{                                                                               \
-    if ((_pRxD)->Ofdm)                                                          \
-        (_pAd)->LastRxRate = OfdmSignalToRateId[(_pRxD)->PlcpSignal & 0x0f];    \
-    else if ((_pRxD)->PlcpSignal == 10)                                         \
-        (_pAd)->LastRxRate = RATE_1;                                            \
-    else if ((_pRxD)->PlcpSignal == 20)                                         \
-        (_pAd)->LastRxRate = RATE_2;                                            \
-    else if ((_pRxD)->PlcpSignal == 55)                                         \
-        (_pAd)->LastRxRate = RATE_5_5;                                          \
-    else                                                                        \
-        (_pAd)->LastRxRate = RATE_11;                                           \
+#define RECORD_LATEST_RX_DATA_RATE(_pAd, _pRxD)                               \
+{                                                                             \
+    if ((_pRxD)->Ofdm)                                                        \
+        (_pAd)->LastRxRate = OfdmSignalToRateId[(_pRxD)->PlcpSignal & 0x0f];  \
+    else if ((_pRxD)->PlcpSignal == 10)                                       \
+        (_pAd)->LastRxRate = RATE_1;                                          \
+    else if ((_pRxD)->PlcpSignal == 20)                                       \
+        (_pAd)->LastRxRate = RATE_2;                                          \
+    else if ((_pRxD)->PlcpSignal == 55)                                       \
+        (_pAd)->LastRxRate = RATE_5_5;                                        \
+    else                                                                      \
+        (_pAd)->LastRxRate = RATE_11;                                         \
+    if ((_pAd->RfIcType == RFIC_5325) || (_pAd->RfIcType == RFIC_2529))       \
+    {                                                                         \
+	_pAd->Mlme.bTxRateReportPeriod = FALSE;                               \
+	RTMP_IO_WRITE32(_pAd, TXRX_CSR1, 0x9eb39eb3);                         \
+    }                                                                         \
 }
 
 // INFRA mode- Address 1 - AP, Address 2 - this STA, Address 3 - DA
 // ADHOC mode- Address 1 - DA, Address 2 - this STA, Address 3 - BSSID
-#define MAKE_802_11_HEADER(_pAd, _80211hdr, _pDA, _seq)                         \
-{                                                                               \
-    memset(&_80211hdr, 0, sizeof(HEADER_802_11));                               \
-    if (INFRA_ON(_pAd))                                                         \
-    {                                                                           \
-        memcpy(_80211hdr.Addr1, _pAd->PortCfg.Bssid, ETH_ALEN);                 \
-        memcpy(_80211hdr.Addr3, _pDA, ETH_ALEN);                                \
-        _80211hdr.FC.ToDs = 1;                                                  \
-    }                                                                           \
-    else                                                                        \
-    {                                                                           \
-        memcpy(_80211hdr.Addr1, _pDA, ETH_ALEN);                                \
-        memcpy(_80211hdr.Addr3, _pAd->PortCfg.Bssid, ETH_ALEN);                 \
-    }                                                                           \
-    memcpy(_80211hdr.Addr2, _pAd->CurrentAddress, ETH_ALEN);                    \
-    _80211hdr.Sequence = _seq;                                                  \
-    _80211hdr.FC.Type = BTYPE_DATA;                                             \
-    _80211hdr.FC.PwrMgmt = (_pAd->PortCfg.Psm == PWR_SAVE);                     \
+#define MAKE_802_11_HEADER(_pAd, _80211hdr, _pDA, _seq)                       \
+{                                                                             \
+    memset(&_80211hdr, 0, sizeof(HEADER_802_11));                             \
+    if (INFRA_ON(_pAd))                                                       \
+    {                                                                         \
+        memcpy(_80211hdr.Addr1, _pAd->PortCfg.Bssid, ETH_ALEN);               \
+        memcpy(_80211hdr.Addr3, _pDA, ETH_ALEN);                              \
+        _80211hdr.FC.ToDs = 1;                                                \
+    }                                                                         \
+    else                                                                      \
+    {                                                                         \
+        memcpy(_80211hdr.Addr1, _pDA, ETH_ALEN);                              \
+        memcpy(_80211hdr.Addr3, _pAd->PortCfg.Bssid, ETH_ALEN);               \
+    }                                                                         \
+    memcpy(_80211hdr.Addr2, _pAd->CurrentAddress, ETH_ALEN);                  \
+    _80211hdr.Sequence = _seq;                                                \
+    _80211hdr.FC.Type = BTYPE_DATA;                                           \
+                                                                              \
+    if (_pAd->PortCfg.bAPSDForcePowerSave)                                    \
+    {                                                                         \
+       _80211hdr.FC.PwrMgmt = PWR_SAVE;                                       \
+    }                                                                         \
+    else                                                                      \
+    {                                                                         \
+        _80211hdr.FC.PwrMgmt = (_pAd->PortCfg.Psm == PWR_SAVE);               \
+    }                                                                         \
 }
 
 //Need to collect each ant's rssi concurrently
@@ -861,15 +874,15 @@ typedef struct _ARCFOUR {
 	UCHAR STATE[256];
 } ARCFOURCONTEXT, *PARCFOURCONTEXT;
 
-typedef struct _IV_CONTROL_ {
-	union {
-		struct {
+typedef struct PACKED _IV_CONTROL_ {
+	union PACKED {
+		struct PACKED {
 			UCHAR rc0;
 			UCHAR rc1;
 			UCHAR rc2;
 
-			union {
-				struct {
+			union PACKED {
+				struct PACKED {
 #ifdef BIG_ENDIAN
 					UCHAR KeyID:2;
 					UCHAR ExtIV:1;
@@ -985,7 +998,7 @@ typedef struct __PRIVATE_STRUC {
 #ifdef RALINK_ATE
 typedef struct _ATE_INFO {
 	UCHAR Mode;
-	UCHAR TxPower;
+	CHAR TxPower;
 	UCHAR Addr1[6];
 	UCHAR Addr2[6];
 	UCHAR Addr3[6];
@@ -1107,7 +1120,7 @@ typedef struct _PORT_CONFIG {
 	UCHAR RSN_IE[44];
 	UCHAR RSN_IELen;
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+//#if WPA_SUPPLICANT_SUPPORT
 	BOOLEAN IEEE8021X;	// Enable or disable IEEE 802.1x
 	CIPHER_KEY DesireSharedKey[4];	// Record user desired WEP keys
 	BOOLEAN IEEE8021x_required_keys;	// Enable or disable dynamic wep key updating
@@ -1189,7 +1202,9 @@ typedef struct _PORT_CONFIG {
 	UCHAR LastRssi;		// last received BEACON's RSSI
 	UCHAR LastRssi2;	// last received BEACON's RSSI for smart antenna
 	USHORT AvgRssi;		// last 8 BEACON's average RSSI
+	USHORT AvgRssi2;	// last 8 BEACON's average RSSI
 	USHORT AvgRssiX8;	// sum of last 8 BEACON's RSSI
+	USHORT AvgRssi2X8;	// sum of last 8 BEACON's RSSI
 	ULONG NumOfAvgRssiSample;
 
 	unsigned long LastBeaconRxTime;	// OS's timestamp of the last BEACON RX time
@@ -1228,6 +1243,19 @@ typedef struct _PORT_CONFIG {
 	QOS_CAPABILITY_PARM APQosCapability;	// QOS capability of the current associated AP
 	EDCA_PARM APEdcaParm;	// EDCA parameters of the current associated AP
 	QBSS_LOAD_PARM APQbssLoad;	// QBSS load of the current associated AP
+
+	// APSD
+	BOOLEAN bAPSDCapable;
+	BOOLEAN bAPSDAC_BE;
+	BOOLEAN bAPSDAC_BK;
+	BOOLEAN bAPSDAC_VI;
+	BOOLEAN bAPSDAC_VO;
+//	BOOLEAN bNeedSendTriggerFrame;  //Driver should not send trigger frame, it should be send by application layer
+	BOOLEAN bAPSDForcePowerSave;    // Force power save mode, should only use in APSD-STAUT
+	UCHAR MaxSPLength;
+
+	UCHAR DtimCount;        // 0.. DtimPeriod-1
+	UCHAR DtimPeriod;       // default = 3
 
 	BOOLEAN bEnableTxBurst;	// 0: disable, 1: enable TX PACKET BURST
 	BOOLEAN bAggregationCapable;	// 1: enable TX aggregation when the peer supports it
@@ -1820,6 +1848,10 @@ UCHAR ChannelSanity(IN PRTMP_ADAPTER pAd, IN UCHAR channel);
 NDIS_802_11_NETWORK_TYPE NetworkTypeInUseSanity(IN PBSS_ENTRY pBss);
 NDIS_STATUS RTMPWPAWepKeySanity(IN PRTMP_ADAPTER pAd, IN PVOID pBuf);
 
+UCHAR PeerTxTypeInUseSanity(IN UCHAR Channel,
+			    IN UCHAR SupRate[], IN UCHAR SupRateLen,
+			    IN UCHAR ExtRate[], IN UCHAR ExtRateLen);
+
 //
 // prototypes in eeprom.c
 //
@@ -1846,8 +1878,7 @@ VOID RTMPDeQueuePacket(IN PRTMP_ADAPTER pAdapter, IN UCHAR Index);
 NDIS_STATUS RTMPSendPacket(IN PRTMP_ADAPTER pAd, IN struct sk_buff *pSkb);
 NDIS_STATUS RTMPFreeTXDRequest(IN PRTMP_ADAPTER pAdapter, IN UCHAR QueIdx,
 							IN UCHAR NumberRequired, IN PUCHAR FreeNumberIs);
-VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd, IN PVOID pBuffer, IN ULONG Length,
-								IN UCHAR TxRate);
+VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,IN UCHAR TxRate, IN BOOLEAN bQosNul);
 USHORT RTMPCalcDuration(IN PRTMP_ADAPTER pAdapter,
 								IN UCHAR Rate, IN ULONG Size);
 VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd, IN PTXD_STRUC pSourceTxD,
@@ -1898,7 +1929,7 @@ VOID PRF(IN UCHAR * key, IN INT key_len,
 						IN UCHAR * prefix, IN INT prefix_len,
 						IN UCHAR * data, IN INT data_len,
 						OUT UCHAR * output, IN INT len);
-//#ifdef WPA_SUPPLICANT_SUPPORT
+//#if WPA_SUPPLICANT_SUPPORT
 INT RTMPCheckWPAframeForEapCode(IN PRTMP_ADAPTER pAd,
 						IN PUCHAR pFrame, IN ULONG FrameLen, IN ULONG OffSet);
 //#endif
@@ -1906,6 +1937,8 @@ INT RTMPCheckWPAframeForEapCode(IN PRTMP_ADAPTER pAd,
 //
 // prototypes for *iwpriv* in rtmp_info.c
 //
+char *rstrtok(char *s, const char *ct);
+
 INT RTMPSetInformation(IN PRTMP_ADAPTER pAdapter,
 						IN OUT struct ifreq *rq, IN INT cmd);
 INT RT61_ioctl(IN struct net_device *net_dev, IN OUT struct ifreq *rq,
@@ -1926,7 +1959,6 @@ VOID RTMPIoctlE2PROM(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq);
 VOID RTMPIoctlStatistics(IN PRTMP_ADAPTER pAd, IN struct iwreq *wrq);
 INT RTMPIoctlSetRFMONTX(IN PRTMP_ADAPTER pAd, IN struct iwreq *wrq);
 INT RTMPIoctlGetRFMONTX(IN PRTMP_ADAPTER pAd, OUT struct iwreq *wrq);
-CHAR *GetEncryptType(CHAR enc);
 VOID RTMPIoctlGetSiteSurvey(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq);
 VOID RTMPMakeRSNIE(IN PRTMP_ADAPTER pAdapter, IN UCHAR GroupCipher);
 NDIS_STATUS RTMPWPANoneAddKeyProc(IN PRTMP_ADAPTER pAd, IN PVOID pBuf);

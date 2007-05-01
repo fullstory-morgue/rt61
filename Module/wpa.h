@@ -82,7 +82,7 @@
 #define EAPOL_PAIR_MSG_3    2
 #define EAPOL_GROUP_MSG_1   3
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+//#if WPA_SUPPLICANT_SUPPORT
 
 /* RFC 3748 - Extensible Authentication Protocol (EAP) */
 
@@ -178,7 +178,7 @@ typedef struct PACKED _EAPOL_PACKET {
 } EAPOL_PACKET, *PEAPOL_PACKET;
 
 //802.11i D10 page 83
-typedef struct _GTK_ENCAP {
+typedef struct PACKED _GTK_ENCAP {
 #ifndef BIG_ENDIAN
 	UCHAR Kid:2;
 	UCHAR tx:1;
@@ -193,7 +193,7 @@ typedef struct _GTK_ENCAP {
 	UCHAR GTK[32];
 } GTK_ENCAP, *PGTK_ENCAP;
 
-typedef struct _KDE_ENCAP {
+typedef struct PACKED _KDE_ENCAP {
 	UCHAR Type;
 	UCHAR Len;
 	UCHAR OUI[3];

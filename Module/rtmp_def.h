@@ -114,6 +114,8 @@
 #define fOP_STATUS_AGGREGATION_INUSED       0x00000200
 #define fOP_STATUS_DOZE                     0x00000400	// debug purpose
 #define fOP_STATUS_PIGGYBACK_INUSED         0x00000800	// piggy-back, and aggregation
+#define fOP_STATUS_MAX_RETRY_ENABLED	    0x00002000
+#define fOP_STATUS_RTS_PROTECTION_ENABLE    0x00004000
 
 //
 // Error code section
@@ -161,7 +163,10 @@
 //#define MAX_NUM_OF_POWER_LEVEL            8
 //#define MAX_NUM_OF_DOMAIN                 8
 #define MAX_LEN_OF_KEY                    32	// 32 octets == 256 bits, Redefine for WPA
-#define MAX_NUM_OF_CHANNELS               42	// 14 channels @2.4G +  12@UNII + 4 @MMAC + 11 @HiperLAN2 + 1 as NULL termination
+#define MAX_NUM_OF_CHANNELS		43	//1-14, 36/40/44/48/52/56/60/64/100/104/108/112/116/120/124/
+						//128/132/136/140/149/153/157/161/165/34/38/42/46 + 1 as NULL termination
+#define J52_CHANNEL_START_OFFSET	38	//1-14, 36/40/44/48/52/56/60/64/100/104/108/112/116/120/124/
+						//128/132/136/140/149/153/157/161/165/
 #define MAX_LEN_OF_PEER_KEY               16
 #define MAX_LEN_OF_MANUFACTURE_ID         32
 #define MAX_LEN_OF_PRODUCT_ID             32
@@ -539,6 +544,10 @@
 #define RATE_FIRST_OFDM_RATE    RATE_6
 #define RATE_AUTO_SWITCH        255	// for UserCfg.FixedTxRate only
 
+#define CCK_RATE		1
+#define OFDM_RATE		2
+#define CCKOFDM_RATE		3
+
 // pTxD->Ifs
 #define	IFS_BACKOFF				0
 #define	IFS_SIFS				1
@@ -556,7 +565,7 @@
 #define REGION_5_BG_BAND                  5	// 1-14
 #define REGION_6_BG_BAND                  6	// 3-9
 #define REGION_7_BG_BAND                  7	// 5-13
-#define REGION_MAXIMUM_BG_BAND	7
+#define REGION_MAXIMUM_BG_BAND            REGION_7_BG_BAND
 
 #define REGION_0_A_BAND                   0	// 36, 40, 44, 48, 52, 56, 60, 64, 149, 153, 157, 161, 165
 #define REGION_1_A_BAND                   1	// 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140
@@ -566,7 +575,10 @@
 #define REGION_5_A_BAND                   5	// 149, 153, 157, 161
 #define REGION_6_A_BAND                   6	// 36, 40, 44, 48
 #define REGION_7_A_BAND                   7	// 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165
-#define REGION_MAXIMUM_A_BAND	7
+#define REGION_8_A_BAND                   8    // 52, 56, 60, 64
+#define REGION_9_A_BAND                   9    // 34, 38, 42, 46
+#define REGION_10_A_BAND                  10   // 34, 36, 38, 40, 42, 44, 46, 48, 52, 56, 60, 64
+#define REGION_MAXIMUM_A_BAND             REGION_10_A_BAND
 
 // pTxD->CipherAlg
 #define	CIPHER_NONE				0

@@ -91,6 +91,8 @@
 #include <linux/delay.h>
 #include <linux/if_arp.h>
 #include <linux/ctype.h>
+#include <linux/sockios.h>
+#include <linux/threads.h>
 
 #if LINUX_VERSION_CODE >= 0x20407
 #include <linux/mii.h>
@@ -153,6 +155,15 @@ typedef union _LARGE_INTEGER {
 #define NDIS_STATUS_FAILURE                     0x01
 #define NDIS_STATUS_RESOURCES                   0x03
 
+// ** Wireless Extensions **
+// 1. wireless events support        : v14 or newer
+// 2. requirements of wpa-supplicant : v15 or newer
+#if WIRELESS_EXT >= 15
+#define WPA_SUPPLICANT_SUPPORT	1
+#else
+#define WPA_SUPPLICANT_SUPPORT	0
+#endif
+
 #ifdef __BIG_ENDIAN
 #warning Compiling for big endian machine.
 #define BIG_ENDIAN TRUE
@@ -173,7 +184,15 @@ typedef union _LARGE_INTEGER {
 #define NIC2561_PCI_DEVICE_ID	    0x0302
 #define	NIC_PCI_VENDOR_ID		    0x1814
 
+/* Check CONFIG_SMP defined */
+#ifndef NR_CPUS
+#define NR_CPUS 1
+#endif
+#if NR_CPUS > 1
+#define MEM_ALLOC_FLAG	    GFP_ATOMIC
+#else
 #define MEM_ALLOC_FLAG      (GFP_DMA | GFP_ATOMIC)
+#endif
 
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a,b,c) ((a)*65536+(b)*256+(c))

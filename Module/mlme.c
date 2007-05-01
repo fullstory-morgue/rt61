@@ -40,6 +40,7 @@
 
 #include "rt_config.h"
 #include <stdarg.h>
+#include <net/iw_handler.h>
 
 // since RT61 has better RX sensibility, we have to limit TX ACK rate not to exceed our normal data TX rate.
 // otherwise the WLAN peer may not be able to receive the ACK thus downgrade its data TX rate
@@ -157,7 +158,12 @@ RTMP_RF_REGS RF5225RegTable[] = {
 	{157, 0x95002ccc, 0x95004aae, 0x950bbe55, 0x950ffa07},
 	{161, 0x95002ccc, 0x95004ab2, 0x950bbe55, 0x950ffa0f},
 	{165, 0x95002ccc, 0x95004ab6, 0x950bbe55, 0x950ffa17},
-	// still lack of MMAC(Japan) ch 34,38,42,46
+
+	//MMAC(Japan)J52 ch 34,38,42,46
+	{34, 0x95002ccc, 0x9500499a, 0x9509be55, 0x950ffa0b},
+	{38, 0x95002ccc, 0x9500499e, 0x9509be55, 0x950ffa13},
+	{42, 0x95002ccc, 0x950049a2, 0x9509be55, 0x950ffa1b},
+	{46, 0x95002ccc, 0x950049a6, 0x9509be55, 0x950ffa23},
 
 };
 UCHAR NUM_OF_5225_CHNL = (sizeof(RF5225RegTable) / sizeof(RTMP_RF_REGS));
@@ -247,7 +253,16 @@ RTMP_RF_REGS RF5225RegTable_1[] = {
 	,
 	{165, 0x95002cd4, 0x9504491a, 0x950ba255, 0x950c0a17}
 	,
-	// still lack of MMAC(Japan) ch 34,38,42,46
+
+	//MMAC(Japan)J52 ch 34,38,42,46
+	{34, 0x95002ccc, 0x9500499a, 0x9509be55, 0x950c0a0b}
+	,
+	{38, 0x95002ccc, 0x9500499e, 0x9509be55, 0x950c0a13}
+	,
+	{42, 0x95002ccc, 0x950049a2, 0x9509be55, 0x950c0a1b}
+	,
+	{46, 0x95002ccc, 0x950049a6, 0x9509be55, 0x950c0a23}
+	,
 };
 UCHAR NUM_OF_5225_CHNL_1 = (sizeof(RF5225RegTable_1) / sizeof(RTMP_RF_REGS));
 
@@ -261,8 +276,8 @@ UCHAR NUM_OF_5225_CHNL_1 = (sizeof(RF5225RegTable_1) / sizeof(RTMP_RF_REGS));
 VOID AsicSwitchChannel(IN PRTMP_ADAPTER pAd, IN UCHAR Channel)
 {
 	ULONG R3 = DEFAULT_RF_TX_POWER, R4;
-	CHAR TxPwer = 0;
-	UCHAR index, BbpReg = 0, Bbp94 = BBPR94_DEFAULT;
+	CHAR TxPwer = 0, Bbp94 = BBPR94_DEFAULT;
+	UCHAR index, BbpReg = 0;
 	RTMP_RF_REGS *RFRegTable;
 
 	// Select antenna
@@ -489,6 +504,7 @@ char *AntStr[4] = { "SW Diversity", "Ant-A", "Ant-B", "HW Diversity" };
 static VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 {
 	ULONG data = 0;
+	UCHAR R77 = 0;
 
 	DBGPRINT(RT_DEBUG_INFO, "AsicSetRxAnt, pair1=%d, pair2=%d\n", Pair1,
 		 Pair2);
@@ -526,8 +542,6 @@ static VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 			 "AsicSetRxAnt, pair1=%d, pair2=%d, data=0x%x\n", Pair1,
 			 Pair2, data);
 	} else if (pAd->RfIcType == RFIC_2527) {
-		UCHAR R77 = 0;
-
 		// Update antenna registers
 		RTMP_BBP_IO_READ8_BY_REG_ID(pAd, BBP_R77, &R77);
 
@@ -546,8 +560,6 @@ static VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 		RTMPWriteTXRXCsr0(pAd, FALSE, TRUE);
 	} else if ((pAd->RfIcType == RFIC_2529)
 		   && (pAd->Antenna.field.NumOfAntenna == 2)) {
-		UCHAR R77 = 0;
-
 		// Update antenna registers
 		RTMP_BBP_IO_READ8_BY_REG_ID(pAd, BBP_R77, &R77);
 
@@ -565,8 +577,6 @@ static VOID AsicSetRxAnt(IN PRTMP_ADAPTER pAd, IN UCHAR Pair1, IN UCHAR Pair2)
 
 		RTMPWriteTXRXCsr0(pAd, FALSE, TRUE);
 	} else if ((pAd->RfIcType == RFIC_5225) || (pAd->RfIcType == RFIC_5325)) {
-		UCHAR R77 = 0;
-
 		// Update antenna registers
 		RTMP_BBP_IO_READ8_BY_REG_ID(pAd, BBP_R77, &R77);
 
@@ -1023,6 +1033,12 @@ static VOID AsicAdjustTxPower(IN PRTMP_ADAPTER pAd)
 
 	dbm = pAd->PortCfg.AvgRssi - pAd->BbpRssiToDbmDelta;
 
+	if ((pAd->RfIcType == RFIC_5325) || (pAd->RfIcType == RFIC_2529)) {
+		if (pAd->PortCfg.AvgRssi2 > pAd->PortCfg.AvgRssi) {
+			dbm = pAd->PortCfg.AvgRssi2 - pAd->BbpRssiToDbmDelta;
+		}
+	}
+
 	// get TX Power base from E2PROM
 	R3 = DEFAULT_RF_TX_POWER;
 	for (index = 0; index < pAd->ChannelListNum; index++) {
@@ -1032,13 +1048,15 @@ static VOID AsicAdjustTxPower(IN PRTMP_ADAPTER pAd)
 		}
 	}
 
-	if ((TxPwer > 31) || (TxPwer < 0))
+	//
+	// Correct R3 value, R3 value should be in range 0 ~ 31.
+	//
+	if (TxPwer < 0)
 		R3 = 0;
+	else if (TxPwer > 31)
+		R3 = 31;
 	else
 		R3 = (ULONG) TxPwer;
-
-	if (R3 > 31)
-		R3 = 31;
 
 	// error handling just in case
 	if (index >= pAd->ChannelListNum) {
@@ -1502,8 +1520,6 @@ VOID AsicSetEdcaParm(IN PRTMP_ADAPTER pAd, IN PEDCA_PARM pEdcaParm)
 		// Modify Cwmin/Cwmax/Txop on queue[QID_AC_VI], Recommend by Jerry 2005/07/27
 		// To degrade our VIDO Queue's throughput for WiFi WMM S3T07 Issue.
 		//
-		pEdcaParm->Cwmin[QID_AC_VI] += 1;
-		pEdcaParm->Cwmax[QID_AC_VI] += 1;
 		pEdcaParm->Txop[QID_AC_VI] =
 		    pEdcaParm->Txop[QID_AC_VI] * 7 / 10;
 
@@ -1651,6 +1667,13 @@ static VOID AsicBbpTuning(IN PRTMP_ADAPTER pAd)
 		return;
 
 	dbm = pAd->PortCfg.AvgRssi - pAd->BbpRssiToDbmDelta;
+
+	if ((pAd->RfIcType == RFIC_5325) || (pAd->RfIcType == RFIC_2529)) {
+		// choose greater rssi to do evaluation
+		if (pAd->PortCfg.AvgRssi2 > pAd->PortCfg.AvgRssi) {
+			dbm = pAd->PortCfg.AvgRssi2 - pAd->BbpRssiToDbmDelta;
+		}
+	}
 
 	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
 #if 0
@@ -2109,6 +2132,16 @@ static VOID AsicRxAntEvalTimeout(IN unsigned long data)
 		 pAd->RxAnt.Pair1PrimaryRxAnt, pAd->RxAnt.Pair2PrimaryRxAnt);
 }
 
+static VOID MlmeRssiReportExec(IN unsigned long data)
+{
+	RTMP_ADAPTER *pAd = (RTMP_ADAPTER *) data;
+
+	if ((pAd->RalinkCounters.LastOneSecRxOkDataCnt == 0)
+	    && (pAd->Mlme.bTxRateReportPeriod)) {
+		pAd->Mlme.bTxRateReportPeriod = FALSE;
+		RTMP_IO_WRITE32(pAd, TXRX_CSR1, 0x9eb39eb3);
+	}
+}
 
 static VOID LinkDownExec(IN unsigned long data)
 {
@@ -2426,6 +2459,12 @@ static VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
 	BOOLEAN fUpgradeQuality = FALSE;
 	SHORT dbm = pAd->PortCfg.AvgRssi - pAd->BbpRssiToDbmDelta;
 
+	if ((pAd->RfIcType == RFIC_5325) || (pAd->RfIcType == RFIC_2529)) {
+		if (pAd->PortCfg.AvgRssi2 > pAd->PortCfg.AvgRssi) {
+			dbm = pAd->PortCfg.AvgRssi2 - pAd->BbpRssiToDbmDelta;
+		}
+	}
+
 	CurrRate = pAd->PortCfg.TxRate;
 
 	// do not reply ACK using TX rate higher than normal DATA TX rate
@@ -2632,10 +2671,12 @@ static VOID MlmeDynamicTxRateSwitching(IN PRTMP_ADAPTER pAd)
 			DBGPRINT_RAW(RT_DEBUG_TRACE,
 				     "DRS: 2 NULL frames at UpRate = %d Mbps\n",
 				     RateIdToMbps[UpRate]);
-			RTMPSendNullFrame(pAd, &pAd->NullFrame,
-					  sizeof(HEADER_802_11), UpRate);
-			RTMPSendNullFrame(pAd, &pAd->NullFrame,
-					  sizeof(HEADER_802_11), UpRate);
+			if (!
+			    (pAd->PortCfg.bAPSDCapable
+			     && pAd->PortCfg.APEdcaParm.bAPSDCapable)) {
+				RTMPSendNullFrame(pAd, UpRate, FALSE);
+				RTMPSendNullFrame(pAd, UpRate, FALSE);
+			}
 		}
 		// perform DRS - consider TxRate Down first, then rate up.
 		//     1. rate down, if current TX rate's quality is not good
@@ -2776,8 +2817,13 @@ static VOID MlmeCheckPsmChange(IN PRTMP_ADAPTER pAd, IN ULONG Now32)
 	    (pAd->RalinkCounters.OneSecTxNoRetryOkCount == 0) &&
 	    (pAd->RalinkCounters.OneSecTxRetryOkCount == 0)) {
 		MlmeSetPsmBit(pAd, PWR_SAVE);
-		RTMPSendNullFrame(pAd, &pAd->NullFrame, sizeof(HEADER_802_11),
-				  pAd->PortCfg.TxRate);
+		if (!
+		    (pAd->PortCfg.bAPSDCapable
+		     && pAd->PortCfg.APEdcaParm.bAPSDCapable)) {
+			RTMPSendNullFrame(pAd, pAd->PortCfg.TxRate, FALSE);
+		} else {
+			RTMPSendNullFrame(pAd, pAd->PortCfg.TxRate, TRUE);
+		}
 	}
 
 }
@@ -2787,6 +2833,12 @@ static VOID MlmeCheckPsmChange(IN PRTMP_ADAPTER pAd, IN ULONG Now32)
 static VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 {
 	ULONG TxTotalCnt;
+	TXRX_CSR4_STRUC CurTxRxCsr4;
+	SHORT dbm;
+
+#if WPA_SUPPLICANT_SUPPORT
+	union iwreq_data wrqu;
+#endif
 
 	// WPA MIC error should block association attempt for 60 seconds
 	if (pAd->PortCfg.bBlockAssoc
@@ -2963,16 +3015,27 @@ static VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 
 		else {
 			// send out a NULL frame every 10 sec. for what??? inform "PwrMgmt" bit?
-			if ((pAd->Mlme.PeriodicRound % 10) == 8)
-				RTMPSendNullFrame(pAd, &pAd->NullFrame,
-						  sizeof(HEADER_802_11),
-						  pAd->PortCfg.TxRate);
+			if ((pAd->PortCfg.bAPSDCapable == FALSE)
+			    && ((pAd->Mlme.PeriodicRound % 10) == 8))
+				RTMPSendNullFrame(pAd, pAd->PortCfg.TxRate,
+						  FALSE);
 
 			if (CQI_IS_DEAD(pAd->Mlme.ChannelQuality)) {
 				DBGPRINT(RT_DEBUG_TRACE,
 					 "MMCHK - No BEACON. Dead CQI. Auto Recovery attempt #%d\n",
 					 pAd->RalinkCounters.
 					 BadCQIAutoRecoveryCount);
+
+#if WPA_SUPPLICANT_SUPPORT
+				if (pAd->PortCfg.WPA_Supplicant == TRUE) {
+					// send disassoc event to wpa_supplicant
+					memset(&wrqu, 0, sizeof(wrqu));
+					wrqu.data.flags = RT_DISASSOC_EVENT_FLAG;
+					wireless_send_event(pAd->net_dev,
+							    IWEVCUSTOM, &wrqu,
+							    NULL);
+				}
+#endif
 
 				// Lost AP, send disconnect & link down event
 				LinkDown(pAd, FALSE);
@@ -3199,6 +3262,90 @@ static VOID STAMlmePeriodicExec(PRTMP_ADAPTER pAd)
 		RTMPSetSignalLED(pAd,
 				 pAd->PortCfg.LastRssi -
 				 pAd->BbpRssiToDbmDelta);
+	}
+
+	if (((pAd->Mlme.PeriodicRound % 2) == 0) &&
+	    (INFRA_ON(pAd) || ADHOC_ON(pAd))) {
+		RTMPSetSignalLED(pAd,
+				 pAd->PortCfg.LastRssi -
+				 pAd->BbpRssiToDbmDelta);
+
+		if ((pAd->RfIcType == RFIC_5325)
+		    || (pAd->RfIcType == RFIC_2529)) {
+			pAd->Mlme.bTxRateReportPeriod = TRUE;
+			RTMP_IO_WRITE32(pAd, TXRX_CSR1, 0x9eaa9eaf);
+			//Start a timer, if no data come in then switch to Rssi-A/Rssi-B.
+			pAd->Mlme.RssiReportTimer.expires =
+			    jiffies + (300 * HZ) / 1000;
+			add_timer(&pAd->Mlme.RssiReportTimer);
+			DBGPRINT(RT_DEBUG_INFO, "Collect Rssi-A/TxRate\n");
+		}
+	}
+
+	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
+		//
+		// Modify retry times (maximum 15) on low data traffic.
+		// Should fix ping lost.
+		//
+		dbm = pAd->PortCfg.AvgRssi - pAd->BbpRssiToDbmDelta;
+		if ((pAd->RfIcType == RFIC_5325)
+		    || (pAd->RfIcType == RFIC_2529)) {
+			if (pAd->PortCfg.AvgRssi2 > pAd->PortCfg.AvgRssi) {
+				dbm =
+				    pAd->PortCfg.AvgRssi2 -
+				    pAd->BbpRssiToDbmDelta;
+			}
+		}
+		//
+		// Only on infrastructure mode will change the RetryLimit.
+		//
+		if (INFRA_ON(pAd)) {
+			if (OPSTATUS_TEST_FLAG
+			    (pAd, fOP_STATUS_MAX_RETRY_ENABLED)) {
+				if (pAd->RalinkCounters.OneSecTxNoRetryOkCount >
+				    15) {
+					RTMP_IO_READ32(pAd, TXRX_CSR4,
+						       &CurTxRxCsr4.word);
+					CurTxRxCsr4.field.ShortRetryLimit =
+					    0x07;
+					CurTxRxCsr4.field.LongRetryLimit = 0x04;
+					RTMP_IO_WRITE32(pAd, TXRX_CSR4,
+							CurTxRxCsr4.word);
+					OPSTATUS_CLEAR_FLAG(pAd,
+							    fOP_STATUS_MAX_RETRY_ENABLED);
+				}
+			} else {
+				if (pAd->RalinkCounters.
+				    OneSecTxNoRetryOkCount <= 15) {
+					RTMP_IO_READ32(pAd, TXRX_CSR4,
+						       &CurTxRxCsr4.word);
+					CurTxRxCsr4.field.ShortRetryLimit =
+					    0x0f;
+					CurTxRxCsr4.field.LongRetryLimit = 0x0f;
+					RTMP_IO_WRITE32(pAd, TXRX_CSR4,
+							CurTxRxCsr4.word);
+					OPSTATUS_SET_FLAG(pAd,
+							  fOP_STATUS_MAX_RETRY_ENABLED);
+				}
+			}
+		}
+
+		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_RTS_PROTECTION_ENABLE)) {
+			if ((dbm > -60)
+			    || (pAd->RalinkCounters.OneSecTxNoRetryOkCount >
+				15))
+				OPSTATUS_CLEAR_FLAG(pAd,
+						    fOP_STATUS_RTS_PROTECTION_ENABLE);
+		} else {
+			//
+			// for long distance case, turn on RTS to protect data frame.
+			//
+			if ((dbm <= -60)
+			    && (pAd->RalinkCounters.OneSecTxNoRetryOkCount <=
+				15))
+				OPSTATUS_SET_FLAG(pAd,
+						  fOP_STATUS_RTS_PROTECTION_ENABLE);
+		}
 	}
 }
 
@@ -3645,6 +3792,13 @@ VOID MlmeUpdateTxRates(IN PRTMP_ADAPTER pAd, IN BOOLEAN bLinkUp)
 	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_TX_RATE_SWITCH_ENABLED) &&
 	    OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
 		short dbm = pAd->PortCfg.AvgRssi - pAd->BbpRssiToDbmDelta;
+
+		if ((pAd->RfIcType == RFIC_5325) || (pAd->RfIcType == RFIC_2529)) {
+			if (pAd->PortCfg.AvgRssi2 > pAd->PortCfg.AvgRssi) {
+				dbm = pAd->PortCfg.AvgRssi2 - pAd->BbpRssiToDbmDelta;
+			}
+		}
+
 		if (bLinkUp == TRUE && pAd->PortCfg.MaxTxRate >= RATE_24)
 			pAd->PortCfg.TxRate = RATE_24;
 		else
@@ -3745,7 +3899,7 @@ VOID MlmeRadioOn(IN PRTMP_ADAPTER pAd)
 	DBGPRINT(RT_DEBUG_TRACE, "MlmeRadioOn()\n");
 
 	// Turn on radio, Abort TX, Disable RX
-	RTMP_IO_WRITE32(pAd, MAC_CSR10, 0x00000718);	// turn on radio
+	RTMP_IO_WRITE32(pAd, MAC_CSR10, 0x0000071c);	// turn on radio
 	RTMP_IO_WRITE32(pAd, TX_CNTL_CSR, 0x001f0000);	// abort all TX rings
 
 	// Disable Rx
@@ -3795,6 +3949,8 @@ static VOID BssCipherParse(IN OUT PBSS_ENTRY pBss)
 	// Set default to disable & open authentication before parsing variable IE
 	pBss->AuthMode = Ndis802_11AuthModeOpen;
 	pBss->AuthModeAux = Ndis802_11AuthModeOpen;
+	pBss->AuthBitMode = 0;
+	pBss->PairCipherBitMode = 0;
 
 	// Init WPA setting
 	pBss->WPA.PairCipher = Ndis802_11WEPDisabled;
@@ -3878,10 +4034,12 @@ static VOID BssCipherParse(IN OUT PBSS_ENTRY pBss)
 				case 2:
 					TmpCipher =
 					    Ndis802_11Encryption2Enabled;
+					pBss->PairCipherBitMode |= TKIPBIT;
 					break;
 				case 4:
 					TmpCipher =
 					    Ndis802_11Encryption3Enabled;
+					pBss->PairCipherBitMode |= CCMPBIT;
 					break;
 				default:
 					break;
@@ -3905,30 +4063,28 @@ static VOID BssCipherParse(IN OUT PBSS_ENTRY pBss)
 			Count = SWAP16(Count);
 #endif
 			pTmp += sizeof(USHORT);
-			pTmp += 3;
 
-			switch (*pTmp) {
-			case 1:
-				// Set AP support WPA mode
-				if (pBss->AuthMode == Ndis802_11AuthModeOpen)
+			while (Count > 0) {
+				pTmp += 3;
+
+				switch (*pTmp) {
+			        case 1:
+					// Set AP support WPA1 mode
 					pBss->AuthMode = Ndis802_11AuthModeWPA;
-				else
-					pBss->AuthModeAux =
-					    Ndis802_11AuthModeWPA;
-				break;
-			case 2:
-				// Set AP support WPA mode
-				if (pBss->AuthMode == Ndis802_11AuthModeOpen)
+					pBss->AuthBitMode |= WPA1AKMBIT;
+					break;
+				case 2:
+					// Set AP support WPA1PSK
 					pBss->AuthMode =
 					    Ndis802_11AuthModeWPAPSK;
-				else
-					pBss->AuthModeAux =
-					    Ndis802_11AuthModeWPAPSK;
-				break;
-			default:
-				break;
+					pBss->AuthBitMode |= WPA1PSKAKMBIT;
+					break;
+				default:
+					break;
+				}
+				pTmp++;
+				Count--;
 			}
-			pTmp += 1;
 
 			// Fixed for WPA-None
 			if (pBss->BssType == BSS_ADHOC) {
@@ -4009,10 +4165,12 @@ static VOID BssCipherParse(IN OUT PBSS_ENTRY pBss)
 				case 2:
 					TmpCipher =
 					    Ndis802_11Encryption2Enabled;
+					pBss->PairCipherBitMode |= TKIPBIT;
 					break;
 				case 4:
 					TmpCipher =
 					    Ndis802_11Encryption3Enabled;
+					pBss->PairCipherBitMode |= CCMPBIT;
 					break;
 				default:
 					break;
@@ -4042,28 +4200,29 @@ static VOID BssCipherParse(IN OUT PBSS_ENTRY pBss)
 			if (memcmp(pTmp, RSN_OUI, 3) != 0)
 				break;
 
-			switch (pAKM->Type) {
-			case 1:
-				// Set AP support WPA mode
-				if (pBss->AuthMode == Ndis802_11AuthModeOpen)
+			while (Count > 0) {
+
+				pTmp += 3;
+
+				switch (*pTmp) {
+				case 1:
+				    	// Set AP support WPA2 mode
 					pBss->AuthMode = Ndis802_11AuthModeWPA2;
-				else
-					pBss->AuthModeAux =
-					    Ndis802_11AuthModeWPA2;
-				break;
-			case 2:
-				// Set AP support WPA mode
-				if (pBss->AuthMode == Ndis802_11AuthModeOpen)
+					pBss->AuthBitMode |= WPA2AKMBIT;
+					break;
+				case 2:
+					// Set AP support WPA2PSK mode
 					pBss->AuthMode =
 					    Ndis802_11AuthModeWPA2PSK;
-				else
-					pBss->AuthModeAux =
-					    Ndis802_11AuthModeWPA2PSK;
-				break;
-			default:
-				break;
+					pBss->AuthBitMode |= WPA2PSKAKMBIT;
+					break;
+				default:
+					break;
+				}
+				pTmp++;
+				Count--;
 			}
-			pTmp += (Count * sizeof(AKM_SUITE_STRUCT));
+			//pTmp += (Count * sizeof(AKM_SUITE_STRUCT));
 
 			// Fixed for WPA-None
 			if (pBss->BssType == BSS_ADHOC) {
@@ -4417,6 +4576,35 @@ ULONG BssTableSetEntry(IN PRTMP_ADAPTER pAd,
 	return Idx;
 }
 
+BOOLEAN RTMPCheckAKM(IN NDIS_802_11_AUTHENTICATION_MODE auth,
+		     IN BSS_ENTRY *pBss)
+{
+	switch (auth) {
+	case Ndis802_11AuthModeWPA:
+		if (pBss->AuthBitMode & WPA1AKMBIT)
+			return TRUE;
+		else
+			return FALSE;
+	case Ndis802_11AuthModeWPAPSK:
+		if (pBss->AuthBitMode & WPA1PSKAKMBIT)
+			return TRUE;
+		else
+			return FALSE;
+	case Ndis802_11AuthModeWPA2:
+		if (pBss->AuthBitMode & WPA2AKMBIT)
+			return TRUE;
+		else
+			return FALSE;
+	case Ndis802_11AuthModeWPA2PSK:
+		if (pBss->AuthBitMode & WPA2PSKAKMBIT)
+			return TRUE;
+		else
+			return FALSE;
+	default:
+		return FALSE;
+	}
+}
+
 VOID BssTableSsidSort(IN PRTMP_ADAPTER pAd,
 		      OUT BSS_TABLE * OutTab, IN CHAR Ssid[], IN UCHAR SsidLen)
 {
@@ -4433,12 +4621,14 @@ VOID BssTableSsidSort(IN PRTMP_ADAPTER pAd,
 			// New for WPA2
 			// Check the Authmode first
 			if (pAd->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) {
-				// Check AuthMode and AuthModeAux for matching, in case AP support dual-mode
-				if ((pAd->PortCfg.AuthMode != pInBss->AuthMode)
-				    && (pAd->PortCfg.AuthMode !=
-					pInBss->AuthModeAux))
-					// None matched
-					continue;
+				if (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPANone) {
+					if (pAd->PortCfg.AuthMode != pInBss->AuthMode)
+						continue;       // None matched
+				} else {
+					// Check AuthMode and AuthBitMode for matching, in case AP support dual-mode
+					if (!RTMPCheckAKM(pAd->PortCfg.AuthMode, pInBss))
+						continue;       // None matched
+				}
 
 				// Check cipher suite, AP must have more secured cipher than station setting
 				if ((pAd->PortCfg.AuthMode ==
@@ -4520,12 +4710,9 @@ VOID BssTableSsidSort(IN PRTMP_ADAPTER pAd,
 			// New for WPA2
 			// Check the Authmode first
 			if (pAd->PortCfg.AuthMode >= Ndis802_11AuthModeWPA) {
-				// Check AuthMode and AuthModeAux for matching, in case AP support dual-mode
-				if ((pAd->PortCfg.AuthMode != pInBss->AuthMode)
-				    && (pAd->PortCfg.AuthMode !=
-					pInBss->AuthModeAux))
-					// None matched
-					continue;
+				// Check AuthMode and AuthBitMode for matching, in case AP support dual-mode
+				if (!RTMPCheckAKM(pAd->PortCfg.AuthMode, pInBss))
+					continue;       // None matched
 
 				// Check cipher suite, AP must have more secured cipher than station setting
 				if ((pAd->PortCfg.AuthMode ==
@@ -5333,6 +5520,12 @@ NDIS_STATUS MlmeInit(IN PRTMP_ADAPTER pAd)
 		pAd->Mlme.LinkDownTimer.data = (unsigned long)pAd;
 		pAd->Mlme.LinkDownTimer.function = &LinkDownExec;
 
+		// Init rssi report
+		pAd->Mlme.bTxRateReportPeriod = TRUE;
+		init_timer(&pAd->Mlme.RssiReportTimer);
+		pAd->Mlme.RssiReportTimer.data = (unsigned long)pAd;
+		pAd->Mlme.RssiReportTimer.function = &MlmeRssiReportExec;
+
 		// software-based RX Antenna diversity
 		init_timer(&pAd->RxAnt.RxAntDiversityTimer);
 		pAd->RxAnt.RxAntDiversityTimer.data = (unsigned long)pAd;
@@ -5403,6 +5596,7 @@ VOID MlmeHalt(IN PRTMP_ADAPTER pAd)
 	del_timer_sync(&pAd->MlmeAux.ScanTimer);
 	del_timer_sync(&pAd->Mlme.PeriodicTimer);
 	del_timer_sync(&pAd->Mlme.LinkDownTimer);
+	del_timer_sync(&pAd->Mlme.RssiReportTimer);
 	del_timer_sync(&pAd->RxAnt.RxAntDiversityTimer);
 
 	RTMPusecDelay(500000);	// 0.5 sec to guarantee timer canceled
