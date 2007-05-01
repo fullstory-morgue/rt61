@@ -230,7 +230,7 @@ typedef struct PACKED {
 	USHORT CfpDurRemaining;
 } CF_PARM, *PCF_PARM;
 
-typedef struct _CIPHER_SUITE {
+typedef struct PACKED _CIPHER_SUITE {
 	NDIS_802_11_ENCRYPTION_STATUS PairCipher;	// Unicast cipher 1, this one has more secured cipher suite
 	NDIS_802_11_ENCRYPTION_STATUS PairCipherAux;	// Unicast cipher 2 if AP announce two unicast cipher suite
 	NDIS_802_11_ENCRYPTION_STATUS GroupCipher;	// Group cipher
@@ -244,6 +244,7 @@ typedef struct PACKED {
 	BOOLEAN bQAck;
 	BOOLEAN bQueueRequest;
 	BOOLEAN bTxopRequest;
+	BOOLEAN bAPSDCapable;
 //  BOOLEAN     bMoreDataAck;
 	UCHAR EdcaUpdateCount;
 	UCHAR Aifsn[4];		// 0:AC_BK, 1:AC_BE, 2:AC_VI, 3:AC_VO
@@ -260,6 +261,17 @@ typedef struct PACKED {
 	UCHAR ChannelUtilization;
 	USHORT RemainingAdmissionControl;	// in unit of 32-us
 } QBSS_LOAD_PARM, *PQBSS_LOAD_PARM;
+
+// QBSS Info field in QSTA's assoc req
+typedef struct PACKED {
+	UCHAR UAPSD_AC_VO:1;
+	UCHAR UAPSD_AC_VI:1;
+	UCHAR UAPSD_AC_BK:1;
+	UCHAR UAPSD_AC_BE:1;
+	UCHAR Rsv1:1;
+	UCHAR MaxSPLength:2;
+	UCHAR Rsv2:1;
+} QBSS_STA_INFO_PARM, *PQBSS_STA_INFO_PARM;
 
 // QOS Capability reported in QAP's BEACON/ProbeRsp
 // QOS Capability sent out in QSTA's AssociateReq/ReAssociateReq
@@ -307,6 +319,8 @@ typedef struct {
 	NDIS_802_11_FIXED_IEs FixIEs;
 	NDIS_802_11_AUTHENTICATION_MODE AuthModeAux;	// Addition mode for WPA2 / WPA capable AP
 	NDIS_802_11_AUTHENTICATION_MODE AuthMode;
+	UCHAR AuthBitMode;	// authTypeFlags for WPA, a bitwise OR
+	UCHAR PairCipherBitMode;	// encTypeFlags for WPA, a bitwise OR
 	NDIS_802_11_WEP_STATUS WepStatus;	// Unicast Encryption Algorithm extract from VAR_IE
 	UCHAR VarIELen;		// Length of next VIE include EID & Length
 	UCHAR VarIEs[MAX_VIE_LEN];

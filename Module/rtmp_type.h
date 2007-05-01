@@ -38,6 +38,8 @@
 // Put platform dependent declaration here
 // For example, linux type definition
 
+#define PACKED __attribute__ ((packed))
+
 typedef u16 UINT16;
 typedef u32 UINT32;
 typedef u64 UINT64;
@@ -67,7 +69,6 @@ typedef u64 UINT64;
     (UINT64)(((UINT64)(x) & (UINT64) 0xff00000000000000ULL) >> 56) ))
 
 #ifdef BIG_ENDIAN
-#define PACKED  __attribute__ ((packed))
 
 #define cpu2le64(x) SWAP64((x))
 #define le2cpu64(x) SWAP64((x))
@@ -83,13 +84,6 @@ typedef u64 UINT64;
 #define be2cpu16(x) ((UINT16)(x))
 
 #else				// Little_Endian
-
-// need to verify for embedded system!!
-#ifdef WPA_SUPPLICANT_SUPPORT
-#define PACKED  __attribute__ ((packed))
-#else
-#define PACKED
-#endif				// WPA_SUPPLICANT_SUPPORT (RTMP_EMBEDDED)
 
 #define cpu2le64(x) ((UINT64)(x))
 #define le2cpu64(x) ((UINT64)(x))

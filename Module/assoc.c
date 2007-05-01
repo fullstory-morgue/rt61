@@ -243,7 +243,8 @@ VOID MlmeAssocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	HEADER_802_11 AssocHdr;
 	UCHAR WmeIe[9] =
 	    { IE_VENDOR_SPECIFIC, 0x07, 0x00, 0x50, 0xf2, 0x02, 0x00, 0x01,
-       STA_QOS_CAPABILITY };
+		STA_QOS_CAPABILITY
+	};
 	UCHAR CipherTmp[64];
 	UCHAR CipherTmpLen;
 	USHORT ListenIntv;
@@ -349,13 +350,26 @@ VOID MlmeAssocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		}
 
 		if (pAd->MlmeAux.APEdcaParm.bValid) {
-			WmeIe[8] |=
-			    (pAd->MlmeAux.APEdcaParm.EdcaUpdateCount & 0x0f);
-			MakeOutgoingFrame(pOutBuffer + FrameLen, &tmp, 9,
-					  &WmeIe[0], END_OF_ARGS);
+			if (pAd->PortCfg.bAPSDCapable
+			    && pAd->MlmeAux.APEdcaParm.bAPSDCapable) {
+				QBSS_STA_INFO_PARM QosInfo;
+
+				memset(&QosInfo, 0, sizeof(QBSS_STA_INFO_PARM));
+				QosInfo.UAPSD_AC_BE = pAd->PortCfg.bAPSDAC_BE;
+				QosInfo.UAPSD_AC_BK = pAd->PortCfg.bAPSDAC_BK;
+				QosInfo.UAPSD_AC_VI = pAd->PortCfg.bAPSDAC_VI;
+				QosInfo.UAPSD_AC_VO = pAd->PortCfg.bAPSDAC_VO;
+				QosInfo.MaxSPLength = pAd->PortCfg.MaxSPLength;
+				WmeIe[8] |= *(PUCHAR) & QosInfo;
+			} else {
+				// The Parameter Set Count is set to ¡§0¡¨ in the association request frames
+				// WmeIe[8] |= (pAd->MlmeAux.APEdcaParm.EdcaUpdateCount & 0x0f);
+			}
+
+			MakeOutgoingFrame(pOutBuffer + FrameLen, &tmp,
+					  9, &WmeIe[0], END_OF_ARGS);
 			FrameLen += tmp;
 		}
-
 		// For WPA / WPA-PSK
 		if ((pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA) ||
 		    (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK)) {
@@ -474,7 +488,8 @@ VOID MlmeAssocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				ULONG TmpLen;
 				UCHAR RalinkIe[9] =
 				    { IE_VENDOR_SPECIFIC, 7, 0x00, 0x0c, 0x43,
-			    0x03, 0x00, 0x00, 0x00 };
+					0x03, 0x00, 0x00, 0x00
+				};
 				MakeOutgoingFrame(pOutBuffer + FrameLen,
 						  &TmpLen, 9, RalinkIe,
 						  END_OF_ARGS);
@@ -483,7 +498,8 @@ VOID MlmeAssocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				ULONG TmpLen;
 				UCHAR RalinkIe[9] =
 				    { IE_VENDOR_SPECIFIC, 7, 0x00, 0x0c, 0x43,
-			    0x01, 0x00, 0x00, 0x00 };
+					0x01, 0x00, 0x00, 0x00
+				};
 				MakeOutgoingFrame(pOutBuffer + FrameLen,
 						  &TmpLen, 9, RalinkIe,
 						  END_OF_ARGS);
@@ -530,7 +546,8 @@ VOID MlmeReassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	HEADER_802_11 ReassocHdr;
 	UCHAR WmeIe[9] =
 	    { IE_VENDOR_SPECIFIC, 0x07, 0x00, 0x50, 0xf2, 0x02, 0x00, 0x01,
-       STA_QOS_CAPABILITY };
+		STA_QOS_CAPABILITY
+	};
 	USHORT CapabilityInfo, ListenIntv;
 	ULONG Timeout;
 	ULONG FrameLen = 0;
@@ -590,10 +607,24 @@ VOID MlmeReassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		}
 
 		if (pAd->MlmeAux.APEdcaParm.bValid) {
-			WmeIe[8] |=
-			    (pAd->MlmeAux.APEdcaParm.EdcaUpdateCount & 0x0f);
-			MakeOutgoingFrame(pOutBuffer + FrameLen, &tmp, 9,
-					  &WmeIe[0], END_OF_ARGS);
+			if (pAd->PortCfg.bAPSDCapable
+			    && pAd->MlmeAux.APEdcaParm.bAPSDCapable) {
+				QBSS_STA_INFO_PARM QosInfo;
+
+				memset(&QosInfo, 0, sizeof(QBSS_STA_INFO_PARM));
+				QosInfo.UAPSD_AC_BE = pAd->PortCfg.bAPSDAC_BE;
+				QosInfo.UAPSD_AC_BK = pAd->PortCfg.bAPSDAC_BK;
+				QosInfo.UAPSD_AC_VI = pAd->PortCfg.bAPSDAC_VI;
+				QosInfo.UAPSD_AC_VO = pAd->PortCfg.bAPSDAC_VO;
+				QosInfo.MaxSPLength = pAd->PortCfg.MaxSPLength;
+				WmeIe[8] |= *(PUCHAR) & QosInfo;
+			} else {
+				// The Parameter Set Count is set to ¡§0¡¨ in the association request frames
+				// WmeIe[8] |= (pAd->MlmeAux.APEdcaParm.EdcaUpdateCount & 0x0f);
+			}
+
+			MakeOutgoingFrame(pOutBuffer + FrameLen, &tmp,
+					  9, &WmeIe[0], END_OF_ARGS);
 			FrameLen += tmp;
 		}
 #ifdef AGGREGATION_SUPPORT
@@ -611,7 +642,8 @@ VOID MlmeReassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				ULONG TmpLen;
 				UCHAR RalinkIe[9] =
 				    { IE_VENDOR_SPECIFIC, 7, 0x00, 0x0c, 0x43,
-			    0x03, 0x00, 0x00, 0x00 };
+					0x03, 0x00, 0x00, 0x00
+				};
 				MakeOutgoingFrame(pOutBuffer + FrameLen,
 						  &TmpLen, 9, RalinkIe,
 						  END_OF_ARGS);
@@ -620,7 +652,8 @@ VOID MlmeReassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				ULONG TmpLen;
 				UCHAR RalinkIe[9] =
 				    { IE_VENDOR_SPECIFIC, 7, 0x00, 0x0c, 0x43,
-			    0x01, 0x00, 0x00, 0x00 };
+					0x01, 0x00, 0x00, 0x00
+				};
 				MakeOutgoingFrame(pOutBuffer + FrameLen,
 						  &TmpLen, 9, RalinkIe,
 						  END_OF_ARGS);
@@ -661,9 +694,9 @@ VOID MlmeDisassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	ULONG FrameLen = 0;
 	ULONG Timeout = 0;
 	USHORT Status;
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 	union iwreq_data wrqu;
-//#endif
+#endif
 
 	// skip sanity check
 	pDisassocReq = (PMLME_DISASSOC_REQ_STRUCT) (Elem->Msg);
@@ -701,14 +734,14 @@ VOID MlmeDisassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// memset(pAd->MlmeAux.Ssid, 0, MAX_LEN_OF_SSID);
 	// memset(pAd->MlmeAux.Bssid, 0, ETH_ALEN);
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 	if (pAd->PortCfg.WPA_Supplicant == TRUE) {
 		//send disassociate event to wpa_supplicant
 		memset(&wrqu, 0, sizeof(wrqu));
 		wrqu.data.flags = RT_DISASSOC_EVENT_FLAG;
 		wireless_send_event(pAd->net_dev, IWEVCUSTOM, &wrqu, NULL);
 	}
-//#endif
+#endif
 
 	pAd->PortCfg.DisassocReason = REASON_DISASSOC_STA_LEAVING;
 	memcpy(pAd->PortCfg.DisassocSta, pDisassocReq->Addr, ETH_ALEN);
@@ -719,13 +752,13 @@ VOID MlmeDisassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	pAd->Mlme.AssocMachine.CurrState = DISASSOC_WAIT_RSP;
 }
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
-#ifdef DBG
+#if WPA_SUPPLICANT_SUPPORT
+#ifdef RT61_DBG
 static void _rtmp_hexdump(int level, const char *title, const u8 * buf,
 			  size_t len, int show)
 {
 	size_t i;
-	if (level < RTDebugLevel)
+	if (!debug)
 		return;
 	printk("%s - hexdump(len=%lu):", title, (unsigned long)len);
 	if (show) {
@@ -772,11 +805,12 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	NDIS_STATUS res;
 
 	const int assoc_size = sizeof(*ndis_assoc_info) + IW_CUSTOM_MAX;
-	assoc_info = kmalloc(assoc_size, GFP_KERNEL);
+	assoc_info = kmalloc(assoc_size, MEM_ALLOC_FLAG);
 	if (!assoc_info) {
 		DBGPRINT(RT_DEBUG_TRACE, "couldn't allocate memory\n");
 		return;
 	}
+
 	memset(assoc_info, 0, assoc_size);
 	ndis_assoc_info = (NDIS_802_11_ASSOCIATION_INFORMATION *) assoc_info;
 
@@ -795,25 +829,26 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	 * WE-18.
 	 */
 
-#ifdef DBG
+#ifdef RT61_DBG
 	rtmp_hexdump(RT_DEBUG_TRACE, "ASSOCINFO", (const u8 *)ndis_assoc_info,
 		     sizeof(NDIS_802_11_ASSOCIATION_INFORMATION));
 #endif
 
-	wpa_assoc_info_req = kmalloc(IW_CUSTOM_MAX, GFP_KERNEL);
+	wpa_assoc_info_req = kmalloc(IW_CUSTOM_MAX, MEM_ALLOC_FLAG);
 	if (!wpa_assoc_info_req) {
 		DBGPRINT(RT_DEBUG_TRACE, "couldn't allocate memory\n");
-		kfree(wpa_assoc_info_req);
 		return;
 	}
 	//send ReqIEs
 	memset(wpa_assoc_info_req, 0, IW_CUSTOM_MAX);
 	p = wpa_assoc_info_req;
-	p += sprintf(p, "ASSOCINFO(ReqIEs=");
+	p += sprintf(p, "ASSOCINFO_ReqIEs=");
 	ies = ((char *)ndis_assoc_info) + ndis_assoc_info->OffsetRequestIEs;
-	for (i = 0; i < ndis_assoc_info->RequestIELength; i++)
-		p += sprintf(p, "%02x", ies[i]);
 
+	for (i = 0; i < ndis_assoc_info->RequestIELength; i++)
+		p += sprintf(p, "%c", ies[i]);
+
+	p += sprintf(p, "\0");
 	memset(&wrqu, 0, sizeof(wrqu));
 	wrqu.data.length = p - wpa_assoc_info_req;
 	wrqu.data.flags = RT_REQIE_EVENT_FLAG;
@@ -821,10 +856,9 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	wireless_send_event(pAd->net_dev, IWEVCUSTOM, &wrqu,
 			    wpa_assoc_info_req);
 
-	wpa_assoc_info_resp = kmalloc(IW_CUSTOM_MAX, GFP_KERNEL);
+	wpa_assoc_info_resp = kmalloc(IW_CUSTOM_MAX, MEM_ALLOC_FLAG);
 	if (!wpa_assoc_info_resp) {
 		DBGPRINT(RT_DEBUG_TRACE, "couldn't allocate memory\n");
-		kfree(wpa_assoc_info_resp);
 		return;
 	}
 	//send RespIEs
@@ -832,10 +866,11 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	p = wpa_assoc_info_resp;
 	p += sprintf(p, " RespIEs=");
 	ies = ((char *)ndis_assoc_info) + ndis_assoc_info->OffsetResponseIEs;
-	for (i = 0; i < ndis_assoc_info->ResponseIELength; i++)
-		p += sprintf(p, "%02x", ies[i]);
-	p += sprintf(p, ")");
 
+	for (i = 0; i < ndis_assoc_info->ResponseIELength; i++)
+		p += sprintf(p, "%c", ies[i]);
+
+	p += sprintf(p, "\0");
 	memset(&wrqu, 0, sizeof(wrqu));
 	wrqu.data.length = p - wpa_assoc_info_resp;
 	wrqu.data.flags = RT_RESPIE_EVENT_FLAG;
@@ -860,7 +895,7 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 		return;
 	}
 
-	wpa_assoc_info = kmalloc(IW_CUSTOM_MAX, GFP_KERNEL);
+	wpa_assoc_info = kmalloc(IW_CUSTOM_MAX, MEM_ALLOC_FLAG);
 	if (!wpa_assoc_info) {
 		DBGPRINT(RT_DEBUG_TRACE, "couldn't allocate memory\n");
 		kfree(assoc_info);
@@ -892,8 +927,7 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 
 	return;
 }
-
-//#endif
+#endif
 
 /*
     ==========================================================================
@@ -910,9 +944,9 @@ VOID PeerAssocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	UCHAR ExtRate[MAX_LEN_OF_SUPPORTED_RATES], ExtRateLen;
 	UCHAR Addr2[ETH_ALEN];
 	EDCA_PARM EdcaParm;
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 	union iwreq_data wrqu;
-//#endif
+#endif
 
 	if (PeerAssocRspSanity
 	    (pAd, Elem->Msg, Elem->MsgLen, Addr2, &CapabilityInfo, &Status,
@@ -929,7 +963,7 @@ VOID PeerAssocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 					      SupRate, SupRateLen, ExtRate,
 					      ExtRateLen, &EdcaParm);
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 				if (pAd->PortCfg.WPA_Supplicant == TRUE) {
 					// collect associate info
 					link_status_handler(pAd);
@@ -940,7 +974,7 @@ VOID PeerAssocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 							    IWEVCUSTOM, &wrqu,
 							    NULL);
 				}
-//#endif
+#endif
 			}
 
 			pAd->Mlme.AssocMachine.CurrState = ASSOC_IDLE;
@@ -970,9 +1004,9 @@ VOID PeerReassocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	UCHAR ExtRate[MAX_LEN_OF_SUPPORTED_RATES], ExtRateLen;
 	UCHAR Addr2[ETH_ALEN];
 	EDCA_PARM EdcaParm;
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 	union iwreq_data wrqu;
-//#endif
+#endif
 
 	if (PeerAssocRspSanity
 	    (pAd, Elem->Msg, Elem->MsgLen, Addr2, &CapabilityInfo, &Status,
@@ -990,7 +1024,7 @@ VOID PeerReassocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 					      SupRate, SupRateLen, ExtRate,
 					      ExtRateLen, &EdcaParm);
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 				if (pAd->PortCfg.WPA_Supplicant == TRUE) {
 					//collect associate info
 					link_status_handler(pAd);
@@ -1004,7 +1038,7 @@ VOID PeerReassocRspAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				DBGPRINT(RT_DEBUG_OFF,
 					 "ASSOC - receive REASSOC_RSP to me (status=%d)\n",
 					 Status);
-//#endif
+#endif
 			}
 
 			pAd->Mlme.AssocMachine.CurrState = ASSOC_IDLE;
@@ -1112,9 +1146,9 @@ VOID PeerDisassocAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	UCHAR Addr2[ETH_ALEN];
 	USHORT Reason;
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 	union iwreq_data wrqu;
-//#endif
+#endif
 
 	if (PeerDisassocSanity(pAd, Elem->Msg, Elem->MsgLen, Addr2, &Reason)) {
 		if (INFRA_ON(pAd)
@@ -1122,7 +1156,7 @@ VOID PeerDisassocAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			LinkDown(pAd, TRUE);
 			pAd->Mlme.AssocMachine.CurrState = ASSOC_IDLE;
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 			if (pAd->PortCfg.WPA_Supplicant == TRUE) {
 				// send disassoc event to wpa_supplicant
 				memset(&wrqu, 0, sizeof(wrqu));
@@ -1130,7 +1164,7 @@ VOID PeerDisassocAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				wireless_send_event(pAd->net_dev, IWEVCUSTOM,
 						    &wrqu, NULL);
 			}
-//#endif
+#endif
 
 #if 0
 			// 2004-09-11 john: can't remember why AP will DISASSOCIATE us.

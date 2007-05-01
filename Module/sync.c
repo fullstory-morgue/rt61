@@ -66,6 +66,10 @@ UCHAR A_BAND_REGION_6_CHANNEL_LIST[] = { 36, 40, 44, 48 };
 UCHAR A_BAND_REGION_7_CHANNEL_LIST[] =
     { 36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128,
 132, 136, 140, 149, 153, 157, 161, 165 };
+UCHAR A_BAND_REGION_8_CHANNEL_LIST[] = { 52, 56, 60, 64 };
+UCHAR A_BAND_REGION_9_CHANNEL_LIST[] = { 34, 38, 42, 46 };
+UCHAR A_BAND_REGION_10_CHANNEL_LIST[] =
+    { 34, 36, 38, 40, 42, 44, 46, 48, 52, 56, 60, 64 };
 
 
 /*
@@ -121,6 +125,13 @@ static VOID ScanNextChannel(IN PRTMP_ADAPTER pAd)
 	UCHAR SsidLen = 0, ScanType = pAd->MlmeAux.ScanType;
 	USHORT Status;
 	PHEADER_802_11 pHdr80211;
+	PUCHAR pSupRate = NULL;
+	UCHAR SupRateLen;
+	PUCHAR pExtRate = NULL;
+	UCHAR ExtRateLen;
+	//For A band
+	UCHAR ASupRate[] = { 0x8C, 0x12, 0x98, 0x24, 0xb0, 0x48, 0x60, 0x6C };
+	UCHAR ASupRateLen = sizeof(ASupRate) / sizeof(UCHAR);
 
 	DBGPRINT(RT_DEBUG_INFO, "ScanNextChannel(ch=%d)\n",
 		 pAd->MlmeAux.Channel);
@@ -223,6 +234,15 @@ static VOID ScanNextChannel(IN PRTMP_ADAPTER pAd)
 			add_timer(&pAd->MlmeAux.ScanTimer);
 
 		}
+		//
+		// J52 channels must be on Passive Scan,
+		// means we can't send probe request on those channels.
+		//
+		if ((pAd->MlmeAux.Channel == 34) || (pAd->MlmeAux.Channel == 38)
+		    || (pAd->MlmeAux.Channel == 42)
+		    || (pAd->MlmeAux.Channel == 46)) {
+			ScanType = SCAN_PASSIVE;
+		}
 
 		if ((ScanType == SCAN_ACTIVE) || (ScanType == FAST_SCAN_ACTIVE)) {
 			pOutBuffer =
@@ -242,23 +262,38 @@ static VOID ScanNextChannel(IN PRTMP_ADAPTER pAd)
 				SsidLen = pAd->MlmeAux.SsidLen;
 			else
 				SsidLen = 0;
+
+			if (pAd->MlmeAux.Channel <= 14) {
+				// B&G band use 1,2,5.5,11
+				pSupRate = pAd->PortCfg.SupRate;
+				SupRateLen = pAd->PortCfg.SupRateLen;
+				pExtRate = pAd->PortCfg.ExtRate;
+				ExtRateLen = pAd->PortCfg.ExtRateLen;
+			} else  // A band use OFDM rate
+			{
+				//
+				// Overwrite Support Rate, CCK rate are not allowed
+				//
+				pSupRate = ASupRate;
+				SupRateLen = ASupRateLen;
+				ExtRateLen = 0;
+			}
+
 			MgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0,
 					 BROADCAST_ADDR, BROADCAST_ADDR);
 			MakeOutgoingFrame(pOutBuffer, &FrameLen,
 					  sizeof(HEADER_802_11), &Hdr80211, 1,
 					  &SsidIe, 1, &SsidLen, SsidLen,
 					  pAd->MlmeAux.Ssid, 1, &SupRateIe, 1,
-					  &pAd->PortCfg.SupRateLen,
-					  pAd->PortCfg.SupRateLen,
-					  pAd->PortCfg.SupRate, END_OF_ARGS);
+					  &SupRateLen, SupRateLen, pSupRate,
+					  END_OF_ARGS);
 
-			if (pAd->PortCfg.ExtRateLen) {
+			if (ExtRateLen) {
 				ULONG Tmp;
 				MakeOutgoingFrame(pOutBuffer + FrameLen, &Tmp,
 						  1, &ExtRateIe,
-						  1, &pAd->PortCfg.ExtRateLen,
-						  pAd->PortCfg.ExtRateLen,
-						  pAd->PortCfg.ExtRate,
+						  1, &ExtRateLen,
+						  ExtRateLen, pExtRate,
 						  END_OF_ARGS);
 				FrameLen += Tmp;
 			}
@@ -712,6 +747,7 @@ static VOID PeerBeaconAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * El
 	NDIS_802_11_VARIABLE_IEs *pVIE = NULL;
 	ULONG RalinkIe;
 	ULONG Idx;
+	UCHAR PeerTxType;
 
 	// Init Variable IE structure
 	pVIE = (PNDIS_802_11_VARIABLE_IEs) VarIE;
@@ -780,6 +816,10 @@ static VOID PeerBeaconAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * El
 							  RSSI_NO_2);
 					pAd->PortCfg.LastRssi2 =
 					    RealRssi + pAd->BbpRssiToDbmDelta;
+					pAd->PortCfg.AvgRssi2 =
+					    pAd->PortCfg.LastRssi2;
+					pAd->PortCfg.AvgRssi2X8 =
+					    pAd->PortCfg.AvgRssi2 << 3;
 				}
 			}
 			//
@@ -826,6 +866,30 @@ static VOID PeerBeaconAtJoinAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * El
 			memcpy(pAd->MlmeAux.ExtRate, ExtRate, ExtRateLen);
 			RTMPCheckRates(pAd, pAd->MlmeAux.ExtRate,
 				       &pAd->MlmeAux.ExtRateLen);
+
+			//
+			// Update MlmeRate & RtsRate.
+			// We need to update those rates, for example on Roaming A to B,
+			// MlmeRate will be RATE_6(OFDM) on 11A, but when roam to B.
+			// RATE_6 can't be recognized by 11B AP and vice versa.
+			//
+			PeerTxType = PeerTxTypeInUseSanity(Channel, SupRate, SupRateLen,
+							   ExtRate, ExtRateLen);
+			switch (PeerTxType) {
+			case CCK_RATE:  //CCK
+			case CCKOFDM_RATE:      //CCK + OFDM
+				pAd->PortCfg.MlmeRate = RATE_2;
+				pAd->PortCfg.RtsRate = RATE_2;
+				break;
+			case OFDM_RATE: //OFDM
+				pAd->PortCfg.MlmeRate = RATE_6;
+				pAd->PortCfg.RtsRate = RATE_6;
+				break;
+			default:
+				pAd->PortCfg.MlmeRate = RATE_2;
+				pAd->PortCfg.RtsRate = RATE_2;
+				break;
+			}
 
 			// copy QOS related information
 			if (pAd->PortCfg.bWmmCapable) {
@@ -1009,7 +1073,7 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		}
 		// if the ssid matched & bssid unmatched, we should select the bssid with large value.
 		// This might happened when two STA start at the same time
-		if ((!is_my_bssid) && ADHOC_ON(pAd)) {
+		if ((!is_my_bssid) && ADHOC_ON(pAd) && (BssType == BSS_ADHOC)) {
 			INT i;
 
 			// Add to safe guard adhoc wep status mismatch
@@ -1055,6 +1119,9 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		// BEACON from my BSSID - either IBSS or INFRA network
 		//
 		if (is_my_bssid) {
+			pAd->PortCfg.DtimCount = DtimCount;
+			pAd->PortCfg.DtimPeriod = DtimPeriod;
+
 			pAd->PortCfg.LastBeaconRxTime = Now;
 			DBGPRINT(RT_DEBUG_INFO, "Rx My BEACON\n");
 
@@ -1098,6 +1165,12 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 							  RSSI_NO_2);
 					pAd->PortCfg.LastRssi2 =
 					    RealRssi + pAd->BbpRssiToDbmDelta;
+					pAd->PortCfg.AvgRssi2X8 =
+					    (pAd->PortCfg.AvgRssi2X8 -
+					     pAd->PortCfg.AvgRssi2) +
+					    pAd->PortCfg.LastRssi2;
+					pAd->PortCfg.AvgRssi2 =
+					    pAd->PortCfg.AvgRssi2X8 >> 3;
 				}
 			}
 
@@ -1186,7 +1259,8 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 			}
 			// only INFRASTRUCTURE mode support power-saving feature
-			if (INFRA_ON(pAd) && (pAd->PortCfg.Psm == PWR_SAVE)) {
+			if ((INFRA_ON(pAd) && (pAd->PortCfg.Psm == PWR_SAVE))
+			    || (pAd->PortCfg.bAPSDForcePowerSave)) {
 				UCHAR FreeNumber;
 				//  1. AP has backlogged unicast-to-me frame, stay AWAKE, send PSPOLL
 				//  2. AP has backlogged broadcast/multicast frame and we want those frames, stay AWAKE
@@ -1196,7 +1270,16 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 				if (MessageToMe) {
 					DBGPRINT(RT_DEBUG_TRACE,
 						 "SYNC - AP backlog unicast-to-me, stay AWAKE, send PSPOLL\n");
-					EnqueuePsPoll(pAd);
+					if (pAd->PortCfg.bAPSDCapable
+					    && pAd->PortCfg.APEdcaParm.bAPSDCapable
+					    && pAd->PortCfg.bAPSDAC_BE
+					    && pAd->PortCfg.bAPSDAC_BK
+					    && pAd->PortCfg.bAPSDAC_VI
+					    && pAd->PortCfg.bAPSDAC_VO) {
+						// When APSD turn on and all ACs are APSD enabled, do not send ps-poll
+						;
+					} else
+						EnqueuePsPoll(pAd);
 				} else if (BcastFlag && (DtimCount == 0)
 					   && OPSTATUS_TEST_FLAG(pAd,
 								 fOP_STATUS_RECEIVE_DTIM))
@@ -1244,7 +1327,8 @@ VOID PeerBeacon(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 			// At least another peer in this IBSS, declare MediaState as CONNECTED
 			if (ADHOC_ON(pAd) &&
 			    !OPSTATUS_TEST_FLAG(pAd,
-						fOP_STATUS_MEDIA_STATE_CONNECTED))
+						fOP_STATUS_MEDIA_STATE_CONNECTED)
+			    && (BssType == BSS_ADHOC))
 			{
 				OPSTATUS_SET_FLAG(pAd,
 						  fOP_STATUS_MEDIA_STATE_CONNECTED);
@@ -1796,6 +1880,24 @@ VOID BuildChannelList(IN PRTMP_ADAPTER pAd)
 			    sizeof(A_BAND_REGION_7_CHANNEL_LIST) /
 			    sizeof(UCHAR);
 			pChannelList = A_BAND_REGION_7_CHANNEL_LIST;
+			break;
+		case REGION_8_A_BAND:
+			num =
+			    sizeof(A_BAND_REGION_8_CHANNEL_LIST) /
+			    sizeof(UCHAR);
+			pChannelList = A_BAND_REGION_8_CHANNEL_LIST;
+			break;
+		case REGION_9_A_BAND:
+			num =
+			    sizeof(A_BAND_REGION_9_CHANNEL_LIST) /
+			    sizeof(UCHAR);
+			pChannelList = A_BAND_REGION_9_CHANNEL_LIST;
+			break;
+		case REGION_10_A_BAND:
+			num =
+			    sizeof(A_BAND_REGION_10_CHANNEL_LIST) /
+			    sizeof(UCHAR);
+			pChannelList = A_BAND_REGION_10_CHANNEL_LIST;
 			break;
 		default:	// Error. should never happen
 			DBGPRINT(RT_DEBUG_WARN, "countryregion=%d not support",

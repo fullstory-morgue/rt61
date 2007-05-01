@@ -33,6 +33,7 @@
  ***************************************************************************/
 
 #include "rt_config.h"
+#include <net/iw_handler.h>
 
 UCHAR WPA_OUI[] = { 0x00, 0x50, 0xf2, 0x01 };
 UCHAR RSN_OUI[] = { 0x00, 0x0f, 0xac };
@@ -243,6 +244,8 @@ BOOLEAN PeerAssocRspSanity(IN PRTMP_ADAPTER pAd,
 				//pEdcaParm->bMoreDataAck    = FALSE; // pEid->Octet[0] & 0x80;
 				pEdcaParm->EdcaUpdateCount =
 				    pEid->Octet[6] & 0x0f;
+				pEdcaParm->bAPSDCapable =
+				    (pEid->Octet[6] & 0x80) ? 1 : 0;
 				ptr = &pEid->Octet[8];
 				for (i = 0; i < 4; i++) {
 					UCHAR aci = (*ptr & 0x60) >> 5;	// b5~6 is AC INDEX
@@ -704,6 +707,13 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 			    && (pEid->Len == 7)) {
 				*pRalinkIe = pEid->Octet[3];
 			} else if (memcmp(pEid->Octet, WPA_OUI, 4) == 0) {
+				if ((*LengthVIE + pEid->Len + 2) >= MAX_VIE_LEN) {
+					DBGPRINT(RT_DEBUG_WARN,
+						 "PeerBeaconAndProbeRspSanity - Variable IEs out of resource [len(=%d) > MAX_VIE_LEN(=%d)]\n",
+						 (*LengthVIE + pEid->Len + 2),
+						 MAX_VIE_LEN);
+					break;
+				}
 				// Copy to pVIE which will report to microsoft bssid list.
 				Ptr = (PUCHAR) pVIE;
 				memcpy(Ptr + *LengthVIE, &pEid->Eid,
@@ -721,6 +731,8 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 				pEdcaParm->bTxopRequest = FALSE;	// pEid->Octet[0] & 0x40;
 				pEdcaParm->EdcaUpdateCount =
 				    pEid->Octet[6] & 0x0f;
+				pEdcaParm->bAPSDCapable =
+				    (pEid->Octet[6] & 0x80) ? 1 : 0;
 				ptr = &pEid->Octet[8];
 				for (i = 0; i < 4; i++) {
 					UCHAR aci = (*ptr & 0x60) >> 5;	// b5~6 is AC INDEX
@@ -740,6 +752,8 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 				pEdcaParm->bTxopRequest = FALSE;	// pEid->Octet[0] & 0x40;
 				pEdcaParm->EdcaUpdateCount =
 				    pEid->Octet[6] & 0x0f;
+				pEdcaParm->bAPSDCapable =
+				    (pEid->Octet[6] & 0x80) ? 1 : 0;
 
 				// use default EDCA parameter
 				// set AC_BE value
@@ -772,13 +786,26 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 				pEdcaParm->Cwmax[QID_AC_VO] =
 				    CW_MAX_IN_BITS - 1;
 				pEdcaParm->Txop[QID_AC_VO] = 48;	// AC_VO: 48*32us ~= 1.5ms
-			} else {
+			}
+#if 0				// Let pVIE dedicated to wpa1 and wpa2 ie
+			else {
+				//
 				// Gemtek ask us to pass other vendor's IE for their applications
+				//
+				if ((*LengthVIE + pEid->Len + 2) >= MAX_VIE_LEN) {
+					DBGPRINT(RT_DEBUG_WARN,
+						 "PeerBeaconAndProbeRspSanity - Variable IEs out of resource [len(=%d) > MAX_VIE_LEN(=%d)]\n",
+						 (*LengthVIE + pEid->Len + 2),
+						 MAX_VIE_LEN);
+					break;
+				}
+
 				Ptr = (PUCHAR) pVIE;
 				memcpy(Ptr + *LengthVIE, &pEid->Eid,
 				       pEid->Len + 2);
 				*LengthVIE += (pEid->Len + 2);
 			}
+#endif
 
 			DBGPRINT(RT_DEBUG_INFO,
 				 "PeerBeaconAndProbeRspSanity - Receive IE_WPA\n");
@@ -807,6 +834,13 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 		case IE_RSN:
 			// There is no OUI for version anymore, check the group cipher OUI before copying
 			if (memcmp(pEid->Octet + 2, RSN_OUI, 3) == 0) {
+				if ((*LengthVIE + pEid->Len + 2) >= MAX_VIE_LEN) {
+					DBGPRINT(RT_DEBUG_WARN,
+						 "PeerBeaconAndProbeRspSanity - Variable IEs out of resource [len(=%d) > MAX_VIE_LEN(=%d)]\n",
+						 (*LengthVIE + pEid->Len + 2),
+						 MAX_VIE_LEN);
+					break;
+				}
 				// Copy to pVIE which will report to microsoft bssid list.
 				Ptr = (PUCHAR) pVIE;
 				memcpy(Ptr + *LengthVIE, &pEid->Eid,
@@ -869,13 +903,6 @@ BOOLEAN PeerBeaconAndProbeRspSanity(IN PRTMP_ADAPTER pAd,
 			break;
 #endif
 		default:
-			// Unknown IE, we have to pass it as variable IEs
-			Ptr = (PUCHAR) pVIE;
-			memcpy(Ptr + *LengthVIE, &pEid->Eid, pEid->Len + 2);
-			*LengthVIE += (pEid->Len + 2);
-			DBGPRINT(RT_DEBUG_INFO,
-				 "PeerBeaconAndProbeRspSanity - unrecognized EID = %d\n",
-				 pEid->Eid);
 			break;
 		}
 
@@ -1150,4 +1177,74 @@ BOOLEAN BackDoorProbeRspSanity(IN PRTMP_ADAPTER pAd,
 	}
 
 	return FALSE;
+}
+
+/*
+	========================================================================
+	Routine Description:
+		Get Peer TX phy mode(CCK or OFDM)
+	Arguments:
+		Channel				Current Channel
+		SupRate				Peer's Supported Rate Buffer
+		SupRateLen			Peer's Supported Rate Length
+		ExtRate				Peer's Extended Rate Buffer
+		ExtRateLen			Peer's Extended Rate Length
+		
+	Return Value:
+    	1 - CCK
+    	2 - OFDM
+    	3 - CCK+OFDM
+	========================================================================
+*/
+UCHAR PeerTxTypeInUseSanity(IN UCHAR Channel,
+			    IN UCHAR SupRate[],
+			    IN UCHAR SupRateLen,
+			    IN UCHAR ExtRate[], IN UCHAR ExtRateLen)
+{
+	UCHAR rate, i;
+	UCHAR Type = 0;
+
+	if (Channel <= 14) {
+		//
+		// First check support Rate.
+		//
+		for (i = 0; i < SupRateLen; i++) {
+			rate = SupRate[i] & 0x7f;	// Mask out basic rate set bit
+			if ((rate == 2) || (rate == 4) || (rate == 11)
+			    || (rate == 22)) {
+				Type |= 0x01;
+				continue;
+			} else {
+				//
+				// Otherwise (even rate > 108) means Ndis802_11OFDM24
+				//
+				Type |= 0x02;
+				break;
+			}
+		}
+
+		//
+		// Second check Extend Rate.
+		// Maybe OFDM rate store on Extend Rate. 
+		//
+		if ((Type & 0x02) == 0) {
+			for (i = 0; i < ExtRateLen; i++) {
+				rate = ExtRate[i] & 0x7f;	// Mask out basic rate set bit
+				if ((rate == 2) || (rate == 4) || (rate == 11)
+				    || (rate == 22)) {
+					continue;
+				} else {
+					//
+					// Otherwise (even rate > 108) means Ndis802_11OFDM24
+					//
+					Type |= 0x02;
+					break;
+				}
+			}
+		}
+	} else {
+		Type |= 0x02;
+	}
+
+	return Type;
 }

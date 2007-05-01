@@ -129,7 +129,7 @@ RTMP_REG_PAIR MACRegTable[] = {
 //      {MAC_CSR11,             0x0000000a}, // 0x302c, power state transition time
 //      {TXRX_CSR5,             0x0000000f}, // 0x3054, Basic rate set bitmap
 	{TXRX_CSR0, 0x025fb032},	// 0x3040, RX control, default Disable RX
-	{TXRX_CSR1, 0x9eb39eb3},	// 0x3044, BBP 30:Ant-A RSSI, R51:Ant-B RSSI, R42:OFDM rate, R47:CCK SIGNAL
+	{TXRX_CSR1, 0x9eaa9eaf},	// 0x3044, BBP 30:Ant-A RSSI, R51:Ant-B RSSI, R42:OFDM rate, R47:CCK SIGNAL
 	{TXRX_CSR2, 0x8a8b8c8d},	// 0x3048, CCK TXD BBP registers
 	{TXRX_CSR3, 0x00858687},	// 0x304c, OFDM TXD BBP registers
 	{TXRX_CSR7, 0x2E31353B},	// 0x305c, ACK/CTS payload consume time for 18/12/9/6 mbps
@@ -137,7 +137,7 @@ RTMP_REG_PAIR MACRegTable[] = {
 	{TXRX_CSR15, 0x0000000f},	// 0x307c, TKIP MIC priority byte "AND" mask
 	{MAC_CSR6, 0x00000fff},	// 0x3018, MAX frame length
 	{MAC_CSR8, 0x016c030a},	// 0x3020, SIFS time for compensation
-	{MAC_CSR10, 0x00000718},	// 0x3028, ASIC PIN control in various power states
+	{MAC_CSR10, 0x0000071c},	// 0x3028, ASIC PIN control in various power states
 	{MAC_CSR12, 0x00000004},	// 0x3030, power state control, set to AWAKE state
 	{MAC_CSR13, 0x0000e000},	// 0x3034, GPIO pin#5 Input as bHwRadio, otherwise as output.
 //      {INT_SOURCE_CSR,0xffffffff}, // 0x3068, Clear all pending interrupt source
@@ -718,6 +718,9 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 	// 3. UNI 140 - 165
 	for (i = 0; i < 5; i++)
 		pAd->TxPower[i + 33].Channel = 149 + i * 4;
+	// 34/38/42/46
+	for (i = 0; i < 4; i++)
+		pAd->TxPower[i + 38].Channel = 34 + i * 4;
 
 	// if E2PROM version mismatch with driver's expectation, then skip
 	// all subsequent E2RPOM retieval and set a system error bit to notify GUI
@@ -775,47 +778,80 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 		    && (Antenna.field.RfIcType != RFIC_5325))
 			pAd->PortCfg.PhyMode = PHY_11BG_MIXED;
 	}
-#if 0				// Hard set without switching in case of MIMO
-	if ((Antenna.field.RfIcType != RFIC_5325)
-	    || (Antenna.field.RfIcType != RFIC_2529)) {
-		//
-		// MIMO Case, RSSI_A+RSSI_B
-		//
-		pAd->Mlme.bTxRateReportPeriod = FALSE;
-		RTMP_IO_WRITE32(pAd, TXRX_CSR1, 0x9eb39eb3);
-	} else {
-		//
-		// Otherwise, RSSI+RxRate.
-		//
-		pAd->Mlme.bTxRateReportPeriod = TRUE;
-		RTMP_IO_WRITE32(pAd, TXRX_CSR1, 0x9eaa9eaf);
-	}
-#endif
 
 	// Read Tx power value for all channels
 	// Value from 1 - 0x7f. Default value is 24.
-	// 0. 11b/g
+	// 0. 11b/g, ch1 - ch 14
+	// Power value 0xFA (-6) ~ 0x24 (36)
 	for (i = 0; i < 7; i++) {
 		Power.word =
 		    RTMP_EEPROM_READ16(pAd, EEPROM_G_TX_PWR_OFFSET + i * 2);
-		pAd->TxPower[i * 2].Power =
-		    ((Power.field.Byte0 >
-		      32) ? DEFAULT_RF_TX_POWER : Power.field.Byte0);
-		pAd->TxPower[i * 2 + 1].Power =
-		    ((Power.field.Byte1 >
-		      32) ? DEFAULT_RF_TX_POWER : Power.field.Byte1);
+
+		if ((Power.field.Byte0 > 36))   //|| (Power.field.Byte0 < -6))
+			pAd->TxPower[i * 2].Power = DEFAULT_RF_TX_POWER;
+		else
+			pAd->TxPower[i * 2].Power = Power.field.Byte0;
+
+		if ((Power.field.Byte1 > 36))   //|| (Power.field.Byte1 < -6))
+			pAd->TxPower[i * 2 + 1].Power = DEFAULT_RF_TX_POWER;
+		else
+			pAd->TxPower[i * 2 + 1].Power = Power.field.Byte1;
 	}
 	// 1. UNI 36 - 64, HipperLAN 2 100 - 140, UNI 140 - 165
+	// Power value 0xFA (-6) ~ 0x24 (36)
 	for (i = 0; i < 12; i++) {
 		Power.word =
 		    RTMP_EEPROM_READ16(pAd, EEPROM_A_TX_PWR_OFFSET + i * 2);
-		pAd->TxPower[i * 2 + 14].Power =
-		    ((Power.field.Byte0 >
-		      32) ? DEFAULT_RF_TX_POWER : Power.field.Byte0);
-		pAd->TxPower[i * 2 + 15].Power =
-		    ((Power.field.Byte1 >
-		      32) ? DEFAULT_RF_TX_POWER : Power.field.Byte1);
+
+		if ((Power.field.Byte0 > 36))   //|| (Power.field.Byte0 < -6))
+			pAd->TxPower[i * 2 + 14].Power = DEFAULT_RF_TX_POWER;
+		else
+			pAd->TxPower[i * 2 + 14].Power = Power.field.Byte0;
+
+		if ((Power.field.Byte1 > 36))   //|| (Power.field.Byte1 < -6))
+			pAd->TxPower[i * 2 + 15].Power = DEFAULT_RF_TX_POWER;
+		else
+			pAd->TxPower[i * 2 + 15].Power = Power.field.Byte1;
 	}
+
+	// for J52, 34/38/42/46
+	Power.word = RTMP_EEPROM_READ16(pAd, EEPROM_J52_TX_PWR_OFFSET);
+	//
+	// Start from 0x7d, skip low byte.
+	//
+	ASSERT(pAd->TxPower[J52_CHANNEL_START_OFFSET].Channel == 34);
+	if ((Power.field.Byte0 > 36))   //|| (Power.field.Byte0 < -6))
+		pAd->TxPower[J52_CHANNEL_START_OFFSET].Power =
+		    DEFAULT_RF_TX_POWER;
+	else
+		pAd->TxPower[J52_CHANNEL_START_OFFSET].Power =
+		    Power.field.Byte1;
+
+	Power.word = RTMP_EEPROM_READ16(pAd, EEPROM_J52_TX_PWR_OFFSET + 2);
+	ASSERT(pAd->TxPower[J52_CHANNEL_START_OFFSET + 1].Channel == 38);
+	if ((Power.field.Byte0 > 36))   //|| (Power.field.Byte0 < -6))
+		pAd->TxPower[J52_CHANNEL_START_OFFSET + 1].Power =
+		    DEFAULT_RF_TX_POWER;
+	else
+		pAd->TxPower[J52_CHANNEL_START_OFFSET + 1].Power =
+		    Power.field.Byte0;
+
+	ASSERT(pAd->TxPower[J52_CHANNEL_START_OFFSET + 2].Channel == 42);
+	if ((Power.field.Byte0 > 36))   //|| (Power.field.Byte0 < -6))
+		pAd->TxPower[J52_CHANNEL_START_OFFSET + 2].Power =
+		    DEFAULT_RF_TX_POWER;
+	else
+		pAd->TxPower[J52_CHANNEL_START_OFFSET + 2].Power =
+		    Power.field.Byte1;
+
+	Power.word = RTMP_EEPROM_READ16(pAd, EEPROM_J52_TX_PWR_OFFSET + 4);
+	ASSERT(pAd->TxPower[J52_CHANNEL_START_OFFSET + 3].Channel == 46);
+	if ((Power.field.Byte0 > 36))   //|| (Power.field.Byte0 < -6))
+		pAd->TxPower[J52_CHANNEL_START_OFFSET + 3].Power =
+		    DEFAULT_RF_TX_POWER;
+	else
+		pAd->TxPower[J52_CHANNEL_START_OFFSET + 3].Power =
+		    Power.field.Byte0;
 
 	// Read TSSI reference and TSSI boundary for temperature compensation. This is ugly
 	// 0. 11b/g
@@ -1777,6 +1813,96 @@ static INT RTMPGetKeyParameter(IN PCHAR key,
 	return TRUE;
 }
 
+static void rtmp_read_key_parms_from_file(IN PRTMP_ADAPTER pAd, char *tmpbuf,
+					  char *buffer)
+{
+	char tok_str[16];
+	INT idx;
+	ULONG KeyType;
+	ULONG KeyLen;
+	ULONG KeyIdx;
+	UCHAR CipherAlg = CIPHER_WEP64;
+
+	//DefaultKeyID
+	if (RTMPGetKeyParameter("DefaultKeyID", tmpbuf, 25, buffer)) {
+		KeyIdx = simple_strtol(tmpbuf, 0, 10);
+		if ((KeyIdx >= 1) && (KeyIdx <= 4))
+			pAd->PortCfg.DefaultKeyId = (UCHAR) (KeyIdx - 1);
+		else
+			pAd->PortCfg.DefaultKeyId = 0;
+
+		DBGPRINT(RT_DEBUG_TRACE, "  DefaultKeyID(0~3)=%d\n",
+			 pAd->PortCfg.DefaultKeyId);
+	}
+
+	for (idx = 0; idx < 4; idx++) {
+
+		sprintf(tok_str, "Key%dType", idx + 1);
+		//Key%dType
+		if (RTMPGetKeyParameter(tok_str, tmpbuf, 32, buffer)) {
+			KeyType = simple_strtol(tmpbuf, 0, 10);
+
+			sprintf(tok_str, "Key%dStr", idx + 1);
+			//Key%dStr
+			if (RTMPGetKeyParameter(tok_str, tmpbuf, 128, buffer)) {
+				KeyLen = strlen(tmpbuf);
+				if (KeyType == 0) {	//Hex type
+					if ((KeyLen == 10) || (KeyLen == 26)) {
+						pAd->SharedKey[idx].KeyLen =
+						    KeyLen / 2;
+						AtoH(tmpbuf,
+						     pAd->SharedKey[idx].Key,
+						     KeyLen / 2);
+						if (KeyLen == 10)
+							CipherAlg =
+							    CIPHER_WEP64;
+						else
+							CipherAlg =
+							    CIPHER_WEP128;
+						pAd->SharedKey[idx].CipherAlg =
+						    CipherAlg;
+
+						DBGPRINT(RT_DEBUG_TRACE,
+							 "  Key%dStr=%s and type=%s\n",
+							 idx + 1, tmpbuf,
+							 (KeyType ==
+							  0) ? "Hex" : "Ascii");
+					} else {	//Invalid key length
+						DBGPRINT(RT_DEBUG_ERROR,
+							 "  Key%dStr is Invalid key length!\n",
+							 idx + 1);
+					}
+				} else {	//Ascii
+					if ((KeyLen == 5) || (KeyLen == 13)) {
+						pAd->SharedKey[idx].KeyLen =
+						    KeyLen;
+						memcpy(pAd->SharedKey[idx].Key,
+						       tmpbuf, KeyLen);
+						if (KeyLen == 5)
+							CipherAlg =
+							    CIPHER_WEP64;
+						else
+							CipherAlg =
+							    CIPHER_WEP128;
+						pAd->SharedKey[idx].CipherAlg =
+						    CipherAlg;
+
+						DBGPRINT(RT_DEBUG_TRACE,
+							 "  Key%dStr=%s and type=%s\n",
+							 idx + 1, tmpbuf,
+							 (KeyType ==
+							  0) ? "Hex" : "Ascii");
+					} else {	//Invalid key length
+						DBGPRINT(RT_DEBUG_ERROR,
+							 "  Key%dStr is Invalid key length!\n",
+							 idx + 1);
+					}
+				}
+			}
+		}
+	}
+}
+
 /*
     ========================================================================
 
@@ -1809,8 +1935,6 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 	ULONG ulInfo;
 	UCHAR ucInfo;
 	RT_802_11_PREAMBLE Preamble;
-	INT KeyLen, KeyType;
-	UCHAR CipherAlg = CIPHER_WEP64;
 
 	src = PROFILE_PATH;
 
@@ -1842,8 +1966,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 				    (UCHAR *) (((unsigned long)(mpool + 3)) &
 					       ((unsigned long)~(0x03)));
 				tmpbuf =
-				    (UCHAR
-				     *) (((unsigned long)(mpool +
+				    (UCHAR *) (((unsigned long)(mpool +
 							  MAX_INI_BUFFER_SIZE +
 							  3)) & ((unsigned long)
 								 ~(0x03)));
@@ -1914,6 +2037,9 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					memset(tmpbuf, 0x00, 255);
 					if (RTMPGetKeyParameter
 					    ("SSID", tmpbuf, 64, buffer)) {
+						// make STA can process .$^& for SSID input
+						tmpbuf[strlen(tmpbuf)] = '\0';
+
 						if (strlen(tmpbuf) <= 32) {
 							pAd->PortCfg.SsidLen =
 							    (UCHAR)
@@ -2295,62 +2421,105 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 							 pAd->PortCfg.
 							 bWmmCapable);
 					}
-					//AckPolicy1 for AC_BK
-					if (RTMPGetKeyParameter
-					    ("AckPolicy1", tmpbuf, 32,
-					     buffer)) {
-						pAd->PortCfg.AckPolicy[0] =
-						    (UCHAR)
-						    simple_strtol(tmpbuf, 0,
-								  10);
-						DBGPRINT(RT_DEBUG_TRACE,
-							 "%s::(AckPolicy[0]=%d)\n",
-							 __FUNCTION__,
-							 pAd->PortCfg.
-							 AckPolicy[0]);
+
+					if (pAd->PortCfg.bWmmCapable) {
+						//AckPolicy for AC_BE, AC_BK, AC_VI, AC_VO
+						if (RTMPGetKeyParameter
+						    ("AckPolicy", tmpbuf, 32,
+						     buffer)) {
+							INT i;
+							PUCHAR macptr;
+
+							for (i = 0, macptr =
+							     rstrtok(tmpbuf,
+								     ";");
+							     macptr;
+							     macptr =
+							     rstrtok(NULL, ";"),
+							     i++) {
+								pAd->PortCfg.
+								    AckPolicy[i]
+								    =
+								    (UCHAR)
+								    simple_strtol
+								    (macptr, 0,
+								     10);
+
+								DBGPRINT
+								    (RT_DEBUG_TRACE,
+								     "%s::(AckPolicy[%d]=%d)\n",
+								     __FUNCTION__,
+								     i,
+								     pAd->
+								     PortCfg.
+								     AckPolicy
+								     [i]);
+							}
+						}
+						//APSDCapable
+						if (RTMPGetKeyParameter
+						    ("APSDCapable", tmpbuf, 10,
+						     buffer)) {
+							if (simple_strtol(tmpbuf, 0, 10) != 0)	//Enable
+								pAd->PortCfg.
+								    bAPSDCapable
+								    = TRUE;
+							else
+								pAd->PortCfg.
+								    bAPSDCapable
+								    = FALSE;
+
+							DBGPRINT(RT_DEBUG_TRACE,
+								 "%s::(APSDCapable=%d)\n",
+								 __FUNCTION__,
+								 pAd->PortCfg.
+								 bAPSDCapable);
+						}
+						//APSDAC for AC_BE, AC_BK, AC_VI, AC_VO
+						if (RTMPGetKeyParameter
+						    ("APSDAC", tmpbuf, 32,
+						     buffer)) {
+							INT i;
+							PUCHAR macptr;
+							BOOLEAN apsd_ac[4];
+
+							for (i = 0, macptr =
+							     rstrtok(tmpbuf,
+								     ";");
+							     macptr;
+							     macptr =
+							     rstrtok(NULL, ";"),
+							     i++) {
+								apsd_ac[i] =
+								    (BOOLEAN)
+								    simple_strtol
+								    (macptr, 0,
+								     10);
+
+								DBGPRINT
+								    (RT_DEBUG_TRACE,
+								     "%s::(APSDAC%d  %d)\n",
+								     __FUNCTION__,
+								     i,
+								     apsd_ac
+								     [i]);
+							}
+
+							pAd->PortCfg.
+							    bAPSDAC_BE =
+							    apsd_ac[0];
+							pAd->PortCfg.
+							    bAPSDAC_BK =
+							    apsd_ac[1];
+							pAd->PortCfg.
+							    bAPSDAC_VI =
+							    apsd_ac[2];
+							pAd->PortCfg.
+							    bAPSDAC_VO =
+							    apsd_ac[3];
+						}
 					}
-					//AckPolicy2 for AC_BE
-					if (RTMPGetKeyParameter
-					    ("AckPolicy2", tmpbuf, 32,
-					     buffer)) {
-						pAd->PortCfg.AckPolicy[1] =
-						    (UCHAR)
-						    simple_strtol(tmpbuf, 0,
-								  10);
-						DBGPRINT(RT_DEBUG_TRACE,
-							 "%s::(AckPolicy[1]=%d)\n",
-							 __FUNCTION__,
-							 pAd->PortCfg.
-							 AckPolicy[1]);
-					}
-					//AckPolicy3 for AC_VI
-					if (RTMPGetKeyParameter
-					    ("AckPolicy3", tmpbuf, 32,
-					     buffer)) {
-						pAd->PortCfg.AckPolicy[2] =
-						    (UCHAR)
-						    simple_strtol(tmpbuf, 0,
-								  10);
-						DBGPRINT(RT_DEBUG_TRACE,
-							 "%s::(AckPolicy[2]=%d)\n",
-							 __FUNCTION__,
-							 pAd->PortCfg.
-							 AckPolicy[2]);
-					}
-					//AckPolicy4 for AC_VO
-					if (RTMPGetKeyParameter
-					    ("AckPolicy4", tmpbuf, 32,
-					     buffer)) {
-						pAd->PortCfg.AckPolicy[3] =
-						    (UCHAR)
-						    simple_strtol(tmpbuf, 0,
-								  10);
-						DBGPRINT(RT_DEBUG_TRACE,
-							 "%s::(AckPolicy[3]=%d)\n",
-							 __FUNCTION__,
-							 pAd->PortCfg.
-							 AckPolicy[3]);
-					}
+					/* end of if(pAd->PortCfg.bWmmCapable) */
 #else
 					pAd->PortCfg.bWmmCapable = FALSE;
 #endif				/* !WMM_SUPPORT */
@@ -2564,7 +2733,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 							   "wpa2psk") == 0))
 							pAd->PortCfg.AuthMode =
 							    Ndis802_11AuthModeWPA2PSK;
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 						else if ((strcmp(tmpbuf, "WPA")
 							  == 0)
 							 ||
@@ -2579,7 +2748,7 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 							  == 0))
 							pAd->PortCfg.AuthMode =
 							    Ndis802_11AuthModeWPA2;
-//#endif
+#endif
 						else
 							pAd->PortCfg.AuthMode =
 							    Ndis802_11AuthModeOpen;
@@ -2679,6 +2848,9 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 					    ("WPAPSK", tmpbuf, 255, buffer)) {
 						int err = 0;
 
+						// make STA can process .$^& for WPAPSK input
+						tmpbuf[strlen(tmpbuf)] = '\0';
+
 						if ((pAd->PortCfg.AuthMode !=
 						     Ndis802_11AuthModeWPAPSK)
 						    && (pAd->PortCfg.AuthMode !=
@@ -2750,485 +2922,23 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 								 tmpbuf);
 						}
 					}
-					//DefaultKeyID
-					if (RTMPGetKeyParameter
-					    ("DefaultKeyID", tmpbuf, 10,
-					     buffer)) {
-						ulInfo =
-						    simple_strtol(tmpbuf, 0,
-								  10);
-						if ((ulInfo >= 1)
-						    && (ulInfo <= 4))
-							pAd->PortCfg.
-							    DefaultKeyId =
-							    (UCHAR) (ulInfo -
-								     1);
-						else
-							pAd->PortCfg.
-							    DefaultKeyId = 0;
+					//DefaultKeyID, KeyType, KeyStr
+					DBGPRINT(RT_DEBUG_TRACE,
+						 "%s::(DefaultKeyID, KeyType, KeyStr !!!!!!!!!)\n",
+						 __FUNCTION__);
+					rtmp_read_key_parms_from_file(pAd, tmpbuf,
+								      buffer);
 
-						DBGPRINT(RT_DEBUG_TRACE,
-							 "%s::(DefaultKeyID=%d)\n",
-							 __FUNCTION__,
-							 pAd->PortCfg.
-							 DefaultKeyId);
-					}
-					//Key1Type
-					if (RTMPGetKeyParameter
-					    ("Key1Type", tmpbuf, 32, buffer)) {
-						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled) {
-							KeyType =
-							    simple_strtol
-							    (tmpbuf, 0, 10);
-
-							if (RTMPGetKeyParameter
-							    ("Key1Str", tmpbuf,
-							     128, buffer)) {
-								KeyLen =
-								    strlen
-								    (tmpbuf);
-								if (KeyLen > 0) {
-									if (KeyType == 0) {	//Hex type
-										if ((KeyLen == 10) || (KeyLen == 26)) {
-											pAd->
-											    SharedKey
-											    [0].
-											    KeyLen
-											    =
-											    KeyLen
-											    /
-											    2;
-											AtoH(tmpbuf, pAd->SharedKey[0].Key, KeyLen / 2);
-											if (KeyLen == 10)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [0].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key1Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key1Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									} else {	//Ascii
-										if ((KeyLen == 5) || (KeyLen == 13)) {
-											pAd->
-											    SharedKey
-											    [0].
-											    KeyLen
-											    =
-											    KeyLen;
-											memcpy
-											    (pAd->
-											     SharedKey
-											     [0].
-											     Key,
-											     tmpbuf,
-											     KeyLen);
-											if (KeyLen == 5)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [0].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key1Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key1Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									}
-								}
-							}
-						}
-					}
-					//Key2Type
-					if (RTMPGetKeyParameter
-					    ("Key2Type", tmpbuf, 32, buffer)) {
-						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled) {
-							KeyType =
-							    simple_strtol
-							    (tmpbuf, 0, 10);
-
-							if (RTMPGetKeyParameter
-							    ("Key2Str", tmpbuf,
-							     128, buffer)) {
-								KeyLen =
-								    strlen
-								    (tmpbuf);
-								if (KeyLen > 0) {
-									if (KeyType == 0) {	//Hex type
-										if ((KeyLen == 10) || (KeyLen == 26)) {
-											pAd->
-											    SharedKey
-											    [1].
-											    KeyLen
-											    =
-											    KeyLen
-											    /
-											    2;
-											AtoH(tmpbuf, pAd->SharedKey[1].Key, KeyLen / 2);
-											if (KeyLen == 10)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [1].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key2Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key2Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									} else {	//Ascii
-										if ((KeyLen == 5) || (KeyLen == 13)) {
-											pAd->
-											    SharedKey
-											    [1].
-											    KeyLen
-											    =
-											    KeyLen;
-											memcpy
-											    (pAd->
-											     SharedKey
-											     [1].
-											     Key,
-											     tmpbuf,
-											     KeyLen);
-											if (KeyLen == 5)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [1].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key2Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key2Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									}
-								}
-							}
-						}
-					}
-					//Key3Type
-					if (RTMPGetKeyParameter
-					    ("Key3Type", tmpbuf, 32, buffer)) {
-						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled) {
-							KeyType =
-							    simple_strtol
-							    (tmpbuf, 0, 10);
-
-							if (RTMPGetKeyParameter
-							    ("Key3Str", tmpbuf,
-							     128, buffer)) {
-								KeyLen =
-								    strlen
-								    (tmpbuf);
-								if (KeyLen > 0) {
-									if (KeyType == 0) {	//Hex type
-										if ((KeyLen == 10) || (KeyLen == 26)) {
-											pAd->
-											    SharedKey
-											    [2].
-											    KeyLen
-											    =
-											    KeyLen
-											    /
-											    2;
-											AtoH(tmpbuf, pAd->SharedKey[2].Key, KeyLen / 2);
-											if (KeyLen == 10)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [2].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key3Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key3Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									} else {	//Ascii
-										if ((KeyLen == 5) || (KeyLen == 13)) {
-											pAd->
-											    SharedKey
-											    [2].
-											    KeyLen
-											    =
-											    KeyLen;
-											memcpy
-											    (pAd->
-											     SharedKey
-											     [2].
-											     Key,
-											     tmpbuf,
-											     KeyLen);
-											if (KeyLen == 5)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [2].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key3Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key3Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									}
-								}
-							}
-						}
-					}
-					//Key4Type
-					if (RTMPGetKeyParameter
-					    ("Key4Type", tmpbuf, 32, buffer)) {
-						if (pAd->PortCfg.WepStatus ==
-						    Ndis802_11WEPEnabled) {
-							KeyType =
-							    simple_strtol
-							    (tmpbuf, 0, 10);
-
-							if (RTMPGetKeyParameter
-							    ("Key4Str", tmpbuf,
-							     128, buffer)) {
-								KeyLen =
-								    strlen
-								    (tmpbuf);
-								if (KeyLen > 0) {
-									if (KeyType == 0) {	//Hex type
-										if ((KeyLen == 10) || (KeyLen == 26)) {
-											pAd->
-											    SharedKey
-											    [3].
-											    KeyLen
-											    =
-											    KeyLen
-											    /
-											    2;
-											AtoH(tmpbuf, pAd->SharedKey[3].Key, KeyLen / 2);
-											if (KeyLen == 10)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [3].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key4Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key4Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									} else {	//Ascii
-										if ((KeyLen == 5) || (KeyLen == 13)) {
-											pAd->
-											    SharedKey
-											    [3].
-											    KeyLen
-											    =
-											    KeyLen;
-											memcpy
-											    (pAd->
-											     SharedKey
-											     [3].
-											     Key,
-											     tmpbuf,
-											     KeyLen);
-											if (KeyLen == 5)
-												CipherAlg
-												    =
-												    CIPHER_WEP64;
-											else
-												CipherAlg
-												    =
-												    CIPHER_WEP128;
-											pAd->
-											    SharedKey
-											    [3].
-											    CipherAlg
-											    =
-											    CipherAlg;
-
-											DBGPRINT
-											    (RT_DEBUG_TRACE,
-											     "%s::(Key4Str=%s and type=%s)\n",
-											     __FUNCTION__,
-											     tmpbuf,
-											     (KeyType
-											      ==
-											      0)
-											     ?
-											     "Hex"
-											     :
-											     "Ascii");
-										} else {	//Invalid key length
-											DBGPRINT
-											    (RT_DEBUG_ERROR,
-											     "%s::(Key4Str is Invalid key length!)\n",
-											     __FUNCTION__);
-										}
-									}
-								}
-							}
-						}
-					}
-					// Set keys into ASIC
-					if (pAd->PortCfg.WepStatus ==
-					    Ndis802_11WEPEnabled) {
-//#ifdef WPA_SUPPLICANT_SUPPORT
+					//
+					// Set wep keys into ASIC
+					//
+					if ((pAd->PortCfg.WepStatus == Ndis802_11WEPEnabled)
+					     && ((pAd->PortCfg.AuthMode == Ndis802_11AuthModeOpen)
+					          || (pAd->PortCfg.AuthMode == Ndis802_11AuthModeShared)
+						  || (pAd->PortCfg.AuthMode == Ndis802_11AuthModeAutoSwitch)))
+					{
+						int idx;
+#if WPA_SUPPLICANT_SUPPORT
 						int KeyIdx =
 						    pAd->PortCfg.DefaultKeyId;
 
@@ -3250,29 +2960,20 @@ VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd)
 						    CipherAlg =
 						    pAd->SharedKey[KeyIdx].
 						    CipherAlg;
-//#endif
+#endif
 
-						//if ((pAd->PortCfg.DefaultKeyId >= 0) && (pAd->PortCfg.DefaultKeyId < 4))
-						AsicAddSharedKeyEntry(pAd,
-								      0,
-								      pAd->
-								      PortCfg.
-								      DefaultKeyId,
-								      pAd->
-								      SharedKey
-								      [pAd->
-								       PortCfg.
-								       DefaultKeyId].
-								      CipherAlg,
-								      pAd->
-								      SharedKey
-								      [pAd->
-								       PortCfg.
-								       DefaultKeyId].
-								      Key, NULL,
-								      NULL);
+						for (idx = 0; idx < 4; idx++) {
+							if (pAd->SharedKey[idx].KeyLen > 0)
+								AsicAddSharedKeyEntry(pAd,
+				      						0,
+				      						idx,
+				      						pAd->SharedKey[idx].CipherAlg,
+				      						pAd->SharedKey[idx].Key,
+				      						NULL,
+				      						NULL);
+						}
 					}
-				}
+				}	/* end of reading parameters */
 			} else {
 				Status = NDIS_STATUS_FAILURE;
 				DBGPRINT(RT_DEBUG_TRACE,
@@ -3567,6 +3268,10 @@ VOID PortCfgInit(IN PRTMP_ADAPTER pAd)
 	pAd->PortCfg.Psm = PWR_ACTIVE;
 	pAd->PortCfg.BeaconPeriod = 100;	// in mSec
 
+	pAd->PortCfg.bAPSDCapable = FALSE;
+	pAd->PortCfg.bAPSDForcePowerSave = FALSE;
+	pAd->PortCfg.MaxSPLength = 0;	// QAP may deliver all buffered MSDUs and MMPDUs
+
 	// Patch for Ndtest
 	pAd->PortCfg.ScanCnt = 0;
 
@@ -3592,6 +3297,8 @@ VOID PortCfgInit(IN PRTMP_ADAPTER pAd)
 	pAd->PortCfg.LastRssi2 = 0;
 	pAd->PortCfg.AvgRssi = 0;
 	pAd->PortCfg.AvgRssiX8 = 0;
+	pAd->PortCfg.AvgRssi2 = 0;
+	pAd->PortCfg.AvgRssi2X8 = 0;
 	pAd->PortCfg.RssiTriggerMode = RSSI_TRIGGERED_UPON_BELOW_THRESHOLD;
 	pAd->PortCfg.AtimWin = 0;
 	pAd->PortCfg.DefaultListenCount = 3;	//default listen count;
@@ -3645,10 +3352,10 @@ VOID PortCfgInit(IN PRTMP_ADAPTER pAd)
 	pAd->Bbp94 = BBPR94_DEFAULT;
 	pAd->BbpForCCK = FALSE;
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+//#if WPA_SUPPLICANT_SUPPORT
 	pAd->PortCfg.IEEE8021X = 0;
 	pAd->PortCfg.IEEE8021x_required_keys = 0;
-	pAd->PortCfg.WPA_Supplicant = 0;
+	pAd->PortCfg.WPA_Supplicant = FALSE;
 //#endif
 
 #ifdef RALINK_ATE

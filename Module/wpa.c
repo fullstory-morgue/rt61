@@ -62,8 +62,13 @@ UCHAR CipherWpaPskAesLen = (sizeof(CipherWpaPskAes) / sizeof(UCHAR));
 extern UCHAR CipherWpa2Template[];
 extern UCHAR CipherWpa2TemplateLen;
 
+static UCHAR prf_input[1024];
+
 #define     WPARSNIE    0xdd
 #define     WPA2RSNIE   0x30
+
+#define ROUND_UP(__x, __y) \
+	(((unsigned long)((__x)+((__y)-1))) & ((unsigned long)~((__y)-1)))
 
 /*
 	========================================================================
@@ -279,11 +284,23 @@ static VOID WpaCountPTK(IN UCHAR * PMK,
 static VOID GenRandom(IN PRTMP_ADAPTER pAd, OUT UCHAR * random)
 {
 	INT i, curr;
-	UCHAR local[80], KeyCounter[32];
-	UCHAR result[80];
+	UCHAR *local, *KeyCounter;
+	UCHAR *result;
 	unsigned long CurrentTime;
 	UCHAR prefix[] =
 	    { 'I', 'n', 'i', 't', ' ', 'C', 'o', 'u', 'n', 't', 'e', 'r' };
+	UCHAR *mpool;
+
+	mpool = kmalloc(256, MEM_ALLOC_FLAG);
+	if (mpool == NULL)
+		return;
+
+	// local Len = 80.
+	local = (UCHAR *) ROUND_UP(mpool, 4);
+	// KeyCounter Len = 32.
+	KeyCounter = (UCHAR *) ROUND_UP(local + 80, 4);
+	// result Len = 80.
+	result = (UCHAR *) ROUND_UP(KeyCounter + 32, 4);
 
 	memset(result, 0, 80);
 	memset(local, 0, 80);
@@ -304,6 +321,7 @@ static VOID GenRandom(IN PRTMP_ADAPTER pAd, OUT UCHAR * random)
 		PRF(KeyCounter, 32, prefix, 12, local, curr, result, 32);
 	}
 	memcpy(random, result, 32);
+	kfree(mpool);
 }
 
 /*
@@ -326,7 +344,8 @@ static VOID GenRandom(IN PRTMP_ADAPTER pAd, OUT UCHAR * random)
 static VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PHEADER_802_11 pHeader;
-	UCHAR PTK[80];
+	UCHAR *PTK;
+	UCHAR *digest;
 	PUCHAR pOutBuffer = NULL;
 	HEADER_802_11 Header_802_11;
 	UCHAR AckRate = RATE_2;
@@ -337,8 +356,18 @@ static VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	EAPOL_PACKET Packet;
 	UCHAR Mic[16];
 	UCHAR QosControl[] = { 0x00, 0x00 };
+	UCHAR *mpool;
 
 	DBGPRINT(RT_DEBUG_TRACE, "WpaPairMsg1Action ----->\n");
+
+	mpool = kmalloc(256, MEM_ALLOC_FLAG);
+	if (mpool == NULL)
+		return;
+
+	// PKT Len = 80.
+	PTK = (UCHAR *) ROUND_UP(mpool, 4);
+	// digest Len = 80;
+	digest = (UCHAR *) ROUND_UP(PTK + 80, 4);
 
 	pHeader = (PHEADER_802_11) Elem->Msg;
 
@@ -445,8 +474,10 @@ static VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// Send EAPOL(0, 1, 0, 0, 0, K, 0, TSNonce, 0, MIC(TPTK), 0)
 	// Out buffer for transmitting message 2
 	pOutBuffer = kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
-	if (pOutBuffer == NULL)
+	if (pOutBuffer == NULL) {
+		kfree(mpool);
 		return;
+	}
 
 	// Prepare EAPOL frame for MIC calculation
 	// Be careful, only EAPOL frame is counted for MIC calculation
@@ -456,9 +487,6 @@ static VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// 6. Prepare and Fill MIC value
 	memset(Mic, 0, sizeof(Mic));
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
-		// AES
-		UCHAR digest[80];
-
 		HMAC_SHA1(pOutBuffer, FrameLen, PTK, LEN_EAP_MICK, digest);
 		memcpy(Mic, digest, LEN_KEY_DESC_MIC);
 	} else {
@@ -496,6 +524,7 @@ static VOID WpaPairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// Send using priority queue
 	MiniportMMRequest(pAd, pOutBuffer, FrameLen);
 	kfree(pOutBuffer);
+	kfree(mpool);
 
 	DBGPRINT(RT_DEBUG_TRACE, "WpaPairMsg1Action <-----\n");
 }
@@ -638,7 +667,7 @@ static VOID Wpa2PairMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	memset(Mic, 0, sizeof(Mic));
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
 		// AES
-		UCHAR digest[80];
+		UCHAR digest[32];	// SHA1_DIGEST_SIZE =20
 
 		HMAC_SHA1(pOutBuffer, FrameLen, PTK, LEN_EAP_MICK, digest);
 		memcpy(Mic, digest, LEN_KEY_DESC_MIC);
@@ -752,7 +781,7 @@ static VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	memset(pMsg3->KeyDesc.KeyMic, 0, LEN_KEY_DESC_MIC);
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
 		// AES
-		UCHAR digest[80];
+		UCHAR digest[32];	// SHA1_DIGEST_SIZE =20
 
 		HMAC_SHA1((PUCHAR) pMsg3, pMsg3->Len[1] + 4, pAd->PortCfg.PTK,
 			  LEN_EAP_MICK, digest);
@@ -869,7 +898,7 @@ static VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	memset(Mic, 0, sizeof(Mic));
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
 		// AES
-		UCHAR digest[80];
+		UCHAR digest[32];	// SHA1_DIGEST_SIZE =20
 
 		HMAC_SHA1(pOutBuffer, FrameLen, pAd->PortCfg.PTK, LEN_EAP_MICK,
 			  digest);
@@ -899,8 +928,10 @@ static VOID WpaPairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	// 7. Update PTK
 	pPeerKey = kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
-	if (pPeerKey == NULL)
+	if (pPeerKey == NULL) {
+		kfree(pOutBuffer);
 		return;
+	}
 
 	memset(pPeerKey, 0, sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY);
 	pPeerKey->Length = sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY;
@@ -941,12 +972,26 @@ static VOID AES_GTK_KEY_UNWRAP(IN UCHAR * key,
 			OUT UCHAR * plaintext,
 			IN UCHAR c_len, IN UCHAR * ciphertext)
 {
-	UCHAR A[8], BIN[16], BOUT[16];
+	UCHAR *A, *BIN, *BOUT;
 	UCHAR xor;
 	INT i, j;
 	aes_context aesctx;
-	UCHAR R[512];
+	UCHAR *R;
 	INT num_blocks = c_len / 8;	// unit:64bits
+	UCHAR *mpool;
+
+	mpool = kmalloc(1024, MEM_ALLOC_FLAG);
+	if (mpool == NULL)
+		return;
+
+	//A len = 8.
+	A = (UCHAR *) ROUND_UP(mpool, 4);
+	// BIN len = 16.
+	BIN = (UCHAR *) ROUND_UP(A + 8, 4);
+	// BOUT len = 16.
+	BOUT = (UCHAR *) ROUND_UP(BIN + 16, 4);
+	// R len = 512
+	R = (UCHAR *) ROUND_UP(BOUT + 16, 4);
 
 	// Initialize
 	memcpy(A, ciphertext, 8);
@@ -982,6 +1027,7 @@ static VOID AES_GTK_KEY_UNWRAP(IN UCHAR * key,
 	}
 	DBGPRINT_RAW(RT_DEBUG_TRACE, "\n  \n");
 
+	kfree(mpool);
 }
 
 /*
@@ -1008,11 +1054,37 @@ static VOID ParseKeyData(IN PRTMP_ADAPTER pAd, IN PUCHAR pKeyData, IN UCHAR KeyD
 	UCHAR KeyDataLength = KeyDataLen;
 	UCHAR GTKLEN;
 	INT i;
+	ULONG Idx;
 
-	if (memcmp(pKeyData, pAd->PortCfg.RSN_IE, pAd->PortCfg.RSN_IELen) != 0) {
-		DBGPRINT(RT_DEBUG_ERROR, " RSN IE mismatched !!!!!!!!!! \n");
-	} else
-		DBGPRINT(RT_DEBUG_TRACE, " RSN IE matched !!!!!!!!!! \n");
+	PUCHAR pVIE = NULL;
+	UCHAR Len;
+	PEID_STRUCT pEid;
+
+	if ((Idx = BssTableSearch(&pAd->ScanTab, pAd->PortCfg.Bssid,
+				  pAd->PortCfg.Channel)) == BSS_NOT_FOUND) {
+		DBGPRINT(RT_DEBUG_ERROR, "%s, Can't find BSS\n", __FUNCTION__);
+		return;
+	}
+
+	pVIE = pAd->ScanTab.BssEntry[Idx].VarIEs;
+	Len = (UCHAR) pAd->ScanTab.BssEntry[Idx].VarIELen;
+	while (Len > 0) {
+		pEid = (PEID_STRUCT) pVIE;
+		if (pEid->Eid != IE_RSN) {
+			pVIE += (pEid->Len + 2);
+			Len -= (pEid->Len + 2);
+			continue;
+		}
+
+		if (memcmp(pKeyData, pEid->Octet, pEid->Len) != 0) {
+			DBGPRINT(RT_DEBUG_ERROR, " RSN IE mismatched !!!!!!!!!! \n");
+		} else {
+			DBGPRINT(RT_DEBUG_TRACE, " RSN IE matched !!!!!!!!!! \n");
+		}
+
+		Len -= (pEid->Len + 2);
+		break;
+	}
 
 	DBGPRINT(RT_DEBUG_ERROR, "KeyDataLen = %d  \n", KeyDataLen);
 
@@ -1039,8 +1111,8 @@ static VOID ParseKeyData(IN PRTMP_ADAPTER pAd, IN PUCHAR pKeyData, IN UCHAR KeyD
 
 	DBGPRINT_RAW(RT_DEBUG_TRACE, "KeyDataLength %d   \n", KeyDataLength);
 
+	pKDE = (PKDE_ENCAP) pMyKeyData;
 	if ((KeyDataLength >= 8) && (KeyDataLength <= sizeof(KDE_ENCAP))) {
-		pKDE = (PKDE_ENCAP) pMyKeyData;
 		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE = \n");
 		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->Type %x:", pKDE->Type);
 		DBGPRINT_RAW(RT_DEBUG_TRACE, "pKDE->Len 0x%x:", pKDE->Len);
@@ -1112,23 +1184,21 @@ static VOID RTMPToWirelessSta(IN PRTMP_ADAPTER pAd, IN PUCHAR pFrame, IN UINT Fr
 	struct sk_buff *skb;
 	NDIS_STATUS Status;
 	UCHAR Index;
+
 	do {
 		// 1. build a NDIS packet and call RTMPSendPacket();
 		//    be careful about how/when to release this internal allocated NDIS PACKET buffer
-#ifdef RTMP_EMBEDDED
 		if ((skb =
 		     __dev_alloc_skb(FrameLen + 2,
-				     GFP_DMA | GFP_ATOMIC)) != NULL)
-#else
-		if ((skb = dev_alloc_skb(FrameLen + 2)) != NULL)
-#endif
-		{
+				     GFP_DMA | GFP_ATOMIC)) != NULL) {
 			skb->len = FrameLen;
 			skb->data_len = FrameLen;
 			memcpy((skb->data), pFrame, FrameLen);
 		} else {
 			break;
 		}
+
+		RTMP_SET_PACKET_SOURCE(skb, PKTSRC_DRIVER);
 
 		// 2. send out the packet
 		Status = RTMPSendPacket(pAd, skb);
@@ -1143,8 +1213,10 @@ static VOID RTMPToWirelessSta(IN PRTMP_ADAPTER pAd, IN PUCHAR pFrame, IN UINT Fr
 			    &&
 			    (!RTMP_TEST_FLAG
 			     (pAd, fRTMP_ADAPTER_RESET_IN_PROGRESS))) {
-				for (Index = 0; Index < 5; Index++)
-					RTMPDeQueuePacket(pAd, Index);
+				for (Index = 0; Index < 5; Index++) {
+					if (!skb_queue_empty(&pAd->TxSwQueue[Index]))
+						RTMPDeQueuePacket(pAd, Index);
+				}
 			}
 		} else		// free this packet space
 		{
@@ -1167,10 +1239,24 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	UCHAR EAPHEAD[8] = { 0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00, 0x88, 0x8e };
 	EAPOL_PACKET Packet;
 	PEAPOL_PACKET pMsg3;
-	UCHAR Mic[16], OldMic[16];
+	UCHAR *Mic, *OldMic;
 	PNDIS_802_11_KEY pPeerKey;
-	UCHAR KEYDATA[512], Key[32];
+	UCHAR *KEYDATA, *Key;
 	UCHAR QosControl[] = { 0x00, 0x00 };
+	UCHAR *mpool;
+
+	mpool = kmalloc(640, MEM_ALLOC_FLAG);
+	if (mpool == NULL)
+		return;
+
+	// Mic Len = 16.
+	Mic = (UCHAR *) ROUND_UP(mpool, 4);
+	// OldMic Len = 16.
+	OldMic = (UCHAR *) ROUND_UP(Mic + 16, 4);
+	// KEYDATA Len = 512.
+	KEYDATA = (UCHAR *) ROUND_UP(OldMic + 16, 4);
+	// Key Len = 32.
+	Key = (UCHAR *) ROUND_UP(KEYDATA + 512, 8);
 
 	DBGPRINT(RT_DEBUG_TRACE, "Wpa2PairMsg3Action ----->\n");
 
@@ -1200,9 +1286,11 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// 1. Verify RSN IE & cipher type match
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled
 	    && (pMsg3->KeyDesc.KeyInfo.KeyDescVer != 2)) {
+		kfree(mpool);
 		return;
 	} else if (pAd->PortCfg.WepStatus == Ndis802_11Encryption2Enabled
 		   && (pMsg3->KeyDesc.KeyInfo.KeyDescVer != 1)) {
+		kfree(mpool);
 		return;
 	}
 #ifdef BIG_ENDIAN
@@ -1222,7 +1310,7 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	memset(pMsg3->KeyDesc.KeyMic, 0, LEN_KEY_DESC_MIC);
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
 		// AES
-		UCHAR digest[80];
+		UCHAR digest[32];	// SHA1_DIGEST_SIZE =20
 
 		HMAC_SHA1((PUCHAR) pMsg3, pMsg3->Len[1] + 4, pAd->PortCfg.PTK,
 			  LEN_EAP_MICK, digest);
@@ -1235,26 +1323,28 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	if (memcmp(OldMic, Mic, LEN_KEY_DESC_MIC) != 0) {
 		DBGPRINT(RT_DEBUG_ERROR,
 			 " MIC Different in msg 3 of 4-way handshake!!!!!!!!!! \n");
+		kfree(mpool);
 		return;
 	} else
 		DBGPRINT(RT_DEBUG_TRACE,
 			 " MIC VALID in msg 3 of 4-way handshake!!!!!!!!!! \n");
 
 	// 3. Check Replay Counter, it has to be larger than last one. No need to be exact one larger
-	if (memcmp
-	    (pMsg3->KeyDesc.ReplayCounter, pAd->PortCfg.ReplayCounter,
-	     LEN_KEY_DESC_REPLAY) <= 0)
+	if (memcmp(pMsg3->KeyDesc.ReplayCounter, pAd->PortCfg.ReplayCounter,
+	           LEN_KEY_DESC_REPLAY) <= 0) {
+		kfree(mpool);
 		return;
+	}
 
 	// Update new replay counter
 	memcpy(pAd->PortCfg.ReplayCounter, pMsg3->KeyDesc.ReplayCounter,
 	       LEN_KEY_DESC_REPLAY);
 
 	// 4. Double check ANonce
-	if (memcmp
-	    (pAd->PortCfg.ANonce, pMsg3->KeyDesc.KeyNonce,
-	     LEN_KEY_DESC_NONCE) != 0)
+	if (memcmp(pAd->PortCfg.ANonce, pMsg3->KeyDesc.KeyNonce, LEN_KEY_DESC_NONCE) != 0) {
+		kfree(mpool);
 		return;
+	}
 
 	// Obtain GTK
 	// 5. Decrypt GTK from Key Data
@@ -1363,8 +1453,10 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	// Out buffer for transmitting message 4
 	pOutBuffer = kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
-	if (pOutBuffer == NULL)
+	if (pOutBuffer == NULL) {
+		kfree(mpool);
 		return;
+	}
 
 	// Prepare EAPOL frame for MIC calculation
 	// Be careful, only EAPOL frame is counted for MIC calculation
@@ -1375,7 +1467,7 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	memset(Mic, 0, sizeof(Mic));
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
 		// AES
-		UCHAR digest[80];
+		UCHAR digest[32];	// SHA1_DIGEST_SIZE =20
 
 		HMAC_SHA1(pOutBuffer, FrameLen, pAd->PortCfg.PTK, LEN_EAP_MICK,
 			  digest);
@@ -1406,8 +1498,11 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	// 7. Update PTK
 	pPeerKey = kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
-	if (pPeerKey == NULL)
+	if (pPeerKey == NULL) {
+		kfree(pOutBuffer);
+		kfree(mpool);
 		return;
+	}
 
 	memset(pPeerKey, 0, sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY);
 	pPeerKey->Length = sizeof(NDIS_802_11_KEY) + LEN_EAP_KEY;
@@ -1426,6 +1521,7 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// Send using priority queue
 	MiniportMMRequest(pAd, pOutBuffer, FrameLen);
 	kfree(pOutBuffer);
+	kfree(mpool);
 
 	DBGPRINT(RT_DEBUG_ERROR, "Wpa2PairMsg3Action <-----\n");
 
@@ -1451,15 +1547,12 @@ static VOID Wpa2PairMsg3Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 static VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	PHEADER_802_11 pHeader;
-
 	PUCHAR pOutBuffer = NULL;
 	UCHAR Header802_3[14];
 	ULONG FrameLen = 0;
 	UCHAR EAPHEAD[8] = { 0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00, 0x88, 0x8e };
 	EAPOL_PACKET Packet;
 	PEAPOL_PACKET pGroup;
-//    UCHAR               MSG[MAX_LEN_OF_MLME_BUFFER];
-//    UCHAR               KEYDATA[512];
 	UCHAR *mpool, *MSG, *KEYDATA;
 	UCHAR Mic[16], OldMic[16];
 	UCHAR GTK[32], Key[32];
@@ -1468,15 +1561,14 @@ static VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	pHeader = (PHEADER_802_11) Elem->Msg;
 
-	mpool = kmalloc(2 * MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
+	mpool = kmalloc(2570, MEM_ALLOC_FLAG);	// allocate memory
 	if (mpool == NULL)
 		return;
 
-	MSG =
-	    (UCHAR *) (((unsigned long)(mpool + 3)) & ((unsigned long)~(0x03)));
-	KEYDATA =
-	    (UCHAR *) (((unsigned long)(MSG + MAX_LEN_OF_MLME_BUFFER + 3)) &
-		       ((unsigned long)~(0x03)));
+	// MSG Len = 2048.
+	MSG = (UCHAR *) ROUND_UP(mpool, 4);
+	// KEYDATA Len = 512.
+	KEYDATA = (UCHAR *) ROUND_UP(MSG + 2048, 4);
 
 	if ((pAd->PortCfg.bWmmCapable)
 	    && (pHeader->FC.SubType == SUBTYPE_QDATA))
@@ -1567,7 +1659,7 @@ static VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
 		// AES
-		UCHAR digest[80];
+		UCHAR digest[32];	// SHA1_DIGEST_SIZE =20
 
 		HMAC_SHA1((PUCHAR) pGroup, pGroup->Len[1] + 4, pAd->PortCfg.PTK,
 			  LEN_EAP_MICK, digest);
@@ -1725,6 +1817,7 @@ static VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	// Out buffer for transmitting group message 2
 	pOutBuffer = kmalloc(MAX_LEN_OF_MLME_BUFFER, MEM_ALLOC_FLAG);	// allocate memory
 	if (pOutBuffer == NULL) {
+		kfree(pGroupKey);
 		kfree(mpool);
 		return;
 	}
@@ -1737,7 +1830,7 @@ static VOID WpaGroupMsg1Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	memset(Mic, 0, sizeof(Mic));
 	if (pAd->PortCfg.WepStatus == Ndis802_11Encryption3Enabled) {
 		// AES
-		UCHAR digest[80];
+		UCHAR digest[32];	// SHA1_DIGEST_SIZE =20
 
 		HMAC_SHA1(pOutBuffer, FrameLen, pAd->PortCfg.PTK, LEN_EAP_MICK,
 			  digest);
@@ -2126,9 +2219,16 @@ VOID PRF(IN UCHAR * key,
 	 IN UCHAR * data, IN INT data_len, OUT UCHAR * output, IN INT len)
 {
 	INT i;
-	UCHAR input[1024];
+	UCHAR *input;
 	INT currentindex = 0;
 	INT total_len;
+	BOOLEAN bfree = TRUE;
+
+	input = kmalloc(1024, MEM_ALLOC_FLAG); // allocate memory
+	if (input == NULL) {
+		input = prf_input;
+		bfree = FALSE;
+	}
 
 	memcpy(input, prefix, prefix_len);
 	input[prefix_len] = 0;
@@ -2142,9 +2242,12 @@ VOID PRF(IN UCHAR * key,
 		currentindex += 20;
 		input[total_len - 1]++;
 	}
+
+	if (bfree == TRUE)
+		kfree(input);
 }
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+//#if WPA_SUPPLICANT_SUPPORT
 
 // If the received frame is EAP-Packet ,find out its EAP-Code (Request(0x01), Response(0x02), Success(0x03), Failure(0x04)).
 INT RTMPCheckWPAframeForEapCode(IN PRTMP_ADAPTER pAd,

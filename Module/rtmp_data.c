@@ -260,7 +260,7 @@ static inline VOID RTMPUpdateTupleCache(IN PRTMP_ADAPTER pAdapter,
 }
 
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 static void ralink_michael_mic_failure(struct net_device *dev,
 				       PCIPHER_KEY pWpaKey)
 {
@@ -279,9 +279,7 @@ static void ralink_michael_mic_failure(struct net_device *dev,
 	//send mic error event to wpa_supplicant
 	wireless_send_event(dev, IWEVCUSTOM, &wrqu, buf);
 }
-
-//#endif
-
+#endif
 
 /*
 	========================================================================
@@ -308,12 +306,12 @@ static inline VOID RTMPReportMicError(IN PRTMP_ADAPTER pAd, IN PCIPHER_KEY pWpaK
 		NDIS_802_11_AUTHENTICATION_REQUEST Request;
 	} Report;
 
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 	if (pAd->PortCfg.WPA_Supplicant == TRUE) {
 		//report mic error to wpa_supplicant
 		ralink_michael_mic_failure(pAd->net_dev, pWpaKey);
 	}
-//#endif
+#endif
 
 	// 0. Set Status to indicate auth error
 	Report.Status.StatusType = Ndis802_11StatusType_Authentication;
@@ -894,6 +892,34 @@ static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 	if (pRxD->MyBss == 0)
 		return NDIS_STATUS_FAILURE;	// give up this frame
 
+	if (pAd->PortCfg.bAPSDCapable
+	    && pAd->PortCfg.APEdcaParm.bAPSDCapable
+	    && (pHeader->FC.SubType & 0x08)) {
+		if ((*skb->data >> 4) & 0x01) {
+			DBGPRINT(RT_DEBUG_TRACE,
+				 "RxDone- Rcv EOSP frame, driver may fall into sleep\n");
+
+			// Force driver to fall into sleep mode when rcv EOSP frame
+			if (!OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE)) {
+				USHORT TbttNumToNextWakeUp;
+				USHORT NextDtim = pAd->PortCfg.DtimPeriod;
+				unsigned long Now = jiffies;
+
+				NextDtim -= (USHORT) (Now - pAd->PortCfg.LastBeaconRxTime)
+						/ pAd->PortCfg.BeaconPeriod;
+
+				TbttNumToNextWakeUp = pAd->PortCfg.DefaultListenCount;
+				if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_RECEIVE_DTIM)
+				    && (TbttNumToNextWakeUp > NextDtim))
+					TbttNumToNextWakeUp = NextDtim;
+
+				MlmeSetPsmBit(pAd, PWR_SAVE);
+				// if WMM-APSD is failed, try to disable following line
+				//AsicSleepThenAutoWakeup(pAd, TbttNumToNextWakeUp);
+			}
+		}
+	}
+
 	// Drop NULL (+CF-POLL) (+CF-ACK) data frame
 	if ((pHeader->FC.SubType & 0x04) == 0x04) {
 		DBGPRINT(RT_DEBUG_TRACE, "RxDone- drop NULL frame(subtype=%d)\n",
@@ -979,7 +1005,7 @@ static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 	if (memcmp(EAPOL_LLC_SNAP, skb->data, LENGTH_802_1_H) == 0) {
 
 		// 2.1.1  WPA supplicant enabled
-//#ifdef WPA_SUPPLICANT_SUPPORT
+//#if WPA_SUPPLICANT_SUPPORT
 		if (pAd->PortCfg.WPA_Supplicant) {
 			// All EAPoL frames have to pass to upper layer
 			// (ex. WPA_SUPPLICANT daemon)
@@ -1959,6 +1985,26 @@ static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 	//
 	// pHeader_802_11->FC.PwrMgmt = 0; // (pAd->PortCfg.Psm == PWR_SAVE);
 	//
+
+	// In WMM-UAPSD, mlme frame should be set psm as power saving but probe request frame
+	//
+	// We may use this ring to send an NULL function(no data) and be carefully on
+	// the following SubType they are the same.
+	//       Type value  SubType
+	//      ---------- ---------
+	// Data    10        0100     Null function (no data)
+	// Manage  00        0100     Probe request
+	//
+	//
+	if ((pHeader_802_11->FC.SubType == SUBTYPE_PROBE_REQ)
+	    && (pHeader_802_11->FC.Type != BTYPE_DATA)) {
+		pHeader_802_11->FC.PwrMgmt = PWR_ACTIVE;
+	} else if (pAdapter->PortCfg.bAPSDCapable
+		   && pAdapter->PortCfg.APEdcaParm.bAPSDCapable) {
+		pHeader_802_11->FC.PwrMgmt =
+			pAdapter->PortCfg.bAPSDForcePowerSave;
+	}
+
 	bInsertTimestamp = FALSE;
 	if (pHeader_802_11->FC.Type == BTYPE_CNTL)	// must be PS-POLL
 	{
@@ -2441,7 +2487,7 @@ NDIS_STATUS RTMPFreeTXDRequest(IN PRTMP_ADAPTER pAdapter,
 }
 
 VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
-		       IN PVOID pBuffer, IN ULONG Length, IN UCHAR TxRate)
+		       IN UCHAR TxRate, IN BOOLEAN bQosNull)
 {
 	PUCHAR pDest;
 	PTXD_STRUC pTxD;
@@ -2450,6 +2496,8 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 	TXD_STRUC TxD;
 #endif
 	PRTMP_TX_RING pTxRing = &pAd->TxRing[QID_AC_BE];
+	UCHAR NullFrame[32];
+	ULONG Length;
 	PHEADER_802_11 pHeader_802_11;
 	UCHAR PID;
 #if SL_IRQSAVE
@@ -2460,20 +2508,53 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 	    RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_HALT_IN_PROGRESS))
 		return;
 
-	// WPA 802.1x secured port control
+	// WPA/WPA2 802.1x secured port control
 	if (((pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA) ||
-	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK)
-//#ifdef WPA_SUPPLICANT_SUPPORT
+	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) ||
+	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2) ||
+	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK)
+#if WPA_SUPPLICANT_SUPPORT
 	     || (pAd->PortCfg.IEEE8021X == TRUE)
-//#endif
+#endif
 	    ) && (pAd->PortCfg.PortSecured == WPA_802_1X_PORT_NOT_SECURED)) {
 		return;
 	}
-	// outgoing frame always wakeup PHY to prevent frame lost
-	//if (pAd->PortCfg.Psm == PWR_SAVE)
-	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE))
-		AsicForceWakeup(pAd);
+	//
+	// Build up NULL Frame
+	//
+	memset(NullFrame, 0, 32);
+	Length = sizeof(HEADER_802_11);
 
+	pHeader_802_11 = (PHEADER_802_11) NullFrame;
+
+	pHeader_802_11->FC.Type = BTYPE_DATA;
+	pHeader_802_11->FC.SubType = SUBTYPE_NULL_FUNC;
+	pHeader_802_11->FC.ToDs = 1;
+	memcpy(pHeader_802_11->Addr1, pAd->PortCfg.Bssid, ETH_ALEN);
+	memcpy(pHeader_802_11->Addr2, pAd->CurrentAddress, ETH_ALEN);
+	memcpy(pHeader_802_11->Addr3, pAd->PortCfg.Bssid, ETH_ALEN);
+
+	if (pAd->PortCfg.bAPSDForcePowerSave) {
+		pHeader_802_11->FC.PwrMgmt = PWR_SAVE;
+	} else {
+		pHeader_802_11->FC.PwrMgmt =
+			(pAd->PortCfg.Psm == PWR_SAVE) ? 1 : 0;
+	}
+	pHeader_802_11->Duration =
+	pAd->PortCfg.Dsifs + RTMPCalcDuration(pAd, TxRate, 14);
+
+	pAd->Sequence++;
+	pHeader_802_11->Sequence = pAd->Sequence;
+
+	// Prepare QosNull function frame
+	if (bQosNull) {
+		pHeader_802_11->FC.SubType = SUBTYPE_QOS_NULL;
+
+		// copy QOS control bytes
+		NullFrame[Length] = 0;
+		NullFrame[Length + 1] = 0;
+		Length += 2;
+	}
 	// Make sure Tx ring resource won't be used by other threads
 #if SL_IRQSAVE
 	spin_lock_irqsave(&pAd->TxRingLock, IrqFlags);
@@ -2509,15 +2590,8 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 
 	DBGPRINT(RT_DEBUG_TRACE, "SYNC - send NULL Frame @%d Mbps...\n",
 		 RateIdToMbps[TxRate]);
-	memcpy(pDest, pBuffer, Length);
 
-	pHeader_802_11 = (PHEADER_802_11) pDest;
-	pHeader_802_11->FC.PwrMgmt = (pAd->PortCfg.Psm == PWR_SAVE);
-	pHeader_802_11->Duration =
-	    pAd->PortCfg.Dsifs + RTMPCalcDuration(pAd, TxRate, 14);
-
-	pAd->Sequence++;
-	pHeader_802_11->Sequence = pAd->Sequence;
+	memcpy(pDest, NullFrame, Length);
 
 	if (TxRate > pAd->PortCfg.TxRate)
 		PID = PTYPE_NULL_AT_HIGH_RATE;
@@ -3079,9 +3153,9 @@ static
 	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPAPSK) ||
 	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2) ||
 	     (pAd->PortCfg.AuthMode == Ndis802_11AuthModeWPA2PSK)
-//#ifdef WPA_SUPPLICANT_SUPPORT
+#if WPA_SUPPLICANT_SUPPORT
 	     || (pAd->PortCfg.IEEE8021X == TRUE)
-//#endif
+#endif
 	    ) &&
 	    ((pAd->PortCfg.PortSecured == WPA_802_1X_PORT_NOT_SECURED)
 	     || (pAd->PortCfg.MicErrCnt >= 2)) && (bEAPOLFrame == FALSE)) {
@@ -3137,10 +3211,14 @@ static
 	// not to change PSM bit, just send this frame out?
 	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE))
 		AsicForceWakeup(pAd);
-#if 1
-	if (pAd->PortCfg.Psm == PWR_SAVE)
-		MlmeSetPsmBit(pAd, PWR_ACTIVE);
-#endif
+
+	// It should not change PSM bit, when APSD turn on.
+	if ((!
+	     (pAd->PortCfg.bAPSDCapable && pAd->PortCfg.APEdcaParm.bAPSDCapable)
+	     && (pAd->PortCfg.bAPSDForcePowerSave == FALSE)) || bEAPOLFrame) {
+		if (pAd->PortCfg.Psm == PWR_SAVE)
+			MlmeSetPsmBit(pAd, PWR_ACTIVE);
+	}
 
 	// -----------------------------------------------------------------
 	// STEP 2. MAKE A COMMON 802.11 HEADER SHARED BY ENTIRE FRAGMENT BURST.
@@ -3864,6 +3942,14 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 		pTxD->Cwmin = pAd->PortCfg.APEdcaParm.Cwmin[QueIdx];
 		pTxD->Cwmax = pAd->PortCfg.APEdcaParm.Cwmax[QueIdx];
 		pTxD->Aifsn = pAd->PortCfg.APEdcaParm.Aifsn[QueIdx];
+		//
+		// Modify Cwmin/Cwmax on queue[QID_AC_VI], Recommend by Jerry 2005/07/27
+		// To degrade our VIDO Queue's throughput for WiFi WMM S3T07 Issue.
+		//
+		if (QueIdx == QID_AC_VI) {
+			pTxD->Cwmin += 1;
+			pTxD->Cwmax += 1;
+		}
 	} else {
 		pTxD->Cwmin = CW_MIN_IN_BITS;
 		pTxD->Cwmax = CW_MAX_IN_BITS;
