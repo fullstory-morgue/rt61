@@ -14,10 +14,8 @@ TMP="$(mktemp -dp /tmp/ rt61-fwcutter.XXXXXX)" || bailout 1 "can't create tempor
 [ -z "$1" ] && bailout 2 "no input filename."
 [ -r "$1" ] || bailout 3 "input tarball does not exist."
 
-zcat "$1" > "$TMP/temporary.tar" || bzcat gzcat "$1" > "$TMP/temporary.tar"
-[ "$?" -ne 0 ] && bailout 4 "input tarball $1 neither is neither valid gzip or bzip2."
 cd "$TMP"
-tar -xf temporary.tar || bailout 5 "couldn\'t extract firmware tarball."
+unp "$1" || bailout 4 "input archive $1 could not be extracted."
 find "$TMP" -iname rt2561.bin  >/dev/null || bailout 5 "rt2561.bin can\'t be found."
 find "$TMP" -iname rt2561s.bin >/dev/null || bailout 6 "rt2561s.bin can\'t be found."
 find "$TMP" -iname rt2661.bin  >/dev/null || bailout 8 "rt2661.bin can\'t be found."

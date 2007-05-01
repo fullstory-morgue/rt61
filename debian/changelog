@@ -3,8 +3,11 @@ rt61 (1.1.0.dfsg.2+cvs20070501-2) UNRELEASED; urgency=low
   * NOT RELEASED YET
   * prune WPA_Supplicant/ from the generated upstream tarball due to missing
     licenses.
+  * fix rt61-fwcutter to cope with various firmware input archive formats,
+    depend on unp and unzip (remember to add bzip2 in case it becomes
+    required).
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 01 May 2007 14:53:06 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 01 May 2007 16:30:08 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070501-1) unstable; urgency=low
 
