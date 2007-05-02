@@ -1882,12 +1882,12 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,IN UCHAR TxRate, IN BOOLEAN bQosNul)
 USHORT RTMPCalcDuration(IN PRTMP_ADAPTER pAdapter,
 								IN UCHAR Rate, IN ULONG Size);
 VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd, IN PTXD_STRUC pSourceTxD,
-								IN UCHAR CipherAlg,
-								IN UCHAR KeyTable, IN UCHAR KeyIdx,
-								IN BOOLEAN Ack, IN BOOLEAN Fragment,
-								IN BOOLEAN InsTimestamp, IN UCHAR RetryMode,
-								IN UCHAR Ifs, IN UINT Rate, IN ULONG Length,
-								IN UCHAR QueIdx, IN UCHAR PID);
+			IN UCHAR CipherAlg, IN UCHAR KeyTable, IN UCHAR KeyIdx,
+			IN BOOLEAN Ack, IN BOOLEAN Fragment,
+			IN BOOLEAN InsTimestamp, IN UCHAR RetryMode,
+			IN UCHAR Ifs, IN UINT Rate, IN ULONG Length,
+			IN UCHAR QueIdx, IN UCHAR PID, IN BOOLEAN bPiggyBack,
+			IN BOOLEAN bAfterRTSCTS, IN BOOLEAN bBurstMode);
 VOID RTMPSuspendMsduTransmission(IN PRTMP_ADAPTER pAd);
 VOID RTMPResumeMsduTransmission(IN PRTMP_ADAPTER pAd);
 struct sk_buff_head *RTMPCheckTxSwQueue(IN PRTMP_ADAPTER pAdapter,

@@ -334,7 +334,7 @@ static inline VOID RTMPReportMicError(IN PRTMP_ADAPTER pAd, IN PCIPHER_KEY pWpaK
 		pAd->PortCfg.MicErrCnt++;
 		pAd->PortCfg.LastMicErrorTime = Now;
 	} else if (pAd->PortCfg.MicErrCnt == 1) {
-		if ((pAd->PortCfg.LastMicErrorTime + (60 * 1000)) < Now) {
+		if ((pAd->PortCfg.LastMicErrorTime + (60 * 1000)) > Now) {
 			// Update Last MIC error time, this did not violate two MIC errors within 60 seconds
 			pAd->PortCfg.LastMicErrorTime = Now;
 		} else {
@@ -343,11 +343,11 @@ static inline VOID RTMPReportMicError(IN PRTMP_ADAPTER pAd, IN PCIPHER_KEY pWpaK
 			pAd->PortCfg.MicErrCnt++;
 			// We shall block all reception
 			// We shall clean all Tx ring and disassoicate from AP after next EAPOL frame
-			RTMPRingCleanUp(pAd, QID_AC_BK);
-			RTMPRingCleanUp(pAd, QID_AC_BE);
-			RTMPRingCleanUp(pAd, QID_AC_VI);
-			RTMPRingCleanUp(pAd, QID_AC_VO);
-			RTMPRingCleanUp(pAd, QID_HCCA);
+			//RTMPRingCleanUp(pAd, QID_AC_BK);
+			//RTMPRingCleanUp(pAd, QID_AC_BE);
+			//RTMPRingCleanUp(pAd, QID_AC_VI);
+			//RTMPRingCleanUp(pAd, QID_AC_VO);
+			//RTMPRingCleanUp(pAd, QID_HCCA);
 		}
 	} else {
 		// MIC error count >= 2
@@ -1718,7 +1718,7 @@ VOID RTMPHandleTxRingDmaDoneInterrupt(IN PRTMP_ADAPTER pAdapter,
 					      FALSE, FALSE, FALSE, SHORT_RETRY,
 					      IFS_BACKOFF, pAdapter->ate.TxRate,
 					      pAdapter->ate.TxLength, QID_AC_BE,
-					      0);
+					      0, FALSE, FALSE, FALSE);
 
 			INC_RING_INDEX(pTxRing->CurTxIndex, TX_RING_SIZE);
 
@@ -2072,7 +2072,8 @@ static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 	RTMPWriteTxDescriptor(pAdapter, pTxD, CIPHER_NONE, 0, 0, bAckRequired,
 			      FALSE, bInsertTimestamp, SHORT_RETRY, IFS_BACKOFF,
 			      MlmeRate, SrcBufLen, QID_MGMT,
-			      PTYPE_SPECIAL | PSUBTYPE_MGMT);
+			      PTYPE_SPECIAL | PSUBTYPE_MGMT, FALSE, FALSE,
+			      FALSE);
 
 	DBGPRINT_RAW(RT_DEBUG_INFO, "MLMEHardTransmit use rate %d\n", MlmeRate);
 
@@ -2615,7 +2616,7 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 	pTxRing->Cell[pTxRing->CurTxIndex].pNextSkb = NULL;
 	RTMPWriteTxDescriptor(pAd, pTxD, CIPHER_NONE, 0, 0, TRUE, FALSE, FALSE,
 			      LONG_RETRY, IFS_BACKOFF, TxRate, Length,
-			      QID_AC_BE, PID);
+			      QID_AC_BE, PID, FALSE, FALSE, FALSE);
 
 	INC_RING_INDEX(pTxRing->CurTxIndex, TX_RING_SIZE);
 	pAd->RalinkCounters.KickTxCount++;
@@ -2631,10 +2632,15 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 
 }
 
-static VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
-		      IN PUCHAR pDA,
-		      IN unsigned int NextMpduSize,
-		      IN UCHAR TxRate, IN USHORT CtsDuration, IN UCHAR QueIdx)
+static VOID RTMPSendRTSCTSFrame(IN PRTMP_ADAPTER pAd,
+				IN PUCHAR pDA,
+				IN unsigned int NextMpduSize,
+				IN UCHAR TxRate,
+				IN UCHAR RTSRate,
+				IN USHORT AckDuration,
+				IN UCHAR QueIdx,
+				IN UCHAR FrameGap,
+				IN UCHAR Type)
 {
 	PRTS_FRAME pRtsFrame;
 	PTXD_STRUC pTxD;
@@ -2647,6 +2653,12 @@ static VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 #if SL_IRQSAVE
 	ULONG IrqFlags;
 #endif
+
+	if ((Type != SUBTYPE_RTS) && (Type != SUBTYPE_CTS)) {
+		DBGPRINT(RT_DEBUG_WARN,
+			 "Making RTS/CTS Frame failed, type not matched!\n");
+		return;
+	}
 
 	// Make sure Tx ring resource won't be used by other threads
 #if SL_IRQSAVE
@@ -2685,39 +2697,13 @@ static VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 	memset(pRtsFrame, 0, sizeof(RTS_FRAME));
 	pRtsFrame->FC.Type = BTYPE_CNTL;
 	// CTS-to-self's duration = SIFS + MPDU
-	pRtsFrame->Duration =
-	    pAd->PortCfg.Dsifs + RTMPCalcDuration(pAd, pAd->PortCfg.TxRate,
-						  NextMpduSize);
+	pRtsFrame->Duration = (2 * pAd->PortCfg.Dsifs) + RTMPCalcDuration(pAd, TxRate, NextMpduSize) + AckDuration;	// SIFS + Data + SIFS + ACK
 
 	// Write Tx descriptor
 	// Don't kick tx start until all frames are prepared
 	// RTS has to set more fragment bit for fragment burst
 	// RTS did not encrypt
-	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_BG_PROTECTION_INUSED)) {
-		DBGPRINT(RT_DEBUG_INFO, "Making CTS-to-self Frame\n");
-		pRtsFrame->FC.SubType = SUBTYPE_CTS;
-		memcpy(pRtsFrame->Addr1, pAd->CurrentAddress, ETH_ALEN);
-#ifdef BIG_ENDIAN
-		RTMPFrameEndianChange(pAd, (PUCHAR) pRtsFrame, DIR_WRITE,
-				      FALSE);
-		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
-		*pDestTxD = TxD;
-		pTxD = pDestTxD;
-#endif
-		pTxRing->Cell[pTxRing->CurTxIndex].pSkb = NULL;
-		pTxRing->Cell[pTxRing->CurTxIndex].pNextSkb = NULL;
-		RTMPWriteTxDescriptor(pAd, pTxD, CIPHER_NONE, 0, 0, FALSE, TRUE,
-				      FALSE, SHORT_RETRY, IFS_BACKOFF,
-				      /*pAd->PortCfg.RtsRate */ RATE_11, 10,
-				      QueIdx,
-				      PTYPE_SPECIAL | PSUBTYPE_OTHER_CNTL);
-#if 0
-		//
-		// To continue fetch next MPDU, turn on this Burst mode
-		//
-		pTxD->Burst = TRUE;
-#endif
-	} else {
+	if (Type == SUBTYPE_RTS) {
 		if ((*pDA) & 0x01) {
 			// should not use RTS/CTS to protect MCAST frame since no one will reply CTS
 #if SL_IRQSAVE
@@ -2728,12 +2714,13 @@ static VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 #endif
 			return;
 		}
+
 		DBGPRINT(RT_DEBUG_INFO, "Making RTS Frame\n");
 		pRtsFrame->FC.SubType = SUBTYPE_RTS;
 		memcpy(pRtsFrame->Addr1, pDA, ETH_ALEN);
 		memcpy(pRtsFrame->Addr2, pAd->CurrentAddress, ETH_ALEN);
 		// RTS's duration need to include and extra (SIFS + CTS) time
-		pRtsFrame->Duration += (pAd->PortCfg.Dsifs + CtsDuration);
+		pRtsFrame->Duration += (pAd->PortCfg.Dsifs + RTMPCalcDuration(pAd, RTSRate, 14));
 #ifdef BIG_ENDIAN
 		RTMPFrameEndianChange(pAd, (PUCHAR) pRtsFrame, DIR_WRITE,
 				      FALSE);
@@ -2741,12 +2728,38 @@ static VOID RTMPSendRTSFrame(IN PRTMP_ADAPTER pAd,
 		*pDestTxD = TxD;
 		pTxD = pDestTxD;
 #endif
+
+		pTxD->BufCount = 1;
+		pTxD->BufLen0 = sizeof(RTS_FRAME);
+
 		pTxRing->Cell[pTxRing->CurTxIndex].pSkb = NULL;
 		pTxRing->Cell[pTxRing->CurTxIndex].pNextSkb = NULL;
 		RTMPWriteTxDescriptor(pAd, pTxD, CIPHER_NONE, 0, 0, TRUE, TRUE,
-				      FALSE, SHORT_RETRY, IFS_BACKOFF,
-				      pAd->PortCfg.RtsRate, sizeof(RTS_FRAME),
-				      QueIdx, PTYPE_SPECIAL | PSUBTYPE_RTS);
+				      FALSE, SHORT_RETRY, FrameGap, RTSRate,
+				      sizeof(RTS_FRAME), QueIdx,
+				      PTYPE_SPECIAL | PSUBTYPE_RTS, FALSE,
+				      FALSE, FALSE);
+	} else if (Type == SUBTYPE_CTS) {
+		DBGPRINT(RT_DEBUG_INFO, "Making CTS-to-self Frame\n");
+		pRtsFrame->FC.SubType = SUBTYPE_CTS;
+		memcpy(pRtsFrame->Addr1, pAd->CurrentAddress, ETH_ALEN);
+#ifdef BIG_ENDIAN
+		RTMPFrameEndianChange(pAd, (PUCHAR) pRtsFrame, DIR_WRITE, FALSE);
+		RTMPDescriptorEndianChange((PUCHAR) pTxD, TYPE_TXD);
+		*pDestTxD = TxD;
+		pTxD = pDestTxD;
+#endif
+
+		pTxD->BufCount = 1;
+		pTxD->BufLen0 = 10;
+
+		pTxRing->Cell[pTxRing->CurTxIndex].pSkb = NULL;
+		pTxRing->Cell[pTxRing->CurTxIndex].pNextSkb = NULL;
+		RTMPWriteTxDescriptor(pAd, pTxD, CIPHER_NONE, 0, 0, FALSE, TRUE,
+				      FALSE, SHORT_RETRY, FrameGap, RTSRate,
+				      10, QueIdx,
+				      PTYPE_SPECIAL | PSUBTYPE_OTHER_CNTL,
+				      FALSE, FALSE, TRUE);
 	}
 
 	INC_RING_INDEX(pAd->TxRing[QueIdx].CurTxIndex, TX_RING_SIZE);
@@ -2868,7 +2881,9 @@ static
 	UINT FreeMpduSize, MpduSize = 0;
 	ULONG SrcBufLen, NextPacketBufLen = 0;
 	UCHAR SrcBufIdx;
-	ULONG SrcBufPA;
+	ULONG SrcBufPA = 0;
+	ULONG HeaderPAOffset = 0;
+	ULONG FragPAOffset = 0;
 	INT SrcRemainingBytes;
 	UCHAR FrameGap;
 	HEADER_802_11 Header_802_11;
@@ -2903,8 +2918,8 @@ static
 #if SL_IRQSAVE
 	ULONG IrqFlags;
 #endif
-
 	BOOLEAN bRTS_CTSFrame = FALSE;
+	UINT NextMpduSize;
 
 	MpduRequired = RTMP_GET_PACKET_FRAGMENTS(pSkb);
 	RtsRequired = RTMP_GET_PACKET_RTS(pSkb);
@@ -2964,7 +2979,8 @@ static
 		RTMPWriteTxDescriptor(pAd, pTxD, CIPHER_NONE, 0, 0, FALSE,
 				      FALSE, FALSE, SHORT_RETRY, IFS_BACKOFF,
 				      pAd->PortCfg.TxRate, pSkb->len, QueIdx,
-				      PTYPE_SPECIAL | PSUBTYPE_DATA_NO_ACK);
+				      PTYPE_SPECIAL | PSUBTYPE_DATA_NO_ACK,
+				      FALSE, FALSE, FALSE);
 		INC_RING_INDEX(pTxRing->CurTxIndex, TX_RING_SIZE);
 		pAd->RalinkCounters.KickTxCount++;
 
@@ -3311,31 +3327,41 @@ static
 	AckDuration =
 	    RTMPCalcDuration(pAd, pAd->PortCfg.ExpectedACKRate[TxRate], 14);
 
-	if (RtsRequired) {
-		unsigned int NextMpduSize;
+	// If fragment required, MPDU size is maximum fragment size
+	// Else, MPDU size should be frame with 802.11 header & CRC
+	if (MpduRequired > 1)
+		NextMpduSize = pAd->PortCfg.FragmentThreshold; 
+	else {
+		NextMpduSize = pSkb->len + LENGTH_802_11 + LENGTH_CRC -
+			       LENGTH_802_3;
+		if (pExtraLlcSnapEncap)
+			NextMpduSize += LENGTH_802_1_H;
+	}
 
-		// If fragment required, MPDU size is maximum fragment size
-		// Else, MPDU size should be frame with 802.11 header & CRC
-		if (MpduRequired > 1)
-			NextMpduSize = pAd->PortCfg.FragmentThreshold;
-		else {
-			NextMpduSize =
-			    pSkb->len + LENGTH_802_11 + LENGTH_CRC -
-			    LENGTH_802_3;
-			if (pExtraLlcSnapEncap)
-				NextMpduSize += LENGTH_802_1_H;
-		}
+	if (RtsRequired
+	    || OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_RTS_PROTECTION_ENABLE)) {
+		RTMPSendRTSCTSFrame(pAd, Header_802_11.Addr1, 
+				    NextMpduSize + EncryptionOverhead, TxRate,
+				    pAd->PortCfg.RtsRate, AckDuration, QueIdx,
+				    FrameGap, SUBTYPE_RTS);
 
-		RTMPSendRTSFrame(pAd,
-				 Header_802_11.Addr1,
-				 NextMpduSize + EncryptionOverhead,
-				 pAd->PortCfg.RtsRate, AckDuration, QueIdx);
+		// RTS/CTS-protected frame should use LONG_RETRY (=4) and SIFS
+		RetryMode = LONG_RETRY;
+		FrameGap = IFS_SIFS;
+		bRTS_CTSFrame = TRUE;
+	} else if ((pAd->PortCfg.TxRate >= RATE_FIRST_OFDM_RATE)
+		    && OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_BG_PROTECTION_INUSED)) {
+		RTMPSendRTSCTSFrame(pAd, Header_802_11.Addr1,
+				    NextMpduSize + EncryptionOverhead, TxRate,
+				    pAd->PortCfg.RtsRate, AckDuration, QueIdx,
+				    FrameGap, SUBTYPE_CTS);
 
 		// RTS/CTS-protected frame should use LONG_RETRY (=4) and SIFS
 		RetryMode = LONG_RETRY;
 		FrameGap = IFS_SIFS;
 		bRTS_CTSFrame = TRUE;
 	}
+
 	// --------------------------------------------------------
 	// STEP 5. START MAKING MPDU(s)
 	//      Start Copy Ndis Packet into Ring buffer.
@@ -3345,10 +3371,7 @@ static
 	// --------------------------------------------------------
 
 	SrcBufIdx = 0;
-	SrcBufPA =
-	    pci_map_single(pAd->pPci_Dev, pSGList->Elements[0].Address,
-			   SrcBufLen, PCI_DMA_TODEVICE);
-	SrcBufPA += LENGTH_802_3;	// skip 802.3 header
+	HeaderPAOffset += LENGTH_802_3;	// skip 802.3 header
 	SrcBufLen -= LENGTH_802_3;	// skip 802.3 header
 	SrcRemainingBytes = pSkb->len - LENGTH_802_3;
 
@@ -3499,8 +3522,25 @@ static
 		//
 		MpduSize = pTxD->BufLen0;
 		SrcBytesCopied = 0;
+
+		// Make sure the buffer maping address and length are same as unmaping ones, especially in IXP platform.
+		if (SrcBufLen == 0) {
+		} else if (SrcBufLen <= FreeMpduSize) {
+			SrcBufPA = pci_map_single(pAd->pPci_Dev,
+						  (PUCHAR) pSGList->Elements[0].Address
+						  + HeaderPAOffset
+						  + FragPAOffset,
+						  SrcBufLen, PCI_DMA_TODEVICE);
+		} else {
+			SrcBufPA = pci_map_single(pAd->pPci_Dev,
+						  (PUCHAR) pSGList->Elements[0].Address
+						  + HeaderPAOffset
+						  + FragPAOffset,
+						  FreeMpduSize, PCI_DMA_TODEVICE);
+		}
+
 		do {
-			if (SrcBufLen == 0) {
+			if ((SrcBufLen == 0) || (SrcBufPA == 0)) {
 				// do nothing. skip to next scatter-gather buffer
 			} else if (SrcBufLen <= FreeMpduSize) {
 				// scatter-gather buffer still fit into current MPDU
@@ -3532,7 +3572,7 @@ static
 				pDest += SrcBufLen;
 				FreeMpduSize -= SrcBufLen;
 				MpduSize += SrcBufLen;
-				SrcBufPA += SrcBufLen;
+				FragPAOffset += SrcBufLen;
 				SrcBufLen = 0;
 			} else {
 				// scatter-gather buffer exceed current MPDU. leave some of the buffer to next MPDU
@@ -3563,7 +3603,7 @@ static
 				SrcBytesCopied += FreeMpduSize;
 				pDest += FreeMpduSize;
 				MpduSize += FreeMpduSize;
-				SrcBufPA += FreeMpduSize;
+				FragPAOffset += SrcBufLen;
 				SrcBufLen -= FreeMpduSize;
 
 				// a complete MPDU is built. break out to write TXD of this MPDU
@@ -3597,16 +3637,29 @@ static
 		pHeader80211 = (PHEADER_802_11) pDestBufVA;
 		if (SrcRemainingBytes > 0)	// more fragment is required
 		{
-			UINT NextMpduSize;
 			NextMpduSize =
 			    min((UINT) SrcRemainingBytes,
 				(UINT) pAd->PortCfg.FragmentThreshold);
 			pHeader80211->FC.MoreFrag = 1;
-			pHeader80211->Duration = 3 * pAd->PortCfg.Dsifs
-			    + 2 * AckDuration
-			    + RTMPCalcDuration(pAd, TxRate,
-					       NextMpduSize +
-					       EncryptionOverhead);
+
+			if (NextMpduSize < pAd->PortCfg.FragmentThreshold) {
+				// In this case, we need to include LENGTH_802_11 and LENGTH_CRC for calculating Duration.
+				pHeader80211->Duration =
+					(3 * pAd->PortCfg.Dsifs) +
+					(2 * AckDuration) +
+					  RTMPCalcDuration(pAd, TxRate,
+						NextMpduSize +
+						EncryptionOverhead +
+						LENGTH_802_11 + LENGTH_CRC);
+			} else {
+				pHeader80211->Duration =
+					(3 * pAd->PortCfg.Dsifs) +
+					(2 * AckDuration) +
+					  RTMPCalcDuration(pAd, TxRate,
+						NextMpduSize +
+						EncryptionOverhead);
+			}
+
 #ifdef BIG_ENDIAN
 			RTMPFrameEndianChange(pAd, (PUCHAR) pHeader80211,
 					      DIR_WRITE, FALSE);
@@ -3614,34 +3667,17 @@ static
 			*pDestTxD = TxD;
 			pTxD = pDestTxD;
 #endif
-#if 1
-			if (bRTS_CTSFrame) {
-				// After RTS/CTS frame, data frame should use SIFS time.
-				// To patch this code, add the following code.
-				// Recommended by Jerry 2005/07/25 for WiFi testing with Proxim AP
-				pTxD->Cwmin = 0;
-				pTxD->Cwmax = 0;
-				pTxD->Aifsn = 1;
-				pTxD->IFS = IFS_BACKOFF;
-			}
-#endif
 
 			pTxRing->Cell[pTxRing->CurTxIndex].pSkb = NULL;
 			pTxRing->Cell[pTxRing->CurTxIndex].pNextSkb = NULL;
 			RTMPWriteTxDescriptor(pAd, pTxD, CipherAlg, 0, KeyIdx,
 					      bAckRequired, TRUE, FALSE,
 					      RetryMode, FrameGap, TxRate,
-					      MpduSize, QueIdx, PID);
+					      MpduSize, QueIdx, PID, FALSE,
+					      bRTS_CTSFrame, TRUE);
 
 			FrameGap = IFS_SIFS;	// use SIFS for all subsequent fragments
 			Header_802_11.Frag++;	// increase Frag #
-#if 0
-			//
-			// On fragment case, turn on this bit to tell ASIC to continue fetch the fragment data.
-			// that belongs to the same MSDU.
-			//
-			pTxD->Burst = TRUE;
-#endif
 		} else		// this is the last or only fragment
 		{
 			pHeader80211->FC.MoreFrag = 0;
@@ -3660,25 +3696,22 @@ static
 			*pDestTxD = TxD;
 			pTxD = pDestTxD;
 #endif
-#if 1
-			if (bRTS_CTSFrame) {
-				// After RTS/CTS frame, data frame should use SIFS time.
-				// To patch this code, add the following code.
-				// Recommended by Jerry 2005/07/25 for WiFi testing with Proxim AP
-
-				pTxD->Cwmin = 0;
-				pTxD->Cwmax = 0;
-				pTxD->Aifsn = 1;
-				pTxD->IFS = IFS_BACKOFF;
+			if (pNextSkb) {
+				DBGPRINT(RT_DEBUG_INFO,
+					 "WriteTxD (%s, Len=%d PlcpLen=%d)\n",
+					 CipherName[CipherAlg],
+					 pTxD->DataByteCnt, MpduSize);
+				pAd->RalinkCounters.OneSecTxAggregationCount++;
 			}
-#endif
+
 			pTxRing->Cell[pTxRing->CurTxIndex].pSkb = pSkb;
 			pTxRing->Cell[pTxRing->CurTxIndex].pNextSkb = pNextSkb;
 
 			RTMPWriteTxDescriptor(pAd, pTxD, CipherAlg, 0, KeyIdx,
 					      bAckRequired, FALSE, FALSE,
 					      RetryMode, FrameGap, TxRate,
-					      MpduSize, QueIdx, PID);
+					      MpduSize, QueIdx, PID, FALSE,
+					      bRTS_CTSFrame, FALSE);
 		}
 
 		INC_RING_INDEX(pTxRing->CurTxIndex, TX_RING_SIZE);
@@ -3856,6 +3889,35 @@ USHORT RTMPCalcDuration(IN PRTMP_ADAPTER pAdapter, IN UCHAR Rate, IN ULONG Size)
 
 }
 
+static VOID RTMPCckBbpTuning(IN PRTMP_ADAPTER pAd, IN UINT TxRate)
+{
+	CHAR Bbp94 = 0xFF;
+
+	//
+	// Do nothing if TxPowerEnable == FALSE
+	//
+	if (pAd->TxPowerDeltaConfig.field.TxPowerEnable == FALSE)
+		return;
+
+	if ((TxRate < RATE_FIRST_OFDM_RATE) && (pAd->BbpForCCK == FALSE)) {
+		Bbp94 = pAd->Bbp94;
+
+		if (pAd->TxPowerDeltaConfig.field.Type == 1) {
+			Bbp94 += pAd->TxPowerDeltaConfig.field.DeltaValue;
+		} else {
+			Bbp94 -= pAd->TxPowerDeltaConfig.field.DeltaValue;
+		}
+		pAd->BbpForCCK = TRUE;
+	} else if ((TxRate >= RATE_FIRST_OFDM_RATE) && (pAd->BbpForCCK == TRUE)) {
+		Bbp94 = pAd->Bbp94;
+		pAd->BbpForCCK = FALSE;
+	}
+
+	if ((Bbp94 >= 0) && (Bbp94 <= 0x0C)) {
+		RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R94, Bbp94);
+	}
+}
+
 /*
 	========================================================================
 
@@ -3891,7 +3953,12 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 			   IN UCHAR RetryMode,
 			   IN UCHAR Ifs,
 			   IN UINT Rate,
-			   IN ULONG Length, IN UCHAR QueIdx, IN UCHAR PID)
+			   IN ULONG Length,
+			   IN UCHAR QueIdx,
+			   IN UCHAR PID,
+			   IN BOOLEAN bPiggyBack,
+			   IN BOOLEAN bAfterRTSCTS,
+			   IN BOOLEAN bBurstMode)
 {
 	UINT Residual;
 
@@ -3912,6 +3979,8 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 		 pTxD->BufCount, pTxD->BufLen0, pTxD->BufLen1, pTxD->BufLen2,
 		 Length);
 
+//	pTxD->PiggyBack = (bPiggyBack) ? 1 : 0;	// no need for STA
+	pTxD->Burst = (bBurstMode) ? 1 : 0;
 	pTxD->HostQId = QueIdx;
 	pTxD->MoreFrag = Fragment;
 	pTxD->ACK = Ack;
@@ -3924,6 +3993,8 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 	pTxD->HwSeq = (QueIdx == QID_MGMT) ? 1 : 0;
 	pTxD->BbpTxPower = DEFAULT_BBP_TX_POWER;	// TODO: to be modified
 	pTxD->DataByteCnt = Length;
+
+	RTMPCckBbpTuning(pAd, Rate);
 
 	// fill encryption related information, if required
 	pTxD->CipherAlg = CipherAlg;
@@ -3951,9 +4022,19 @@ VOID RTMPWriteTxDescriptor(IN PRTMP_ADAPTER pAd,
 			pTxD->Cwmax += 1;
 		}
 	} else {
-		pTxD->Cwmin = CW_MIN_IN_BITS;
-		pTxD->Cwmax = CW_MAX_IN_BITS;
-		pTxD->Aifsn = 2;
+		if (bAfterRTSCTS) {
+			// After RTS/CTS frame, data frame should use SIFS time.
+			// To patch this code, add the following code.
+			// Recommended by Jerry 2005/07/25 for WiFi testing with Proxim AP
+			pTxD->Cwmin = 0;
+			pTxD->Cwmax = 0;
+			pTxD->Aifsn = 1;
+			pTxD->IFS = IFS_BACKOFF;
+		} else {
+			pTxD->Cwmin = CW_MIN_IN_BITS;
+			pTxD->Cwmax = CW_MAX_IN_BITS;
+			pTxD->Aifsn = 2;
+		}
 	}
 
 	// fill up PLCP SIGNAL field
@@ -4083,34 +4164,4 @@ VOID RTMPResumeMsduTransmission(IN PRTMP_ADAPTER pAd)
 	RTMP_CLEAR_FLAG(pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS);
 	RTMPDeQueuePacket(pAd, QID_AC_BE);
 	RTMP_IO_WRITE32(pAd, TX_CNTL_CSR, 0x0000000f);	// kick all TX rings
-}
-
-
-static VOID RTMPCckBbpTuning(IN PRTMP_ADAPTER pAd, IN UINT TxRate)
-{
-	CHAR Bbp94 = 0xFF;
-
-	//
-	// Do nothing if TxPowerEnable == FALSE
-	//
-	if (pAd->TxPowerDeltaConfig.field.TxPowerEnable == FALSE)
-		return;
-
-	if ((TxRate < RATE_FIRST_OFDM_RATE) && (pAd->BbpForCCK == FALSE)) {
-		Bbp94 = pAd->Bbp94;
-
-		if (pAd->TxPowerDeltaConfig.field.Type == 1) {
-			Bbp94 += pAd->TxPowerDeltaConfig.field.DeltaValue;
-		} else {
-			Bbp94 -= pAd->TxPowerDeltaConfig.field.DeltaValue;
-		}
-		pAd->BbpForCCK = TRUE;
-	} else if ((TxRate >= RATE_FIRST_OFDM_RATE) && (pAd->BbpForCCK == TRUE)) {
-		Bbp94 = pAd->Bbp94;
-		pAd->BbpForCCK = FALSE;
-	}
-
-	if ((Bbp94 >= 0) && (Bbp94 <= 0x0C)) {
-		RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R94, Bbp94);
-	}
 }
