@@ -1,0 +1,23 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 01_sanitize_firmware_location.dpatch by Stefan Lippers-Hollmann <s.l-h@gmx.de>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: No description.
+
+@DPATCH@
+diff -urNad trunk~/Module/rt_config.h trunk/Module/rt_config.h
+--- trunk~/Module/rt_config.h	2007-05-01 03:04:14.000000000 +0200
++++ trunk/Module/rt_config.h	2007-05-02 03:02:03.000000000 +0200
+@@ -44,9 +44,9 @@
+ #define PROFILE_PATH                "/etc/Wireless/RT61STA/rt61sta.dat"
+ #define NIC_DEVICE_NAME             "RT61STA"
+ // Super mode, RT2561S: super(high throughput, aggregiation, piggy back), RT2561T: Package type(TQFP)
+-#define RT2561_IMAGE_FILE_NAME      "/etc/Wireless/RT61STA/rt2561.bin"
+-#define RT2561S_IMAGE_FILE_NAME     "/etc/Wireless/RT61STA/rt2561s.bin"
+-#define RT2661_IMAGE_FILE_NAME      "/etc/Wireless/RT61STA/rt2661.bin"
++#define RT2561_IMAGE_FILE_NAME      "/lib/firmware/rt2561.bin"
++#define RT2561S_IMAGE_FILE_NAME     "/lib/firmware/rt2561s.bin"
++#define RT2661_IMAGE_FILE_NAME      "/lib/firmware/rt2661.bin"
+ #define RALINK_PASSPHRASE           "Ralink"
+ #define DRIVER_NAME                 "rt61"
+ #define DRIVER_VERSION              "1.1.0 CVS"
