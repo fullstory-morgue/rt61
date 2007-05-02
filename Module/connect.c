@@ -1615,7 +1615,8 @@ ULONG MakeIbssBeacon(IN PRTMP_ADAPTER pAd)
 	RTMPWriteTxDescriptor(pAd, pTxD, CIPHER_NONE, 0, 0, FALSE, FALSE, TRUE,
 			      SHORT_RETRY, IFS_BACKOFF, pAd->PortCfg.MlmeRate,
 			      FrameLen, QID_MGMT,
-			      PTYPE_SPECIAL | PSUBTYPE_MGMT);
+			      PTYPE_SPECIAL | PSUBTYPE_MGMT, FALSE, FALSE,
+			      FALSE);
 
 	DBGPRINT(RT_DEBUG_TRACE, "MakeIbssBeacon (len=%d)\n", FrameLen);
 	return FrameLen;

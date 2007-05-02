@@ -377,6 +377,12 @@ static VOID MlmeScanReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 	PHEADER_802_11 pHdr80211;
 	PUCHAR pOutBuffer = NULL;
 
+	if (!RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_START_UP)) {
+		DBGPRINT(RT_DEBUG_TRACE,
+			 "SYNC - MlmeScanReqAction before Startup\n");
+		return;
+	}
+
 	// Increase the scan retry counters.
 	pAd->PortCfg.ScanCnt++;
 

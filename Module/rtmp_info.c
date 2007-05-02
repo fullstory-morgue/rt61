@@ -1815,7 +1815,8 @@ static int rt_ioctl_siwscan(struct net_device *dev,
 	int Status = NDIS_STATUS_SUCCESS;
 
 	//check if the interface is down
-	if (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE)) {
+	if (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE) &&
+	    !RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_START_UP)) {
 		DBGPRINT(RT_DEBUG_TRACE, "INFO::Network is down!\n");
 		return -ENETDOWN;
 	}
@@ -1926,7 +1927,7 @@ static int rt_ioctl_giwscan(struct net_device *dev,
 		iwe.u.data.length = pAdapter->ScanTab.BssEntry[i].SsidLen;
 		iwe.u.data.flags = 1;
 
-		previous_ev == current_ev;
+		previous_ev = current_ev;
 		current_ev =
 		    iwe_stream_add_point(current_ev, end_buf, &iwe,
 					 pAdapter->ScanTab.BssEntry[i].Ssid);
@@ -6447,7 +6448,8 @@ INT Set_ATE_Proc(
 			RTMPWriteTxDescriptor(pAd, pTxD, CIPHER_NONE, 0, 0,
 					      FALSE, FALSE, FALSE, SHORT_RETRY,
 					      IFS_BACKOFF, pAd->ate.TxRate,
-					      pAd->ate.TxLength, QID_AC_BE, 0);
+					      pAd->ate.TxLength, QID_AC_BE, 0,
+					      FALSE, FALSE, FALSE);
 
 			INC_RING_INDEX(pTxRing->CurTxIndex, TX_RING_SIZE);
 		}

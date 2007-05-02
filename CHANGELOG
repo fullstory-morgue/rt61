@@ -23,6 +23,10 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	* Import adapter startup detection updates from new Ralink (1.1.0.0)
+	  driver.
+	* Import RTC/CTS frame sending updates from new Ralink (1.1.0.0)
+	  driver.
 	* Import assorted RSSI reporting updates from new Ralink (1.1.0.0)
 	  driver.
  	* Import WPA-related updates from new Ralink (1.1.0.0) driver.

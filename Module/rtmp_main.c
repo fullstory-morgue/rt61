@@ -536,6 +536,9 @@ static INT RT61_open(IN struct net_device * net_dev)
 	INT status = NDIS_STATUS_SUCCESS;
 	ULONG MacCsr0;
 	UCHAR TmpPhy;
+#ifdef RX_TASKLET
+	struct sk_buff *skb;
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	if (!try_module_get(THIS_MODULE)) {
@@ -593,10 +596,12 @@ static INT RT61_open(IN struct net_device * net_dev)
 	}
 	RTMP_SET_FLAG(pAd, fRTMP_ADAPTER_INTERRUPT_IN_USE);
 
-	// Load 8051 firmware
+	// Load firmware
 	status = NICLoadFirmware(pAd);
 	if (status != NDIS_STATUS_SUCCESS) {
-		goto out_mlme_halt;
+		printk(KERN_ERR DRIVER_NAME
+			": Could not load firmware! (is firmware file installed?)\n");
+		goto out_no_firmware;
 	}
 
 	// Initialize Asics
@@ -674,6 +679,8 @@ static INT RT61_open(IN struct net_device * net_dev)
 	RTMP_IO_WRITE32(pAd, RX_CNTL_CSR, 0x00000001);	// enable RX of DMA block
 	RTMPWriteTXRXCsr0(pAd, FALSE, TRUE);
 
+	RTMP_SET_FLAG(pAd, fRTMP_ADAPTER_START_UP);
+
 	// Start net interface tx /rx
 	netif_start_queue(net_dev);
 
@@ -682,8 +689,29 @@ static INT RT61_open(IN struct net_device * net_dev)
 
 	return 0;
 
-      out_mlme_halt:
+      out_no_firmware:
+	del_timer_sync(&pAd->RfTuningTimer);
 	MlmeHalt(pAd);
+#ifdef RX_TASKLET
+	// Stop tasklet 
+	tasklet_kill(&pAd->RxTasklet);
+	while (TRUE) {
+		skb = skb_dequeue(&pAd->RxQueue);
+		if (!skb)
+			break;
+		dev_kfree_skb_irq(skb);
+	}
+#endif
+	NICIssueReset(pAd);
+	free_irq(net_dev->irq, net_dev);
+	RTMPFreeDMAMemory(pAd);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
+	module_put(THIS_MODULE);
+#else
+	MOD_DEC_USE_COUNT;
+#endif
+	return status;
+
       out_free_irq:
 	free_irq(net_dev->irq, net_dev);
       out_free_dma_memory:
