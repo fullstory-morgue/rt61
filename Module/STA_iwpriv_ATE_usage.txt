@@ -7,7 +7,7 @@ It may damage hardware.
 
 
 Usage:
-	iwpriv ra0 [act] [parameters]=[val]
+	iwpriv wlan0 [act] [parameters]=[val]
 
 
 where
@@ -52,83 +52,83 @@ set		ATEDA		    xx:xx:xx:xx:xx:xx   	set ATE frame header addr1
 For example:
 ============
 1. Check EVM & Power
-	iwpriv ra0 set ATE=STASTOP				; Stop STA working
-	iwpriv ra0 set ATEDA=00:11:22:33:44:55
-	iwpriv ra0 set ATESA=00:aa:bb:cc:dd:ee
-	iwpriv ra0 set ATEBSSID=00:11:22:33:44:55
-	iwpriv ra0 set ATETXRATE=11				; Set Tx Rate 0~11
-	iwpriv ra0 set ATECHANNEL=1				; Set Ate channel
-	iwpriv ra0 set ATETXLEN=1024			; Tx frame length(no include 802.11 header)
-	iwpriv ra0 set ATETXPOW=18				; Tx power(decmial)
-	iwpriv ra0 set ATETXCNT=100000			; Tx frame count(decmial, this value must
+	iwpriv wlan0 set ATE=STASTOP				; Stop STA working
+	iwpriv wlan0 set ATEDA=00:11:22:33:44:55
+	iwpriv wlan0 set ATESA=00:aa:bb:cc:dd:ee
+	iwpriv wlan0 set ATEBSSID=00:11:22:33:44:55
+	iwpriv wlan0 set ATETXRATE=11				; Set Tx Rate 0~11
+	iwpriv wlan0 set ATECHANNEL=1				; Set Ate channel
+	iwpriv wlan0 set ATETXLEN=1024			; Tx frame length(no include 802.11 header)
+	iwpriv wlan0 set ATETXPOW=18				; Tx power(decmial)
+	iwpriv wlan0 set ATETXCNT=100000			; Tx frame count(decmial, this value must
 											; larger than meausurement period)
-	iwpriv ra0 set ATE=TXFRAME				; Start Tx Frame
+	iwpriv wlan0 set ATE=TXFRAME				; Start Tx Frame
 	...										; Measure EVM and Power with instrument
-	iwpriv ra0 set ATETXPOW=19				; dynamic adjust Tx Power in decmial
+	iwpriv wlan0 set ATETXPOW=19				; dynamic adjust Tx Power in decmial
 	...
-	iwpriv ra0 set ATETXPOW=20
+	iwpriv wlan0 set ATETXPOW=20
 	...
-	iwpriv ra0 set ATE=STASTOP				; Stop
+	iwpriv wlan0 set ATE=STASTOP				; Stop
 
 
 2. Check Carrier
-	iwpriv ra0 set ATE=STASTOP
-	iwpriv ra0 set ATETXRATE=11				; Set Tx Rate 0~11
-	iwpriv ra0 set ATETXCNT=50				; Tx frame count(decmial)
-	iwpriv ra0 set ATE=TXFRAME				; Start Tx Frame(inform BBP to change 												; modulation mode)
-	iwpriv ra0 set ATE=TXCARR				; Start Tx carrier
+	iwpriv wlan0 set ATE=STASTOP
+	iwpriv wlan0 set ATETXRATE=11				; Set Tx Rate 0~11
+	iwpriv wlan0 set ATETXCNT=50				; Tx frame count(decmial)
+	iwpriv wlan0 set ATE=TXFRAME				; Start Tx Frame(inform BBP to change 												; modulation mode)
+	iwpriv wlan0 set ATE=TXCARR				; Start Tx carrier
 	...										; Measure carrier with instrument
-	iwpriv ra0 set ATE=STASTOP
+	iwpriv wlan0 set ATE=STASTOP
 
 
 3. Check specturm mask
-	iwpriv ra0 set ATE=STASTOP
-	iwpriv ra0 set ATETXRATE=11				; Set Tx Rate 0~11
-	iwpriv ra0 set ATETXCNT=50				; Tx frame count(decmial)
-	iwpriv ra0 set ATE=TXCONT				; Start continuous TX
+	iwpriv wlan0 set ATE=STASTOP
+	iwpriv wlan0 set ATETXRATE=11				; Set Tx Rate 0~11
+	iwpriv wlan0 set ATETXCNT=50				; Tx frame count(decmial)
+	iwpriv wlan0 set ATE=TXCONT				; Start continuous TX
 	...										; Measure specturm mask with instrument
-	iwpriv ra0 set ATE=STASTOP
+	iwpriv wlan0 set ATE=STASTOP
 
 
 4. Frequency offset tuning
-	iwpriv ra0 set ATE=STASTOP
-	iwpriv ra0 set ATETXRATE=11				; Set Tx Rate 0~11
-	iwpriv ra0 set ATETXCNT=50				; Tx frame count(decmial)
-	iwpriv ra0 set ATE=TXFRAME				; Start Tx Frame
-	iwpriv ra0 set ATETXFREQOFFSET=0		; Set frequency offset 0(decimal)
-	iwpriv ra0 set ATE=TXCARR				; Start Tx carrier
+	iwpriv wlan0 set ATE=STASTOP
+	iwpriv wlan0 set ATETXRATE=11				; Set Tx Rate 0~11
+	iwpriv wlan0 set ATETXCNT=50				; Tx frame count(decmial)
+	iwpriv wlan0 set ATE=TXFRAME				; Start Tx Frame
+	iwpriv wlan0 set ATETXFREQOFFSET=0		; Set frequency offset 0(decimal)
+	iwpriv wlan0 set ATE=TXCARR				; Start Tx carrier
 	...										; Measure carrier frequency with instrument
-	iwpriv ra0 set ATETXFREQOFFSET=10		; Dynamic turning frequency offset 													; 10(decimal)
+	iwpriv wlan0 set ATETXFREQOFFSET=10		; Dynamic turning frequency offset 													; 10(decimal)
 	...                                 	
-	iwpriv ra0 set ATETXFREQOFFSET=20		; Dynamic turning frequency offset 													; 20(decimal)
+	iwpriv wlan0 set ATETXFREQOFFSET=20		; Dynamic turning frequency offset 													; 20(decimal)
 	...                                 	
-	iwpriv ra0 set ATE=STASTOP				; Stop
+	iwpriv wlan0 set ATE=STASTOP				; Stop
 											; Store the tuning result to EEPROM
 
 
 5. Rx
-	iwpriv ra0 set ATE=STASTOP
-	iwpriv ra0 set ResetCounter=0			; Reset statistic counter
-	iwpriv ra0 set ATETXRATE=11				; Set Tx Rate 0~11
-	iwpriv ra0 set ATE=RXFRAME				; Start Rx
+	iwpriv wlan0 set ATE=STASTOP
+	iwpriv wlan0 set ResetCounter=0			; Reset statistic counter
+	iwpriv wlan0 set ATETXRATE=11				; Set Tx Rate 0~11
+	iwpriv wlan0 set ATE=RXFRAME				; Start Rx
 	...										; Transmit test packets
-	iwpriv ra0 set ATE=STASTOP				; Stop
-	iwpriv ra0 stat
+	iwpriv wlan0 set ATE=STASTOP				; Stop
+	iwpriv wlan0 stat
 
 6. Hardware access
-	iwpriv ra0 bbp 0						; read BBP register 0
-	iwpriv ra0 bbp 0=12						; write BBP register 0 as 0x12
-	iwpriv ra0 mac 0						; read MAC register 0
-	iwpriv ra0 mac 0=1234abcd				; write MAC register 0 as 0x1234abcd
-	iwpriv ra0 e2p 0						; read E2PROM 0
-	iwpriv ra0 e2p c=12ab					; write E2PROM 0xc as 0x12ab
+	iwpriv wlan0 bbp 0						; read BBP register 0
+	iwpriv wlan0 bbp 0=12						; write BBP register 0 as 0x12
+	iwpriv wlan0 mac 0						; read MAC register 0
+	iwpriv wlan0 mac 0=1234abcd				; write MAC register 0 as 0x1234abcd
+	iwpriv wlan0 e2p 0						; read E2PROM 0
+	iwpriv wlan0 e2p c=12ab					; write E2PROM 0xc as 0x12ab
 
 	
 Suggestion:
 ============
 	1. To turn on ATE functionality, you have to add compile flag "RT61_DBG" and "RALINK_ATE" to Makefile
-	2. Before doing ATE testing, please stop STA function (iwpriv ra0 set ATE=STASTOP)
-	3. If you want to test another ATE action, prefer to stop STA & ATE function (iwpriv ra0 set ATE=STASTOP)
+	2. Before doing ATE testing, please stop STA function (iwpriv wlan0 set ATE=STASTOP)
+	3. If you want to test another ATE action, prefer to stop STA & ATE function (iwpriv wlan0 set ATE=STASTOP)
 	4. All ATE function settings will lose efficacy after reboot.
 	5. Before hardware register access, please reference hardware spec.
 

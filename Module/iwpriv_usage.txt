@@ -1,100 +1,103 @@
+This file provides some basic examples on the configuration of the driver using
+standard linux wireless tools.
+Where possible iwconfig should be used to adjust settings.
+Some settings are currently not available via iwconfig and these include WPA,
+for these functions it is currently necessary to use iwpriv.
 
-This file provides some basic examples on the configuration of the driver using standard linux wireless
-tools. Where possible iwconfig should be used to adjust settings. Some settings are currently not
-available via iwconfig and these include WPA, for these functions it is currently necessary to use iwpriv.
 
-
+======================
 Configuration Examples
-===================================================================
--------------------------------------------------------------------------------------------------------
+======================
+
 a> Config STA to link with AP which is OPEN/NONE(Authentication/Encryption)
-	1. iwconfig ra0 mode managed
-	2. iwconfig ra0 key open
-	3. iwconfig ra0 key off
-	4. iwconfig ra0 essid "AP's SSID"
+	1. iwconfig wlan0 mode managed
+	2. iwconfig wlan0 key open
+	3. iwconfig wlan0 key off
+	4. iwconfig wlan0 essid "AP's SSID"
 	
 b> Config STA to link with AP which is SHARED/WEP(Authentication/Encryption)
-	1. iwconfig ra0 mode managed
-	2. iwconfig ra0 key restricted
-	3. iwconfig ra0 key [1] "s:AP's wep key"
-	4. iwconfig ra0 key [1]
-	5. iwconfig ra0 essid "AP's SSID"
+	1. iwconfig wlan0 mode managed
+	2. iwconfig wlan0 key restricted
+	3. iwconfig wlan0 key [1] "s:AP's wep key"
+	4. iwconfig wlan0 key [1]
+	5. iwconfig wlan0 essid "AP's SSID"
 	
 c> Config STA to link with AP which is WPAPSK/TKIP(Authentication/Encryption)
-	1. iwconfig ra0 mode managed
-	2. iwpriv ra0 set AuthMode=WPAPSK
-	3. iwpriv ra0 set EncrypType=TKIP
-	4. iwconfig ra0 essid "AP's SSID"
-	5. iwpriv ra0 set WPAPSK="AP's wpa-preshared key"
-	6. iwconfig ra0 essid "AP's SSID"
+	1. iwconfig wlan0 mode managed
+	2. iwpriv wlan0 set AuthMode=WPAPSK
+	3. iwpriv wlan0 set EncrypType=TKIP
+	4. iwconfig wlan0 essid "AP's SSID"
+	5. iwpriv wlan0 set WPAPSK="AP's wpa-preshared key"
+	6. iwconfig wlan0 essid "AP's SSID"
 	
 d> Config STA to link with AP which is WPAPSK/AES(Authentication/Encryption)
-	1. iwconfig ra0 mode managed
-	2. iwpriv ra0 set AuthMode=WPAPSK
-	3. iwpriv ra0 set EncrypType=AES
-	4. iwconfig ra0 essid "AP's SSID"
-	5. iwpriv ra0 set WPAPSK="AP's wpa-preshared key"
-	6. iwconfig ra0 essid "AP's SSID"
+	1. iwconfig wlan0 mode managed
+	2. iwpriv wlan0 set AuthMode=WPAPSK
+	3. iwpriv wlan0 set EncrypType=AES
+	4. iwconfig wlan0 essid "AP's SSID"
+	5. iwpriv wlan0 set WPAPSK="AP's wpa-preshared key"
+	6. iwconfig wlan0 essid "AP's SSID"
 
 e> Config STA to link with AP which is WPA2PSK/TKIP(Authentication/Encryption)
-	1. iwconfig ra0 mode managed
-	2. iwpriv ra0 set AuthMode=WPA2PSK
-	3. iwpriv ra0 set EncrypType=TKIP
-	4. iwconfig ra0 essid "AP's SSID"
-	5. iwpriv ra0 set WPAPSK=12345678
-	6. iwconfig ra0 essid "AP's SSID"
+	1. iwconfig wlan0 mode managed
+	2. iwpriv wlan0 set AuthMode=WPA2PSK
+	3. iwpriv wlan0 set EncrypType=TKIP
+	4. iwconfig wlan0 essid "AP's SSID"
+	5. iwpriv wlan0 set WPAPSK=12345678
+	6. iwconfig wlan0 essid "AP's SSID"
 	
 f> Config STA to create/link as adhoc mode, which is OPEN/NONE(Authentication/Encryption)
-	1. iwconfig ra0 mode ad-hoc
-	2. iwconfig ra0 key off
-	4. iwconfig ra0 essid "Adhoc's SSID"
+	1. iwconfig wlan0 mode ad-hoc
+	2. iwconfig wlan0 key off
+	4. iwconfig wlan0 essid "Adhoc's SSID"
 
 g>  Config STA to create/link as adhoc mode, which is WPANONE/TKIP(Authentication/Encryption)
-	1. iwconfig ra0 mode ad-hoc
-	2. iwpriv ra0 set AuthMode=WPANONE
-	3. iwpriv ra0 set EncrypType=TKIP
-	4. iwconfig ra0 essid "AP's SSID"
-	5. iwpriv ra0 set WPAPSK=12345678
-	6. iwconfig ra0 essid "AP's SSID"
+	1. iwconfig wlan0 mode ad-hoc
+	2. iwpriv wlan0 set AuthMode=WPANONE
+	3. iwpriv wlan0 set EncrypType=TKIP
+	4. iwconfig wlan0 essid "AP's SSID"
+	5. iwpriv wlan0 set WPAPSK=12345678
+	6. iwconfig wlan0 essid "AP's SSID"
   
 h> Get site survey 
-	1: iwpriv ra0 get_site_survey
+	1: iwpriv wlan0 get_site_survey
 		
 i> Get Statistics 
-	1: iwpriv ra0 stat				; read statistic counter
-	2: iwpriv ra0 set ResetCounter=0		; reset statistic counter
+	1: iwpriv wlan0 stat			; read statistic counter
+	2: iwpriv wlan0 set ResetCounter=0	; reset statistic counter
 
 j> Link with any AP without security		; set ANY SSID (ssidLen=0)
-	1: iwconfig ra0 essid ""                 
+	1: iwconfig wlan0 essid ""                 
 
-===================================================================
 
+========
 iwconfig
-=================
+========
+
 The following are our support in standard configuration - iwconfig
 
--------------------------------------------------------------------------------------------------------
-iwconfig ra0 essid {NN|on|off}			; set essid
-iwconfig ra0 mode {managed|ad-hoc|...}		; set wireless mode
-iwconfig ra0 freq N.NNNN[k|M|G]]		; set frequency
-iwconfig ra0 channel N				; set channel
-iwconfig ra0 ap {N|off|auto}			; set AP address
-iwconfig ra0 nick N				; set nickname
-iwconfig ra0 rate {N|auto|fixed}		; set rate
-iwconfig ra0 rts {N|auto|fixed|off}		; set RTS threshold
-iwconfig ra0 frag {N|auto|fixed|off}		; set Fragment threshold
-iwconfig ra0 enc {NNNN-NNNN|off}		; set encryption type
-iwconfig ra0 power {period N|timeout N}		; set power management modes
+iwconfig wlan0 essid {NN|on|off}			; set essid
+iwconfig wlan0 mode {managed|ad-hoc|...}		; set wireless mode
+iwconfig wlan0 freq N.NNNN[k|M|G]]		; set frequency
+iwconfig wlan0 channel N				; set channel
+iwconfig wlan0 ap {N|off|auto}			; set AP address
+iwconfig wlan0 nick N				; set nickname
+iwconfig wlan0 rate {N|auto|fixed}		; set rate
+iwconfig wlan0 rts {N|auto|fixed|off}		; set RTS threshold
+iwconfig wlan0 frag {N|auto|fixed|off}		; set Fragment threshold
+iwconfig wlan0 enc {NNNN-NNNN|off}		; set encryption type
+iwconfig wlan0 power {period N|timeout N}		; set power management modes
 
 
+======
 iwpriv
-=================
+======
+
 This is detailed explanation of each parameters for iwpriv.
 Before reading this document, make sure you already read README.
 
--------------------------------------------------------------------------------------------------------
 USAGE:
-	iwpriv ra0 set [parameters]=[val]
+	iwpriv wlan0 set [parameters]=[val]
 	
 NOTE:
 	Execute one iwpriv/set command simultaneously.
@@ -196,17 +199,16 @@ IEEE80211H				{0,1}
 						1:Enable ieee802.11h
 
 
+======
 iwlist
-=================
+======
+
 This is detailed explanation of each parameters for iwlist.
 
--------------------------------------------------------------------------------------------------------
-iwlist ra0 scanning		; list the results after scanning(manual rescan)
+iwlist wlan0 scanning		; list the results after scanning(manual rescan)
 
 
--------------------------------------------------------------------------------------------------------
-
-
+=================
 Deprecated iwpriv
 =================
 
@@ -252,7 +254,5 @@ Key4                 	{5 ascii characters or 10 hex number or
                      	13 ascii characters or 26 hex numbers}
                         					::Set Key4 String
                                                         
-
-
 
 *** Wireless extension usage please refer to man page of 'iwconfig', 'iwlist' and 'iwpriv'. ***

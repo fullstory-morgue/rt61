@@ -135,27 +135,13 @@ else
 	make $(KBUILD_PARAMS) modules_install
 	/sbin/depmod -a
 endif
+	@echo "!!! WARNING: Firmware location has changed to /lib/firmware"
+	@echo "!!! WARNING: Interface name has changed to wlan*"
+	@echo "!!! WARNING: rt61sta.dat file is deprecated (use iwconfig/iwpriv)
+	@echo "!!! Please update your configuration settings accordingly"
 
 install: modules_install
-	@if ! grep -q 'ra0' $(MODULE_CONF) ; then \
-		echo "append 'alias ra0 rt61' to $(MODULE_CONF)"; \
-		echo "alias ra0 rt61" >> $(MODULE_CONF) ; \
-	fi
 
-install-fedora:
-	if ! [ -f $(MODULE_OBJECT) ]; then \
-		module; \
-	fi
-	@echo "install '$(MODULE_OBJECT)' to $(MODULE_ROOT)"
-	install -m 755 -o 0 -g 0 -d $(MODULE_ROOT)
-	install -m 644 -o 0 -g 0 $(MODULE_OBJECT) $(MODULE_ROOT)
-	/sbin/depmod -a
-
-	@if ! grep -q 'wlan0' /etc/modprobe.conf ; then \
-		echo "append 'alias wlan0 rt61' to /etc/modprobe.conf"; \
-		echo "alias wlan0 rt61" >> /etc/modprobe.conf ; \
-		echo "options rt61 ifname=wlan%d" >> /etc/modprobe.conf ; \
-	fi
 
 ifeq ($(PATCHLEVEL), 4)
 include $(KERNEL_SOURCES)/Rules.make

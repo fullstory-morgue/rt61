@@ -1,3 +1,12 @@
+rt61 (1.1.0.dfsg.2+cvs20070508-1) unstable; urgency=low
+
+  * New upstream release:
+    - Add firmware_class support
+    - Make interface name compliant with linux standard (wlan*)
+    - Remove rt61sta.dat config file support
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 08 May 2007 15:17:14 +0200
+
 rt61 (1.1.0.dfsg.2+cvs20070502-3) UNRELEASED; urgency=low
 
   * NOT RELEASED YET

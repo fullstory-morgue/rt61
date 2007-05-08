@@ -34,6 +34,9 @@
 	* Import WMM-APSD enhancements from new Ralink (1.1.0.0) driver.
 	* Import wpa_supplicant fixes from new Ralink (1.1.0.0) driver.
 	* Add Ralink wpa_supplicant code to repository.
+	* Add firmware_class support
+	* Make interface name compliant with linux standard (wlan*)
+	* Remove rt61sta.dat config file support
 
  Version: 1.1.0-beta2
  	* Fix oops upon loading module without proper firmware file installed

@@ -44,9 +44,9 @@
 #define PROFILE_PATH                "/etc/Wireless/RT61STA/rt61sta.dat"
 #define NIC_DEVICE_NAME             "RT61STA"
 // Super mode, RT2561S: super(high throughput, aggregiation, piggy back), RT2561T: Package type(TQFP)
-#define RT2561_IMAGE_FILE_NAME      "/etc/Wireless/RT61STA/rt2561.bin"
-#define RT2561S_IMAGE_FILE_NAME     "/etc/Wireless/RT61STA/rt2561s.bin"
-#define RT2661_IMAGE_FILE_NAME      "/etc/Wireless/RT61STA/rt2661.bin"
+#define RT2561_IMAGE_FILE_NAME      "rt2561.bin"
+#define RT2561S_IMAGE_FILE_NAME     "rt2561s.bin"
+#define RT2661_IMAGE_FILE_NAME      "rt2661.bin"
 #define RALINK_PASSPHRASE           "Ralink"
 #define DRIVER_NAME                 "rt61"
 #define DRIVER_VERSION              "1.1.0 CVS"
@@ -93,6 +93,7 @@
 #include <linux/ctype.h>
 #include <linux/sockios.h>
 #include <linux/threads.h>
+#include <linux/firmware.h>
 
 #if LINUX_VERSION_CODE >= 0x20407
 #include <linux/mii.h>
@@ -196,10 +197,6 @@ typedef union _LARGE_INTEGER {
 
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a,b,c) ((a)*65536+(b)*256+(c))
-#endif
-
-#if 1
-#define RT_READ_PROFILE		// Driver reads RaConfig profile parameters from rt61sta.dat
 #endif
 
 #define SL_IRQSAVE          1	// 0: use spin_lock_bh/spin_unlock_bh pair,

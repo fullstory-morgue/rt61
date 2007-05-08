@@ -62,7 +62,7 @@ module_param(ifname, charp, 0444);
 #else
 MODULE_PARM(ifname, "s");
 #endif
-MODULE_PARM_DESC(ifname, "Network device name (default ra%d)");
+MODULE_PARM_DESC(ifname, "Network device name (default wlan%d)");
 
 static dma_addr_t dma_adapter;
 
@@ -607,12 +607,6 @@ static INT RT61_open(IN struct net_device * net_dev)
 	// Initialize Asics
 	NICInitializeAdapter(pAd);
 
-#ifdef RT_READ_PROFILE
-	// load in data from rt61sta.dat file
-	// note this will TRASH any preup settings applied
-	// if the parameter exists in the file
-	RTMPReadParametersFromFile(pAd);
-#endif
 	// We should read EEPROM for all cases.
 	NICReadEEPROMParameters(pAd);
 
@@ -884,7 +878,7 @@ static INT __devinit RT61_probe(IN struct pci_dev * pPci_Dev,
 	// register_netdev() will call dev_alloc_name() for us
 	// TODO: Remove the following line to keep the default eth%d name
 	if (ifname == NULL)
-		strcpy(net_dev->name, "ra%d");
+		strcpy(net_dev->name, "wlan%d");
 	else
 		strncpy(net_dev->name, ifname, IFNAMSIZ);
 

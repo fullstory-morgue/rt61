@@ -1633,7 +1633,6 @@ NDIS_STATUS NICInitializeAdapter(IN PRTMP_ADAPTER pAdapter);
 VOID NICIssueReset(IN PRTMP_ADAPTER pAdapter);
 VOID NICUpdateRawCounters(IN PRTMP_ADAPTER pAdapter);
 VOID NICResetFromError(IN PRTMP_ADAPTER pAdapter);
-VOID RTMPReadParametersFromFile(IN PRTMP_ADAPTER pAd);
 NDIS_STATUS NICLoadFirmware(IN PRTMP_ADAPTER pAd);
 VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType);
 VOID PortCfgInit(IN PRTMP_ADAPTER pAd);
