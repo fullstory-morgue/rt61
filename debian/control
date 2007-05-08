@@ -3,7 +3,7 @@ Section: contrib/net
 Priority: optional
 Maintainer: Kel Modderman <kelrin@tpg.com.au>
 Uploaders: Stefan Lippers-Hollmann <s.l-h@gmx.de>
-Build-Depends: cdbs, debhelper (>= 5.0.37), bzip2, dpatch
+Build-Depends: cdbs, debhelper (>= 5.0.37), bzip2
 Standards-Version: 3.7.2
 
 Package: rt61-source

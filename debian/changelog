@@ -4,8 +4,11 @@ rt61 (1.1.0.dfsg.2+cvs20070508-1) unstable; urgency=low
     - Add firmware_class support
     - Make interface name compliant with linux standard (wlan*)
     - Remove rt61sta.dat config file support
+  * 01_sanitize_firmware_location.dpatch has been obsoleted by upstream,
+    remove it.
+  * we no longer need to build-depend on dpatch.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 08 May 2007 15:17:14 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 08 May 2007 15:19:30 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070502-3) UNRELEASED; urgency=low
 
