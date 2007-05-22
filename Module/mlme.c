@@ -1284,6 +1284,7 @@ VOID AsicSleepThenAutoWakeup(IN PRTMP_ADAPTER pAd,
         in INFRA BSS, we should use AsicSleepThenAutoWakeup() instead.
     ==========================================================================
  */
+#if 0
 static VOID AsicForceSleep(IN PRTMP_ADAPTER pAd)
 {
 	MAC_CSR11_STRUC csr11;
@@ -1304,6 +1305,7 @@ static VOID AsicForceSleep(IN PRTMP_ADAPTER pAd)
 
 	OPSTATUS_SET_FLAG(pAd, fOP_STATUS_DOZE);
 }
+#endif
 
 /*
     ==========================================================================
@@ -1885,6 +1887,7 @@ VOID AsicRemoveSharedKeyEntry(IN PRTMP_ADAPTER pAd,
 	RTMP_IO_WRITE32(pAd, SEC_CSR0, SecCsr0);
 }
 
+#if 0
 static VOID AsicAddPairwiseKeyEntry(IN PRTMP_ADAPTER pAd,
 			     IN PUCHAR pAddr,
 			     IN UCHAR KeyIdx,
@@ -1950,6 +1953,7 @@ static VOID AsicRemovePairwiseKeyEntry(IN PRTMP_ADAPTER pAd, IN UCHAR KeyIdx)
 		RTMP_IO_WRITE32(pAd, SEC_CSR3, csr3);
 	}
 }
+#endif
 
 BOOLEAN AsicSendCommandToMcu(IN PRTMP_ADAPTER pAd,
 			     IN UCHAR Command,
@@ -2202,6 +2206,7 @@ static VOID MlmeAutoRecoverNetwork(IN PRTMP_ADAPTER pAd)
     Output:
     ==========================================================================
  */
+#if 0
 static VOID MlmeCheckForRoaming(IN PRTMP_ADAPTER pAd, IN ULONG Now32)
 {
 	USHORT i;
@@ -2269,6 +2274,7 @@ static VOID MlmeCheckForRoaming(IN PRTMP_ADAPTER pAd, IN ULONG Now32)
 		 "<== MlmeCheckForRoaming(# of candidate= %d)\n",
 		 pRoamTab->BssNr);
 }
+#endif
 
 /*
 	==========================================================================
@@ -4915,7 +4921,7 @@ ULONG MakeOutgoingFrame(OUT CHAR * Buffer, OUT ULONG * FrameLen, ...)
  *  \post
  *  \note   Because this is done only once (at the init stage), no need to be locked
  */
-NDIS_STATUS MlmeQueueInit(IN MLME_QUEUE * Queue)
+void MlmeQueueInit(IN MLME_QUEUE * Queue)
 {
 	INT i;
 
@@ -4930,8 +4936,6 @@ NDIS_STATUS MlmeQueueInit(IN MLME_QUEUE * Queue)
 		Queue->Entry[i].MsgLen = 0;
 		memset(Queue->Entry[i].Msg, 0, MAX_LEN_OF_MLME_BUFFER);
 	}
-
-	return NDIS_STATUS_SUCCESS;
 }
 
 /*! \brief   Enqueue a message for other threads, if they want to send messages to MLME thread
@@ -5059,7 +5063,7 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 			CHAR CfgData[MAX_CFG_BUFFER_LEN + 1] = { 0 };
 			if (BackDoorProbeRspSanity(pAd, Msg, MsgLen, CfgData)) {
 				printk
-				    ("MlmeEnqueueForRecv: CfgData(len:%ld):\n%s\n",
+				    ("MlmeEnqueueForRecv: CfgData(len:%d):\n%s\n",
 				     strlen(CfgData), CfgData);
 				pAd->PortCfg.bGetAPConfig = FALSE;
 			}

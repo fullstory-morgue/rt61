@@ -2835,12 +2835,12 @@ static BOOLEAN RTMPCheckDHCPFrame(IN PRTMP_ADAPTER pAd, IN struct sk_buff *pSkb)
 		}
 		else
 		{
-			int is_ip = ((pSrc[12] == 0x08) && (pSrc[13] == 0x00));
-			int is_ipv4 = ((pSrc[14] & 0xf0) == 0x40);
-			int is_udp = (pSrc[23] == 17);
-			int dest_port = (pSrc[36] << 8) | pSrc[37];
-			DBGPRINT(RT_DEBUG_INFO,"RTMPCheckDHCPFrame - not DHCP, ip %d ipv4 %d udp %d destport %d\n",
-				 is_ip, is_ipv4, is_udp, dest_port );
+			DBGPRINT(RT_DEBUG_INFO,
+				"RTMPCheckDHCPFrame - not DHCP, ip %d ipv4 %d udp %d destport %d\n",
+				((pSrc[12] == 0x08) && (pSrc[13] == 0x00)),
+				((pSrc[14] & 0xf0) == 0x40),
+				(pSrc[23] == 17),
+				(pSrc[36] << 8) | pSrc[37]);
 		}	
 	}
 

@@ -40,6 +40,7 @@
  *      MeelisR(rt2500) 16th Feb 06     PCI management fixes
  *      TorP (rt2500)   19th Feb 06     Power management: Suspend and Resume
  *      MarkW (rt2500)  19th Feb 06     Promisc mode support
+ *      OlivierC        20th May 07     Fix pci_remove Oops when no firmware
  ***************************************************************************/
 
 #include "rt_config.h"
@@ -193,9 +194,9 @@ int const rt61_pci_tbl_len =
 */
 static
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
- irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance, IN struct pt_regs * rgs)
+ irqreturn_t rt61_do_irq(IN INT irq, IN VOID * dev_instance, IN struct pt_regs * rgs)
 #else
- irqreturn_t RTMPIsr(IN INT irq, IN VOID * dev_instance)
+ irqreturn_t rt61_do_irq(IN INT irq, IN VOID * dev_instance)
 #endif
 {
 	struct net_device *net_dev = dev_instance;
@@ -300,37 +301,28 @@ out:
 
     ========================================================================
 */
-static INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
+static INT rt61_hard_start_xmit(IN struct sk_buff * pSkb, IN struct net_device * net_dev)
 {
 	UCHAR Index;
 	PRTMP_ADAPTER pAdapter = net_dev->priv;
 
 	DBGPRINT(RT_DEBUG_INFO, "===> RTMPSendPackets\n");
 
+	if (
 #ifdef RALINK_ATE
-	if (pAdapter->ate.Mode != ATE_STASTART) {
-		dev_kfree_skb(pSkb);
-		return 0;
-	}
+		// Test not started yet
+		(pAdapter->ate.Mode != ATE_STASTART) ||
 #endif
-
-	if (pAdapter->PortCfg.BssType == BSS_MONITOR
-	    && pAdapter->PortCfg.RFMONTX != TRUE) {
-		dev_kfree_skb(pSkb);
-		return 0;
-	}
-	// Drop packets if no associations
-	if (pAdapter->PortCfg.BssType != BSS_MONITOR &&
-	    !INFRA_ON(pAdapter) && !ADHOC_ON(pAdapter)) {
-		// Drop send request since there are no physical connection yet
-		// Check the association status for infrastructure mode
-		// And Mibss for Ad-hoc mode setup
-		dev_kfree_skb(pSkb);
-		return 0;
-	}
-	if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
-		   RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
-		// Drop send request since hardware is in reset state
+		// Monitor mode but injection turned off
+		((pAdapter->PortCfg.BssType == BSS_MONITOR)
+			&& !pAdapter->PortCfg.RFMONTX)
+		// No association so far
+		|| ((pAdapter->PortCfg.BssType != BSS_MONITOR) &&
+	    		!INFRA_ON(pAdapter) && !ADHOC_ON(pAdapter))
+	    	// Reset or Halt in progress
+	    	|| RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_RESET_IN_PROGRESS)
+	    	|| RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_HALT_IN_PROGRESS)) {
+	    	// Drop packet
 		dev_kfree_skb(pSkb);
 		return 0;
 	}
@@ -342,9 +334,11 @@ static INT RTMPSendPackets(IN struct sk_buff * pSkb, IN struct net_device * net_
 	// Record that orignal packet source is from protocol layer,so that
 	// later on driver knows how to release this skb buffer
 	RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_NDIS);
+	
+	// Send packet
 	pAdapter->RalinkCounters.PendingNdisPacketCount++;
 	RTMPSendPacket(pAdapter, pSkb);
-	for (Index = 0; Index < 5; Index++)
+	for (Index = 0; Index < NUM_OF_TX_RING; Index++)
 		RTMPDeQueuePacket(pAdapter, Index);
 	return 0;
 }
@@ -458,11 +452,11 @@ struct iw_statistics *RT61_get_wireless_stats(IN struct net_device *net_dev)
 
     ========================================================================
 */
-static struct net_device_stats *RT61_get_ether_stats(IN struct net_device *net_dev)
+static struct net_device_stats *rt61_get_stats(IN struct net_device *net_dev)
 {
 	RTMP_ADAPTER *pAd = net_dev->priv;
 
-	DBGPRINT(RT_DEBUG_INFO, "RT61_get_ether_stats --->\n");
+	DBGPRINT(RT_DEBUG_INFO, "rt61_get_stats --->\n");
 
 	pAd->stats.rx_packets = pAd->WlanCounters.ReceivedFragmentCount.vv.LowPart;	// total packets received
 	pAd->stats.tx_packets = pAd->WlanCounters.TransmittedFragmentCount.vv.LowPart;	// total packets transmitted
@@ -516,7 +510,7 @@ static struct net_device_stats *RT61_get_ether_stats(IN struct net_device *net_d
 
     ========================================================================
 */
-static VOID RT61_set_rx_mode(IN struct net_device * net_dev)
+static VOID rt61_set_rx_mode(IN struct net_device * net_dev)
 {
 	RTMP_ADAPTER *pAd = net_dev->priv;
 
@@ -530,15 +524,12 @@ static VOID RT61_set_rx_mode(IN struct net_device * net_dev)
 	RTMPWriteTXRXCsr0(pAd, FALSE, TRUE);
 }
 
-static INT RT61_open(IN struct net_device * net_dev)
+static INT rt61_open(IN struct net_device * net_dev)
 {
 	PRTMP_ADAPTER pAd = net_dev->priv;
 	INT status = NDIS_STATUS_SUCCESS;
 	ULONG MacCsr0;
 	UCHAR TmpPhy;
-#ifdef RX_TASKLET
-	struct sk_buff *skb;
-#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	if (!try_module_get(THIS_MODULE)) {
@@ -588,21 +579,11 @@ static INT RT61_open(IN struct net_device * net_dev)
 		NICDisableInterrupt(pAd);
 	}
 
-	status =
-	    request_irq(pAd->pPci_Dev->irq, &RTMPIsr, SA_SHIRQ, net_dev->name,
-			net_dev);
-	if (status) {
+	if ((status = request_irq(net_dev->irq, &rt61_do_irq, SA_SHIRQ,
+				  net_dev->name, net_dev)))
 		goto out_free_dma_memory;
-	}
-	RTMP_SET_FLAG(pAd, fRTMP_ADAPTER_INTERRUPT_IN_USE);
 
-	// Load firmware
-	status = NICLoadFirmware(pAd);
-	if (status != NDIS_STATUS_SUCCESS) {
-		printk(KERN_ERR DRIVER_NAME
-			": Could not load firmware! (is firmware file installed?)\n");
-		goto out_no_firmware;
-	}
+	RTMP_SET_FLAG(pAd, fRTMP_ADAPTER_INTERRUPT_IN_USE);
 
 	// Initialize Asics
 	NICInitializeAdapter(pAd);
@@ -683,29 +664,6 @@ static INT RT61_open(IN struct net_device * net_dev)
 
 	return 0;
 
-      out_no_firmware:
-	del_timer_sync(&pAd->RfTuningTimer);
-	MlmeHalt(pAd);
-#ifdef RX_TASKLET
-	// Stop tasklet 
-	tasklet_kill(&pAd->RxTasklet);
-	while (TRUE) {
-		skb = skb_dequeue(&pAd->RxQueue);
-		if (!skb)
-			break;
-		dev_kfree_skb_irq(skb);
-	}
-#endif
-	NICIssueReset(pAd);
-	free_irq(net_dev->irq, net_dev);
-	RTMPFreeDMAMemory(pAd);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	module_put(THIS_MODULE);
-#else
-	MOD_DEC_USE_COUNT;
-#endif
-	return status;
-
       out_free_irq:
 	free_irq(net_dev->irq, net_dev);
       out_free_dma_memory:
@@ -723,7 +681,7 @@ static INT RT61_open(IN struct net_device * net_dev)
 //
 // Close driver function
 //
-static INT RT61_close(IN struct net_device *net_dev)
+static INT rt61_close(IN struct net_device *net_dev)
 {
 	RTMP_ADAPTER *pAd = net_dev->priv;
 	// LONG            ioaddr = net_dev->base_addr;
@@ -777,213 +735,189 @@ static INT RT61_close(IN struct net_device *net_dev)
 	return 0;
 }
 
-//
-// PCI device probe & initialization function
-//
-static INT __devinit RT61_probe(IN struct pci_dev * pPci_Dev,
-			 IN const struct pci_device_id * ent)
+static INT __devinit rt61_pci_probe(IN struct pci_dev *dev,
+				IN const struct pci_device_id *ent)
 {
 	struct net_device *net_dev;
 	RTMP_ADAPTER *pAd;
-	CHAR *print_name;
-	INT chip_id = (INT) ent->driver_data;
 	void __iomem *csr_addr;
-	INT Status = -ENODEV;
+	INT Status;
 	INT i;
 
-	printk("%s %s %s http://rt2x00.serialmonkey.com\n",
-	       KERN_INFO DRIVER_NAME, DRIVER_VERSION, DRIVER_RELDATE);
+	DBGPRINT(RT_DEBUG_TRACE, "===> rt61_pci_probe\n");
 
-	print_name = pPci_Dev ? pci_name(pPci_Dev) : "rt61";
-
-	// alloc_etherdev() will set net_dev->name
-	net_dev = alloc_etherdev(0);
-	if (net_dev == NULL) {
-		DBGPRINT(RT_DEBUG_TRACE, "init_ethernet failed\n");
-		goto err_out;
+	// Wake up and enable device
+	if (pci_enable_device(dev)) {
+		printk(KERN_ERR DRIVER_NAME ": pci_enable_device failed\n");
+		Status = -EIO;
+		goto out;
 	}
-
-	SET_MODULE_OWNER(net_dev);
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
-	SET_NETDEV_DEV(net_dev, &(pPci_Dev->dev));
-#endif
-
-	if (pci_request_regions(pPci_Dev, print_name))
-		goto err_out_free_netdev;
-
+		
+	// Check if device is supported (useless?) 
 	for (i = 0; i < rt61_pci_tbl_len; i++) {
-		if (pPci_Dev->vendor == rt61_pci_tbl[i].vendor &&
-		    pPci_Dev->device == rt61_pci_tbl[i].device) {
-			printk("RT61: Vendor = 0x%04x, Product = 0x%04x \n",
-			       pPci_Dev->vendor, pPci_Dev->device);
-			break;
-		}
+		if (dev->vendor != rt61_pci_tbl[i].vendor ||
+		    dev->device != rt61_pci_tbl[i].device)
+			continue;
+		DBGPRINT(RT_DEBUG_TRACE, "Vendor=%#hx, Product=%#hx\n",
+					dev->vendor, dev->device);
+		break;
 	}
 	if (i == rt61_pci_tbl_len) {
-		printk("Device PID/VID not matching!!!\n");
-		goto err_out_free_netdev;
+		printk(KERN_ERR DRIVER_NAME ": device not supported\n");
+		Status = -ENODEV;
+		goto err_disable;
 	}
-	// Interrupt IRQ number
-	net_dev->irq = pPci_Dev->irq;
-
-	// map physical address to virtual address for accessing register
-	csr_addr =
-	    ioremap(pci_resource_start(pPci_Dev, 0),
-		    pci_resource_len(pPci_Dev, 0));
-	if (!csr_addr) {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "ioremap failed for device %s, region 0x%X @ 0x%X\n",
-			 print_name, (ULONG) pci_resource_len(pPci_Dev, 0),
-			 (ULONG) pci_resource_start(pPci_Dev, 0));
-		goto err_out_free_res;
+	
+	// Reserve PCI regions
+	if (pci_request_regions(dev, pci_name(dev))) {
+		printk(KERN_ERR DRIVER_NAME ": pci_request_regions failed\n");
+		Status = -EIO;
+		goto err_disable;
 	}
 
-	net_dev->priv =
-	    pci_alloc_consistent(pPci_Dev, sizeof(RTMP_ADAPTER), &dma_adapter);
+	// Map physical addr to virtual addr (register access)
+	if ((csr_addr = ioremap(pci_resource_start(dev, 0),
+				pci_resource_len(dev, 0))) == NULL) {
+		printk(KERN_ERR DRIVER_NAME ": ioremap failed (%#x @ %#x)\n",
+			 		(ULONG) pci_resource_len(dev, 0),
+			 		(ULONG) pci_resource_start(dev, 0));
+		Status = -EIO;
+		goto err_release;
+	}
 
-	// Zero init RTMP_ADAPTER
-	memset(net_dev->priv, 0, sizeof(RTMP_ADAPTER));
-
-	// Save CSR virtual address and irq to device structure
+	// Allocate and set net_device
+	if ((net_dev = alloc_netdev(0, ifname == NULL ? "wlan%d" : ifname,
+				    ether_setup)) == NULL) {
+		printk(KERN_ERR DRIVER_NAME ": alloc_netdev failed\n");
+		Status = -ENOMEM;
+		goto err_unmap;
+	}
 	net_dev->base_addr = (unsigned long)csr_addr;
-	pAd = net_dev->priv;
-	pAd->CSRBaseAddress = csr_addr;
-	pAd->net_dev = net_dev;
+	net_dev->irq = dev->irq;
+	SET_MODULE_OWNER(net_dev);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
+	SET_NETDEV_DEV(net_dev, &(dev->dev));
+#endif
 
-	// Set DMA master
-	pci_set_master(pPci_Dev);
-
-	pAd->chip_id = chip_id;
-	pAd->pPci_Dev = pPci_Dev;
-
-	// The chip-specific entries in the device structure.
-	net_dev->open = RT61_open;
-	net_dev->hard_start_xmit = RTMPSendPackets;
-	net_dev->stop = RT61_close;
-	net_dev->get_stats = RT61_get_ether_stats;
-
+	// Interface routines
+	net_dev->open			= rt61_open;
+	net_dev->hard_start_xmit	= rt61_hard_start_xmit;
+	net_dev->stop			= rt61_close;
+	net_dev->get_stats		= rt61_get_stats;
 #if WIRELESS_EXT >= 12
 #if WIRELESS_EXT < 17
-	net_dev->get_wireless_stats = RT61_get_wireless_stats;
+	net_dev->get_wireless_stats	= RT61_get_wireless_stats;
 #endif
-	net_dev->wireless_handlers =
-	    (struct iw_handler_def *)&rt61_iw_handler_def;
+	net_dev->wireless_handlers	= (struct iw_handler_def *)
+						&rt61_iw_handler_def;
 #endif
+	net_dev->set_multicast_list	= rt61_set_rx_mode;
+	net_dev->do_ioctl		= RT61_ioctl;
+	net_dev->set_mac_address	= rt61_set_mac_address;
 
-	net_dev->set_multicast_list = RT61_set_rx_mode;
-	net_dev->do_ioctl = RT61_ioctl;
-	net_dev->set_mac_address = rt61_set_mac_address;
+	DBGPRINT(RT_DEBUG_TRACE, "%s: at %#x, VA %#lx, IRQ %d\n", net_dev->name,
+				(ULONG) pci_resource_start(dev, 0),
+				(unsigned long)csr_addr, dev->irq);
 
-	// register_netdev() will call dev_alloc_name() for us
-	// TODO: Remove the following line to keep the default eth%d name
-	if (ifname == NULL)
-		strcpy(net_dev->name, "wlan%d");
-	else
-		strncpy(net_dev->name, ifname, IFNAMSIZ);
+	// Allocate and reset adapter
+	if ((net_dev->priv = pci_alloc_consistent(dev, sizeof(RTMP_ADAPTER),
+						  &dma_adapter)) == NULL) {
+		printk(KERN_ERR DRIVER_NAME ": couldn't allocate adapter DMA\n");
+		Status = -ENOMEM;
+		goto err_free;
+	}
+	pAd = net_dev->priv;
+	memset(pAd, 0, sizeof(RTMP_ADAPTER));
 
-	// Register this device
-	Status = register_netdev(net_dev);
-	if (Status)
-		goto err_out_unmap;
-
-	DBGPRINT(RT_DEBUG_TRACE, "%s: at 0x%x, VA 0x%lx, IRQ %d. \n",
-		 net_dev->name, (ULONG) pci_resource_start(pPci_Dev, 0),
-		 (unsigned long)csr_addr, pPci_Dev->irq);
-
-	// Set driver data
-	pci_set_drvdata(pPci_Dev, net_dev);
-
-	// moved to here by GertjanW (RobinC) so if-preup can work
-	// When driver now loads it is loaded up with "factory" defaults
-	// All this occurs while the net iface is down
-	// iwconfig can then be used to configure card BEFORE
-	// ifconfig ra0 up is applied.
-	// Note the rt61sta.dat file will still overwrite settings
-	// but it is useful for the settings iwconfig doesn't let you at
+	// Set adapter fields
+	pAd->pPci_Dev		= dev;
+	pAd->net_dev		= net_dev;
+	pAd->chip_id		= (INT) ent->driver_data;
+	pAd->CSRBaseAddress	= csr_addr;
+	// Init adapter
 	PortCfgInit(pAd);
-
-	Status = MlmeQueueInit(&pAd->Mlme.Queue);
-	if (Status != NDIS_STATUS_SUCCESS)
-		goto err_out_unmap;
-
-	// Build channel list for default physical mode
 	BuildChannelList(pAd);
+	MlmeQueueInit(&pAd->Mlme.Queue);
 
+	// Load firmware
+	if ((Status = NICLoadFirmware(pAd))) {
+		printk(KERN_ERR DRIVER_NAME ": Could not load firmware!"
+					" (is firmware file installed?)\n");
+		goto err_adapter;
+	}
+
+	// Register net_device
+	if ((Status = register_netdev(net_dev))) {
+		printk(KERN_ERR DRIVER_NAME ": register_netdev failed\n");
+		goto err_adapter;
+	}
+
+	// Misc. settings
+	pci_set_drvdata(dev, net_dev);
+	pci_set_master(dev);
 	rt61pci_open_debugfs(pAd);
 
-	return 0;
+	// Probe successfull
+	Status = 0;
+	goto out;
+		
+    err_adapter:
+	pci_free_consistent(dev, sizeof(RTMP_ADAPTER), pAd, dma_adapter);
 
-      err_out_unmap:
-	iounmap(csr_addr);
-      err_out_free_res:
-	pci_release_regions(pPci_Dev);
-
-      err_out_free_netdev:
+    err_free:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 	kfree(net_dev);
 #else
 	free_netdev(net_dev);
 #endif
+		
+    err_unmap:
+	iounmap((void *)csr_addr);
 
-      err_out:
+    err_release:
+	pci_release_regions(dev);
+
+    err_disable:
+	pci_disable_device(dev);
+
+    out:
+	DBGPRINT(RT_DEBUG_TRACE, "<=== rt61_pci_probe (status: %d)\n", Status);
 	return Status;
-}
-
-
-static INT __devinit RT61_init_one(IN struct pci_dev *pPci_Dev,
-				   IN const struct pci_device_id *ent)
-{
-	INT rc;
-
-	DBGPRINT(RT_DEBUG_TRACE, "===> RT61_init_one\n");
-
-	// wake up and enable device
-	if (pci_enable_device(pPci_Dev))
-		rc = -EIO;
-	else {
-		rc = RT61_probe(pPci_Dev, ent);
-		if (rc)
-			pci_disable_device(pPci_Dev);
-	}
-
-	DBGPRINT(RT_DEBUG_TRACE, "<=== RT61_init_one\n");
-	return rc;
 }
 
 
 //
 // Remove driver function
 //
-static VOID __devexit RT61_remove_one(IN struct pci_dev *pPci_Dev)
+static VOID __devexit rt61_pci_remove(IN struct pci_dev *pPci_Dev)
 {
 	struct net_device *net_dev = pci_get_drvdata(pPci_Dev);
-	RTMP_ADAPTER *pAd = net_dev->priv;
+	RTMP_ADAPTER *pAd;
 
-	DBGPRINT(RT_DEBUG_TRACE, "===> RT61_remove_one\n");
+	DBGPRINT(RT_DEBUG_TRACE, "===> rt61_pci remove\n");
 
-	rt61pci_close_debugfs(pAd);
-	// Unregister network device
-	unregister_netdev(net_dev);
-
-	// Unmap CSR base address
-	iounmap((void *)(net_dev->base_addr));
-
-	pci_free_consistent(pAd->pPci_Dev, sizeof(RTMP_ADAPTER), pAd,
+	if (net_dev && net_dev->priv) {
+	 	pAd = net_dev->priv;
+		rt61pci_close_debugfs(pAd);
+		// Unregister network device
+		unregister_netdev(net_dev);
+		// Unmap CSR base address
+		iounmap(pAd->CSRBaseAddress);
+		// Free memory
+		pci_free_consistent(pPci_Dev, sizeof(RTMP_ADAPTER), pAd,
 			    dma_adapter);
-
-	// release memory regions
-	pci_release_regions(pPci_Dev);
-
-	// disable the device
-	pci_disable_device(pPci_Dev);
-
-	// Free pre-allocated net_device memory
+		// release memory regions
+		pci_release_regions(pPci_Dev);
+		// disable the device
+		pci_disable_device(pPci_Dev);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
-	kfree(net_dev);
+		kfree(net_dev);
 #else
-	free_netdev(net_dev);
+		free_netdev(net_dev);
 #endif
+	}
+
+	DBGPRINT(RT_DEBUG_TRACE, "<=== rt61_pci_remove\n");
 }
 
 //
@@ -1005,7 +939,7 @@ static u32 suspend_buffer[16];
 #define rt2x00_restore_state(__pci)     pci_restore_state(__pci)
 #endif				/* (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,8)) */
 
-static int rt61_suspend(struct pci_dev *pdev, pm_message_t state)
+static int rt61_pci_suspend(struct pci_dev *pdev, pm_message_t state)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
 	PRTMP_ADAPTER pAdapter = (PRTMP_ADAPTER) dev->priv;
@@ -1032,13 +966,17 @@ static int rt61_suspend(struct pci_dev *pdev, pm_message_t state)
 //
 // reactivate after software suspend
 //
-static int rt61_resume(struct pci_dev *pdev)
+static int rt61_pci_resume(struct pci_dev *pdev)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
 	PRTMP_ADAPTER pAdapter = (PRTMP_ADAPTER) dev->priv;
 	int status;
 
-	pci_enable_device(pdev);
+	// FIXME: code should process error case correctly
+	if (pci_enable_device(pdev)) {
+		printk(KERN_ERR "rt61: could not resume from suspend");
+		return -EIO;
+	}
 
 	printk(KERN_NOTICE "%s: got resume request\n", dev->name);
 
@@ -1059,18 +997,18 @@ static int rt61_resume(struct pci_dev *pdev)
 // =======================================================================
 // Our PCI driver structure
 // =======================================================================
-static struct pci_driver rt61_driver = {
+static struct pci_driver rt61_pci_driver = {
       name:"rt61",
       id_table:rt61_pci_tbl,
-      probe:RT61_init_one,
+      probe:rt61_pci_probe,
 #ifdef CONFIG_PM
-      suspend:rt61_suspend,
-      resume:rt61_resume,
+      suspend:rt61_pci_suspend,
+      resume:rt61_pci_resume,
 #endif
 #if LINUX_VERSION_CODE >= 0x20412 || BIG_ENDIAN == TRUE || RTMP_EMBEDDED == TRUE
-      remove:__devexit_p(RT61_remove_one),
+      remove:__devexit_p(rt61_pci_remove),
 #else
-      remove:__devexit(RT61_remove_one),
+      remove:__devexit(rt61_pci_remove),
 #endif
 };
 
@@ -1080,17 +1018,19 @@ static struct pci_driver rt61_driver = {
 //
 // Driver module load function
 //
-static INT __init rt61_init_module(VOID)
+static INT __init rt61_module_init(VOID)
 {
-	return pci_module_init(&rt61_driver);
+	printk(KERN_INFO DRIVER_NAME " %s %s http://rt2x00.serialmonkey.com\n",
+		DRIVER_VERSION, DRIVER_RELDATE);
+	return pci_module_init(&rt61_pci_driver);
 }
 
 //
 // Driver module unload function
 //
-static VOID __exit rt61_cleanup_module(VOID)
+static VOID __exit rt61_module_exit(VOID)
 {
-	pci_unregister_driver(&rt61_driver);
+	pci_unregister_driver(&rt61_pci_driver);
 }
 
 /*************************************************************************/
@@ -1104,6 +1044,6 @@ MODULE_DESCRIPTION("Ralink RT61 802.11abg WLAN Driver " DRIVER_VERSION " "
 MODULE_LICENSE("GPL");
 MODULE_DEVICE_TABLE(pci, rt61_pci_tbl);
 
-module_init(rt61_init_module);
-module_exit(rt61_cleanup_module);
+module_init(rt61_module_init);
+module_exit(rt61_module_exit);
 /*************************************************************************/

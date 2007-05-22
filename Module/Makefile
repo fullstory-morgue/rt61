@@ -33,31 +33,41 @@
 #      MarkW (rt2500)  3rd  Feb 06      Fixed permissions on directory
 #      MichaIL(rt2500) 13th Feb 06      Module installation fixes
 #      MarkW (rt2500)  13th Feb 06      Allow install dir override
+#      OlivierC        14th May 07      Install firmwares files
 ###########################################################################
 
 
 
-all: module
 MODULE_NAME := rt61
+IF_NAME :=     wlan*
 
-ifeq ($(PATCHLEVEL),)
- PATCHLEVEL := $(shell uname -r | cut -d. -f2)
-endif
+FIRMWARES :=   rt2*.bin
+FIRM_DIR :=    /lib/firmware
 
-RESMAN_CORE_OBJS := rtmp_main.o
-RESMAN_GLUE_OBJS := mlme.o connect.o sync.o assoc.o auth.o auth_rsp.o rtmp_data.o rtmp_init.o sanity.o rtmp_wep.o wpa.o md5.o rtmp_tkip.o rtmp_info.o eeprom.o
-
-$(MODULE_NAME)-objs := $(RESMAN_CORE_OBJS) $(RESMAN_GLUE_OBJS)
-
-ifdef TOPDIR
-obj-m += $(MODULE_NAME).o
-endif
+OLD_IF_NAME := ra0
+CONFIG_DIR :=  /etc/Wireless/RT61STA
+CONFIG_FILE := rt61sta.dat
 
 EXTRA_CFLAGS += -I$(src)
 EXTRA_CFLAGS += -DAGGREGATION_SUPPORT -DWMM_SUPPORT
 #EXTRA_CFLAGS += -DNO_RX_TASKLET
 #EXTRA_CFLAGS += -DRALINK_ATE
 #EXTRA_CFLAGS += -DSINGLE_ADHOC_LINKUP
+
+ifeq ($(PATCHLEVEL),)
+ PATCHLEVEL := $(shell uname -r | cut -d. -f2)
+endif
+
+RESMAN_CORE_OBJS := 	rtmp_main.o
+RESMAN_GLUE_OBJS := 	mlme.o connect.o sync.o assoc.o auth.o auth_rsp.o \
+			rtmp_data.o rtmp_init.o sanity.o rtmp_wep.o wpa.o \
+			md5.o rtmp_tkip.o rtmp_info.o eeprom.o
+
+$(MODULE_NAME)-objs := $(RESMAN_CORE_OBJS) $(RESMAN_GLUE_OBJS)
+
+ifdef TOPDIR
+obj-m += $(MODULE_NAME).o
+endif
 
 ifdef KERNDIR
  KERNEL_SOURCES := $(KERNDIR)
@@ -93,28 +103,31 @@ $(obj)/$(MODULE_NAME).o: $($(MODULE_NAME)-objs)
 	$(LD) $(EXTRA_LDFLAGS) -r -o $@ $($(MODULE_NAME)-objs)
 endif
 
-KBUILD_PARAMS := -C $(KERNEL_SOURCES) SUBDIRS=$(PWD) $(KERNEL_OUTPUT)
+KBUILD_PARAMS := -C $(KERNEL_SOURCES) SUBDIRS=$(CURDIR) $(KERNEL_OUTPUT)
+
+MODULE_CHECK :=	if ! [ -f $(MODULE_OBJECT) ]; then \
+			echo "$(MODULE_OBJECT) failed to build!"; \
+			exit 1; \
+		fi; \
+		if [ `du -b $(MODULE_OBJECT) | sed -e 's/\t.*//g'` -gt 1000000 ]; then \
+			echo "!!! WARNING: Module file much too big (>1MB),"; \
+			echo "!!! Check your kernel settings or use 'strip'"; \
+		fi; \
+		echo "*** Module $(MODULE_OBJECT) built successfully"
+
+all: module
 
 module:
-	@$(MAKE) $(KBUILD_PARAMS) modules; \
-	if ! [ -f $(MODULE_OBJECT) ]; then \
-		echo "$(MODULE_OBJECT) failed to build!"; \
-		exit 1; \
-	fi
-
+	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=$(EXTRA_CFLAGS)' modules; \
+	$(MODULE_CHECK)
+	
 debug:
 	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=$(EXTRA_CFLAGS) -DRT61_DBG' modules; \
-	if ! [ -f $(MODULE_OBJECT) ]; then \
-		echo "$(MODULE_OBJECT) failed to build!"; \
-		exit 1; \
-	fi
+	$(MODULE_CHECK)
 
 debugfs:
 	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=$(EXTRA_CFLAGS) -DRT61_DBG -DRT2X00DEBUGFS' modules; \
-	if ! [ -f $(MODULE_OBJECT) ]; then \
-	echo "$(MODULE_OBJECT) failed to build!"; \
-	exit 1; \
-	fi
+	$(MODULE_CHECK)
 
 clean:
 	@rm -f $(RESMAN_GLUE_OBJS) $(RESMAN_CORE_OBJS) .*.{cmd,flags}
@@ -123,25 +136,46 @@ clean:
 
 modules_install:
 	@if ! [ -f $(MODULE_OBJECT) ]; then \
-		$(MAKE) module; \
+		echo "!!! $(MODULE_OBJECT) does not exit: run 'make'"; \
+		exit 1; \
 	fi
+	@echo "*** Install module in $(MODULE_ROOT) ..."
 ifeq ($(PATCHLEVEL),4)
-	@echo "install '$(MODULE_OBJECT)' to $(MODULE_ROOT)"
 	install -m 755 -o 0 -g 0 -d $(MODULE_ROOT)
 	install -m 644 -o 0 -g 0 $(MODULE_OBJECT) $(MODULE_ROOT)
-	/sbin/depmod -a
 else
-	@echo "2.6 module install"
-	make $(KBUILD_PARAMS) modules_install
-	/sbin/depmod -a
+	@$(MAKE) $(KBUILD_PARAMS) modules_install
 endif
-	@echo "!!! WARNING: Firmware location has changed to /lib/firmware"
-	@echo "!!! WARNING: Interface name has changed to wlan*"
-	@echo "!!! WARNING: rt61sta.dat file is deprecated (use iwconfig/iwpriv)
-	@echo "!!! Please update your configuration settings accordingly"
+	/sbin/depmod -a
 
 install: modules_install
-
+	@echo "*** Update $(MODULE_CONF) alias for $(IF_NAME)"; \
+	if ! grep -q '$(IF_NAME)' $(MODULE_CONF) ; then \
+		echo "alias $(IF_NAME) $(MODULE_NAME)" >> $(MODULE_CONF) ; \
+	fi
+	@echo "*** Install firmware in $(FIRM_DIR) ..."; \
+	if ! [ -d $(FIRM_DIR) ]; then \
+		mkdir $(FIRM_DIR); \
+	fi; \
+	cp -f $(FIRMWARES) $(FIRM_DIR)
+	@echo "*** Check old config ..."; \
+	if [ -d $(CONFIG_DIR) ]; then \
+		echo "!!!"; \
+		echo "!!! WARNING: DEPRECATED CONFIG FOUND !"; \
+		echo "!!!"; \
+		echo "!!! -> Update your config and remove $(CONFIG_DIR)"; \
+		if [ -f $(CONFIG_DIR)/$(CONFIG_FILE) ]; then \
+			echo "!!! -> $(CONFIG_FILE) file is deprecated:" \
+					"use iwconfig/iwpriv instead"; \
+		fi; \
+		if [ -f $(CONFIG_DIR)/$(FIRMWARES) ]; then \
+			echo "!!! -> $(FIRMWARES) firmwares have moved to $(FIRM_DIR)"; \
+		fi; \
+	fi; \
+	if grep -q '$(OLD_IF_NAME)' $(MODULE_CONF) ; then \
+		echo "!!! -> $(OLD_IF_NAME) interface name is deprecated:" \
+					"remove old $(MODULE_CONF) alias"; \
+	fi
 
 ifeq ($(PATCHLEVEL), 4)
 include $(KERNEL_SOURCES)/Rules.make

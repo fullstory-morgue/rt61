@@ -38,6 +38,7 @@
     Description:
     ==========================================================================
 */
+#if 0
 static VOID PeerAuthSimpleRspGenAndSend(IN PRTMP_ADAPTER pAd,
 				 IN PHEADER_802_11 pHdr80211,
 				 IN USHORT Alg,
@@ -66,6 +67,7 @@ static VOID PeerAuthSimpleRspGenAndSend(IN PRTMP_ADAPTER pAd,
 		DBGPRINT(RT_DEBUG_TRACE, "Peer AUTH fail...\n");
 	}
 }
+#endif
 
 /*
     ==========================================================================
