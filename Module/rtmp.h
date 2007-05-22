@@ -1702,7 +1702,7 @@ VOID MgtMacHeaderInit(IN PRTMP_ADAPTER pAd, IN OUT PHEADER_802_11 pHdr80211,
 						IN UCHAR SubType, IN UCHAR ToDs,
 						IN PUCHAR pDA, IN PUCHAR pBssid);
 ULONG MakeOutgoingFrame(OUT CHAR * Buffer, OUT ULONG * FrameLen, ...);
-NDIS_STATUS MlmeQueueInit(IN MLME_QUEUE * Queue);
+void MlmeQueueInit(IN MLME_QUEUE * Queue);
 BOOLEAN MlmeEnqueue(IN PRTMP_ADAPTER pAd, IN ULONG Machine,
 		    			IN ULONG MsgType, IN ULONG MsgLen, IN VOID * Msg);
 BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,

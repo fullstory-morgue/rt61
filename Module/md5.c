@@ -546,7 +546,7 @@ static uint32 FSb[256] = {
 };
 
 /* forward table */
-
+#if 0
 #define FT \
 \
     V(C6,63,63,A5), V(F8,7C,7C,84), V(EE,77,77,99), V(F6,7B,7B,8D), \
@@ -635,6 +635,7 @@ static uint32 FT3[256] = { FT };
 #undef V
 
 #undef FT
+#endif
 
 /* reverse S-box */
 
@@ -942,7 +943,7 @@ int aes_set_key(aes_context * ctx, uint8 * key, int nbits)
 }
 
 /* AES 128-bit block encryption routine */
-
+#if 0
 static void aes_encrypt(aes_context * ctx, uint8 input[16], uint8 output[16])
 {
 	uint32 *RK, X0, X1, X2, X3, Y0, Y1, Y2, Y3;
@@ -1027,6 +1028,7 @@ static void aes_encrypt(aes_context * ctx, uint8 input[16], uint8 output[16])
 	PUT_UINT32(X2, output, 8);
 	PUT_UINT32(X3, output, 12);
 }
+#endif
 
 /* AES 128-bit block decryption routine */
 

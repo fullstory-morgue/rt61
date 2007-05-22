@@ -395,6 +395,7 @@ BOOLEAN RTMPTkipCompareMICValue(IN PRTMP_ADAPTER pAdapter,
 
 	========================================================================
 */
+#if 0
 static BOOLEAN RTMPTkipCompareMICValueWithLLC(IN PRTMP_ADAPTER pAdapter,
 				       IN PUCHAR pLLC,
 				       IN PUCHAR pSrc,
@@ -445,6 +446,7 @@ static BOOLEAN RTMPTkipCompareMICValueWithLLC(IN PRTMP_ADAPTER pAdapter,
 	}
 	return (TRUE);
 }
+#endif
 
 /*
 	========================================================================

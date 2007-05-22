@@ -43,6 +43,7 @@
  *      GertjanW        19th Feb 06     Promisc mode support
  *      MarkW (rt2500)  3rd  Jun 06     Monitor mode through iwconfig
  *      RomainB         31st Dec 06     RFMON getter
+ * 	OlivierC	20th May 07	Fix WEP keys management
  ***************************************************************************/
 
 #include	"rt_config.h"
@@ -702,6 +703,7 @@ static INT Set_APSDPsm_Proc(IN PRTMP_ADAPTER pAd, IN PUCHAR arg)
         TRUE if all parameters are OK, FALSE otherwise
     ==========================================================================
 */
+#if 0
 static INT Set_ShortSlot_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 {
 	ULONG ShortSlot;
@@ -720,6 +722,7 @@ static INT Set_ShortSlot_Proc(IN PRTMP_ADAPTER pAdapter, IN PUCHAR arg)
 
 	return TRUE;
 }
+#endif
 
 /*
     ==========================================================================
@@ -1601,6 +1604,7 @@ static int rt_ioctl_giwmode(struct net_device *dev,
 	return 0;
 }
 
+#if 0
 static int rt_ioctl_siwsens(struct net_device *dev,
 		     struct iw_request_info *info, char *name, char *extra)
 {
@@ -1612,6 +1616,7 @@ static int rt_ioctl_giwsens(struct net_device *dev,
 {
 	return 0;
 }
+#endif
 
 static int rt_ioctl_giwrange(struct net_device *dev,
 		      struct iw_request_info *info,
@@ -2144,49 +2149,40 @@ static int rt_ioctl_siwessid(struct net_device *dev,
 		      struct iw_point *data, char *essid)
 {
 	PRTMP_ADAPTER pAdapter = (PRTMP_ADAPTER) dev->priv;
-	NDIS_802_11_SSID Ssid, *pSsid = NULL;
-	ULONG Length;
-
+	NDIS_802_11_SSID Ssid;
 	memset(&Ssid, 0x00, sizeof(NDIS_802_11_SSID));
 
-	if (data->flags) {
-		if (data->length > IW_ESSID_MAX_SIZE) {
+	if (data->flags && data->length) {
+		// Associate with the specific ESSID provided:
+		//   # iwconfig [interface] essid <ESSID>
+		u8 len;
+		if (data->length > IW_ESSID_MAX_SIZE)
 			return -E2BIG;
-		}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
-		Length = data->length - 1;	//minus null character.
+		len = data->length - 1;		//minus null character.
 #else
-		Length = data->length;
+		len = data->length;
 #endif
-
-		if (RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE)) {
-			memcpy(Ssid.Ssid, essid, Length);
-			Ssid.SsidLength = Length;
-		} else {
-			// This SEEMS to be needed to actual work RobinC when iface
-			// is down
-			memcpy(pAdapter->PortCfg.Ssid, essid, Length);
-			pAdapter->PortCfg.SsidLen = Length;
-
-			memcpy(pAdapter->MlmeAux.Ssid, pAdapter->PortCfg.Ssid,
-			       pAdapter->PortCfg.SsidLen);
-			pAdapter->MlmeAux.SsidLen = pAdapter->PortCfg.SsidLen;
-		}
-	} else			// ANY ssid
-	{
-		Ssid.SsidLength = 0;
-		memcpy(pSsid->Ssid, "", 0);
-
-		// reset to infra/open/none as the user sets ANY ssid
-		// $ iwconfig [interface] essid ""
+		memcpy(Ssid.Ssid, essid, len);
+		Ssid.SsidLength = len;
+	} else {
+		// Associate with any ESSID:
+		//   # iwconfig [interface] essid any
+		//   # iwconfig [interface] essid ""
+		// Reset to infra/open/none (Ssid already zeroed)
 		pAdapter->PortCfg.BssType = BSS_INFRA;
 		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
 		pAdapter->PortCfg.WepStatus = Ndis802_11EncryptionDisabled;
 	}
-	pSsid = &Ssid;
+	// Update desired settings 
+	memcpy(pAdapter->PortCfg.Ssid, Ssid.Ssid, Ssid.SsidLength);
+	pAdapter->PortCfg.SsidLen = Ssid.SsidLength;
 
-	// if network is down then me MUST not proceed into actualy
-	// running mlme stuff
+	DBGPRINT(RT_DEBUG_TRACE,
+		 "===>rt_ioctl_siwessid:: (Ssid.SsidLength = %d, %s)\n",
+		 Ssid.SsidLength, Ssid.Ssid);
+		 
+	// If interface is down don't run mlme
 	if (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE))
 		return 0;
 
@@ -2201,15 +2197,9 @@ static int rt_ioctl_siwessid(struct net_device *dev,
 	if ((pAdapter->PortCfg.AuthMode >= Ndis802_11AuthModeWPA)
 	    && (pAdapter->PortCfg.AuthMode != Ndis802_11AuthModeWPANone))
 		memcpy(pAdapter->MlmeAux.Ssid, Ssid.Ssid, Ssid.SsidLength);
-
 	pAdapter->MlmeAux.CurrReqIsFromNdis = FALSE;
-	DBGPRINT(RT_DEBUG_TRACE,
-		 "===>rt_ioctl_siwessid:: (Ssid.SsidLength = %d, %s)\n",
-		 Ssid.SsidLength, Ssid.Ssid);
-
-	MlmeEnqueue(pAdapter,
-		    MLME_CNTL_STATE_MACHINE,
-		    OID_802_11_SSID, sizeof(NDIS_802_11_SSID), (VOID *) pSsid);
+	MlmeEnqueue(pAdapter, MLME_CNTL_STATE_MACHINE, OID_802_11_SSID,
+			sizeof(NDIS_802_11_SSID), (VOID *) &Ssid);
 	MlmeHandler(pAdapter);
 	return 0;
 }
@@ -2341,127 +2331,81 @@ static int rt_ioctl_siwencode(struct net_device *dev,
 		       struct iw_request_info *info,
 		       struct iw_point *erq, char *keybuf)
 {
-	PRTMP_ADAPTER pAdapter = (PRTMP_ADAPTER) dev->priv;
-	union {
-		char buf[sizeof(NDIS_802_11_WEP) + MAX_LEN_OF_KEY - 1];
-		NDIS_802_11_WEP keyinfo;
-	}
-	WepKey;
-	int index, i, len;
-	CHAR kid = 0;
+	PRTMP_ADAPTER pAd = (PRTMP_ADAPTER) dev->priv;
+	int idx;
+	BOOLEAN updateAsic = FALSE;
 
-	memset(&WepKey, 0, sizeof(WepKey));
-
-	if (erq->flags & IW_ENCODE_DISABLED) {
-		pAdapter->PortCfg.PairCipher = Ndis802_11WEPDisabled;
-		pAdapter->PortCfg.GroupCipher = Ndis802_11WEPDisabled;
-		pAdapter->PortCfg.WepStatus = Ndis802_11WEPDisabled;
-	} else {
-		pAdapter->PortCfg.PairCipher = Ndis802_11WEPEnabled;
-		pAdapter->PortCfg.GroupCipher = Ndis802_11WEPEnabled;
-		pAdapter->PortCfg.WepStatus = Ndis802_11WEPEnabled;
-	}
-
+	// Set Authentication Mode
 	if (erq->flags & IW_ENCODE_RESTRICTED)
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeShared;
+		pAd->PortCfg.AuthMode = Ndis802_11AuthModeShared;
 	else
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
+		pAd->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
 
-	if (pAdapter->PortCfg.WepStatus == Ndis802_11WEPDisabled)
-		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
+	// Set WEP encryption on/off
+	if (erq->flags & IW_ENCODE_DISABLED) {
+		pAd->PortCfg.PairCipher = Ndis802_11WEPDisabled;
+		pAd->PortCfg.GroupCipher = Ndis802_11WEPDisabled;
+		pAd->PortCfg.WepStatus = Ndis802_11WEPDisabled;
+		// Can't have encrypted Auth Mode if WEP is disabled
+		pAd->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
+	} else {
+		pAd->PortCfg.PairCipher = Ndis802_11WEPEnabled;
+		pAd->PortCfg.GroupCipher = Ndis802_11WEPEnabled;
+		pAd->PortCfg.WepStatus = Ndis802_11WEPEnabled;
+	}
 
-	if ((erq->flags & IW_ENCODE_DISABLED) == 0) {
-		/* Enable crypto. */
-		if (erq->length > IFNAMSIZ)
+	// Get key index (if any)
+	idx = (erq->flags & IW_ENCODE_INDEX);
+
+	if (erq->flags & IW_ENCODE_NOKEY) {
+		// No key provided: set active index	
+		if ((idx < 1) || (idx > NR_WEP_KEYS))
 			return -EINVAL;
-
-		/* Old solution to take  default key  */
-		index = (erq->flags & IW_ENCODE_INDEX);
-		if ((index < 0) || (index > NR_WEP_KEYS))
+		idx--;
+		pAd->PortCfg.DefaultKeyId = idx;
+		updateAsic = TRUE;
+	} else {
+		// Key provided: set key material
+		CIPHER_KEY *cypher;
+		u16 len = erq->length;
+		if (len > WEP_LARGE_KEY_LEN)
+			len = WEP_LARGE_KEY_LEN;
+		if ((idx < 0) || (idx > NR_WEP_KEYS))
 			return -EINVAL;
-		DBGPRINT(RT_DEBUG_TRACE, " erq->flags = %x\n", erq->flags);
+		// No index provided? Use current
+		idx = idx == 0 ? pAd->PortCfg.DefaultKeyId : idx - 1;
+		// Set current key? Update Asic
+		if (idx == pAd->PortCfg.DefaultKeyId)
+			updateAsic = TRUE;
+		cypher = &pAd->PortCfg.DesireSharedKey[idx];
+		// Parse key
+		memset(&cypher->Key, 0, MAX_LEN_OF_KEY);
+		memcpy(&cypher->Key, keybuf, len);
+		cypher->KeyLen = len <= WEP_SMALL_KEY_LEN ? WEP_SMALL_KEY_LEN :
+							WEP_LARGE_KEY_LEN;
+		cypher->CipherAlg = len == WEP_SMALL_KEY_LEN ? CIPHER_WEP64 :
+							CIPHER_WEP128;
+	}
 
-		if (index != 0) {
-			pAdapter->PortCfg.DefaultKeyId = index - 1;
-		}
-
-		if ((erq->length == 1) && (index == 0)) {
-			/* New solution to take  default key  when old way not work, not change KeyMaterial */
-			memcpy(&kid, keybuf, 1);
-			if ((index < 0) || (index >= NR_WEP_KEYS))
-				return -EINVAL;
-			//WepKey.KeyIndex = 0x80000000 + index;
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "kid = %d , erq->length = %d\n", kid,
-				 erq->length);
-			if (kid > 0)
-				pAdapter->PortCfg.DefaultKeyId = kid - 1;
-			else
-				pAdapter->PortCfg.DefaultKeyId = 0;
-		} else {
-			DBGPRINT(RT_DEBUG_TRACE,
-				 "DefaultKeyId = %d , erq->length = %d, flags 0x%x\n",
-				 pAdapter->PortCfg.DefaultKeyId, erq->length,
-				 erq->flags);
-			len = erq->length;
-
-			if (len > WEP_LARGE_KEY_LEN)
-				len = WEP_LARGE_KEY_LEN;
-
-			// If this instruction default key
-			memset(pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].Key,
-			       0, MAX_LEN_OF_KEY);
-			memcpy(pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].Key,
-			       keybuf, len);
-			pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].KeyLen =
-			    (UCHAR) (len <= WEP_SMALL_KEY_LEN ?
-				     WEP_SMALL_KEY_LEN : WEP_LARGE_KEY_LEN);
-
-			memcpy(WepKey.keyinfo.KeyMaterial, keybuf, len);
-			WepKey.keyinfo.KeyIndex =
-			    0x80000000 + pAdapter->PortCfg.DefaultKeyId;
-			WepKey.keyinfo.KeyLength = len;
-
-			DBGPRINT(RT_DEBUG_TRACE, "SharedKey");
-			for (i = 0; i < 5; i++)
-				DBGPRINT(RT_DEBUG_TRACE, "   =%x ",
-					 pAdapter->SharedKey[pAdapter->
-							     PortCfg.
-							     DefaultKeyId].
-					 Key[i]);
-			DBGPRINT(RT_DEBUG_TRACE, "\n");
-
-			// set key into ASIC
-			pAdapter->SharedKey[pAdapter->PortCfg.
-					    DefaultKeyId].CipherAlg =
-			    (pAdapter->
-			     SharedKey[pAdapter->PortCfg.DefaultKeyId].
-			     KeyLen ==
-			     WEP_SMALL_KEY_LEN) ? CIPHER_WEP64 : CIPHER_WEP128;
-
-			AsicAddSharedKeyEntry(pAdapter,
-					      0,
-					      (UCHAR) pAdapter->PortCfg.
-					      DefaultKeyId,
-					      pAdapter->
-					      SharedKey[pAdapter->
-							PortCfg.
-							DefaultKeyId].
-					      CipherAlg,
-					      // pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].Key,
-					      WepKey.keyinfo.
-					      KeyMaterial, NULL, NULL);
-		}
-
+	// Encryption on and current key changed? Update ASIC
+	if (updateAsic && !(erq->flags & IW_ENCODE_DISABLED)) {
+		CIPHER_KEY *cipher = &pAd->PortCfg.DesireSharedKey[idx];
+		memcpy(&pAd->SharedKey[idx].Key, &cipher->Key, cipher->KeyLen);
+		pAd->SharedKey[idx].KeyLen = cipher->KeyLen;
+		pAd->SharedKey[idx].CipherAlg = cipher->CipherAlg;
+		AsicAddSharedKeyEntry(pAd, 0, (UCHAR) idx,
+					pAd->SharedKey[idx].CipherAlg,
+					pAd->SharedKey[idx].Key,
+					NULL, NULL);
 	}
 	DBGPRINT(RT_DEBUG_TRACE, "==>rt_ioctl_siwencode::AuthMode=%x\n",
-		 pAdapter->PortCfg.AuthMode);
+		 pAd->PortCfg.AuthMode);
 	DBGPRINT(RT_DEBUG_TRACE,
 		 "==>rt_ioctl_siwencode::DefaultKeyId=%x, KeyLen = %d\n",
-		 pAdapter->PortCfg.DefaultKeyId,
-		 pAdapter->SharedKey[pAdapter->PortCfg.DefaultKeyId].KeyLen);
+		 pAd->PortCfg.DefaultKeyId,
+		 pAd->SharedKey[pAd->PortCfg.DefaultKeyId].KeyLen);
 	DBGPRINT(RT_DEBUG_TRACE, "==>rt_ioctl_siwencode::WepStatus=%x\n",
-		 pAdapter->PortCfg.WepStatus);
+		 pAd->PortCfg.WepStatus);
 	return 0;
 }
 
@@ -5478,7 +5422,7 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
 				sprintf(msg + strlen(msg), "\n");
 		}
 		// Copy the information into the user buffer
-		DBGPRINT(RT_DEBUG_TRACE, "strlen(msg)=%ld\n", strlen(msg));
+		DBGPRINT(RT_DEBUG_TRACE, "strlen(msg)=%d\n", strlen(msg));
 		wrq->u.data.length = strlen(msg);
 		if (copy_to_user(wrq->u.data.pointer, msg, wrq->u.data.length)) {
 			DBGPRINT(RT_DEBUG_ERROR,
@@ -5488,7 +5432,7 @@ VOID RTMPIoctlBBP(IN PRTMP_ADAPTER pAdapter, IN struct iwreq * wrq)
 	} else {
 		DBGPRINT(RT_DEBUG_INFO, "copy to user [msg=%s]\n", msg);
 		// Copy the information into the user buffer
-		DBGPRINT(RT_DEBUG_INFO, "strlen(msg) =%ld\n", strlen(msg));
+		DBGPRINT(RT_DEBUG_INFO, "strlen(msg) =%d\n", strlen(msg));
 		wrq->u.data.length = strlen(msg);
 		if (copy_to_user(wrq->u.data.pointer, msg, wrq->u.data.length)) {
 			DBGPRINT(RT_DEBUG_ERROR,
@@ -5563,7 +5507,7 @@ VOID RTMPIoctlMAC(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq)
 
 		if (!value || !*value) {	//Read
 			DBGPRINT(RT_DEBUG_INFO,
-				 "Read: this_char=%s, strlen=%ld\n", this_char,
+				 "Read: this_char=%s, strlen=%d\n", this_char,
 				 strlen(this_char));
 
 			// Sanity check
@@ -5606,7 +5550,7 @@ VOID RTMPIoctlMAC(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq)
 			}
 		} else {	//Write
 			DBGPRINT(RT_DEBUG_INFO,
-				 "Write: this_char=%s, strlen(value)=%ld, value=%s\n",
+				 "Write: this_char=%s, strlen(value)=%d, value=%s\n",
 				 this_char, strlen(value), value);
 			memcpy(&temp2, value, strlen(value));
 			temp2[strlen(value)] = '\0';
@@ -5703,7 +5647,7 @@ VOID RTMPIoctlMAC(IN PRTMP_ADAPTER pAdapter, IN struct iwreq *wrq)
 		sprintf(msg + strlen(msg), "===>Error command format!");
 	DBGPRINT(RT_DEBUG_INFO, "copy to user [msg=%s]\n", msg);
 	// Copy the information into the user buffer
-	DBGPRINT(RT_DEBUG_INFO, "strlen(msg) =%ld\n", strlen(msg));
+	DBGPRINT(RT_DEBUG_INFO, "strlen(msg) =%d\n", strlen(msg));
 	wrq->u.data.length = strlen(msg);
 	if (copy_to_user(wrq->u.data.pointer, msg, wrq->u.data.length)) {
 		DBGPRINT(RT_DEBUG_ERROR,

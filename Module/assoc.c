@@ -754,7 +754,7 @@ VOID MlmeDisassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 #if WPA_SUPPLICANT_SUPPORT
 #ifdef RT61_DBG
-static void _rtmp_hexdump(int level, const char *title, const u8 * buf,
+static void _rtmp_hexdump(const char *title, const u8 * buf,
 			  size_t len, int show)
 {
 	size_t i;
@@ -770,9 +770,9 @@ static void _rtmp_hexdump(int level, const char *title, const u8 * buf,
 	printk("\n");
 }
 
-void rtmp_hexdump(int level, const char *title, const u8 * buf, size_t len)
+void rtmp_hexdump(const char *title, const u8 * buf, size_t len)
 {
-	_rtmp_hexdump(level, title, buf, len, 1);
+	_rtmp_hexdump(title, buf, len, 1);
 }
 #endif
 
@@ -830,7 +830,7 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	 */
 
 #ifdef RT61_DBG
-	rtmp_hexdump(RT_DEBUG_TRACE, "ASSOCINFO", (const u8 *)ndis_assoc_info,
+	rtmp_hexdump("ASSOCINFO", (const u8 *)ndis_assoc_info,
 		     sizeof(NDIS_802_11_ASSOCIATION_INFORMATION));
 #endif
 
@@ -848,7 +848,7 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	for (i = 0; i < ndis_assoc_info->RequestIELength; i++)
 		p += sprintf(p, "%c", ies[i]);
 
-	p += sprintf(p, "\0");
+	*p++ = '\0';
 	memset(&wrqu, 0, sizeof(wrqu));
 	wrqu.data.length = p - wpa_assoc_info_req;
 	wrqu.data.flags = RT_REQIE_EVENT_FLAG;
@@ -870,7 +870,7 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	for (i = 0; i < ndis_assoc_info->ResponseIELength; i++)
 		p += sprintf(p, "%c", ies[i]);
 
-	p += sprintf(p, "\0");
+	*p++ = '\0';
 	memset(&wrqu, 0, sizeof(wrqu));
 	wrqu.data.length = p - wpa_assoc_info_resp;
 	wrqu.data.flags = RT_RESPIE_EVENT_FLAG;

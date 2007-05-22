@@ -50,11 +50,7 @@
 #define RALINK_PASSPHRASE           "Ralink"
 #define DRIVER_NAME                 "rt61"
 #define DRIVER_VERSION              "1.1.0 CVS"
-#ifdef RX_TASKLET
-#define DRIVER_RELDATE              "RxTask"
-#else
-#define DRIVER_RELDATE              "NoRxTask"
-#endif
+#define DRIVER_RELDATE              "CVS Release"
 
 // Query from UI
 #define DRV_MAJORVERSION            1

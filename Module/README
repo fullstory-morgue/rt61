@@ -1,78 +1,120 @@
-Installation instructions for the rt61 Module
+Installation instructions for the Legacy rt61 module
+[http://rt2x00.serialmonkey.com]
 
 
 ==================
 Build Instructions
 ==================
 
-For 2.4 or 2.6 series kernel:
+	1. Unpack the driver sources and go to the Module directory:
+	     $ tar -xvzf rt61-x.x.x.tar.gz
+	     $ cd ./rt61-x.x.x/Module
 
-a. Unpack the driver sources:
-     $ tar -xvzf rt61-x.x.x.tar.gz
+	2. Compile the driver sources:
+	     $ make
 
-b. Go to Module directory:
-     $ cd ./rt61-x.x.x/Module
+	3. Install the driver (as root):
+	     # make install
 
-c. Compile the driver sources:
-     $ make
-
-d. Install the driver module (as root):
-     # make install
-
-
-==============================
-Installation of firmware files
-==============================
-
-In order for the rt61 driver to function correctly the correct firmware file
-needs to be installed in /lib/firmware (note however that some linux distros
-rather use /lib/firmware/<KERNEL_VERSION> as their default firmware location).
-
-     $ cp *.bin /lib/firmware
-
-Alternatively, the firmware files can be downloaded from the Ralink web-site
-(http://www.ralinktech.com/supp-1.htm), and manually installed in
-/lib/firmware.
-
-The mapping of the firmware files is as follows:
-  - rt2561.bin    Ralink rt2561 chipset
-  - rt2561s.bin   Ralink rt2561turbo chipset
-  - rt2661.bin    Ralink rt2661 chipset.
-
+	4. Check your install:
+	     # ifconfig wlan0 up
+	     # iwlist wlan0 scan
+		
 
 =============
 Configuration
 =============
 
-RT61 driver can be configured via following interfaces, 
-i.e. (i)"iwconfig" command, (ii)"iwpriv" command, (iii) configuration file
+	The wlan interface should be configured using the standard wireless
+	tools (see iwpriv_usage.txt for full details). If you're looking for a
+	GUI config tool we provide RutilT on our Download page.
+	
+	Example: WEP
+	     # ifconfig wlan0 <IP_ADDRESS> up
+	     # iwconfig wlan0 key <WEP_KEY>
+	     # iwconfig wlan0 essid <ESSID>
+	
+	Example: WPA-PSK/TKIP
+	     # ifconfig wlan0 <IP_ADDRESS> up
+	     # iwpriv wlan0 set AuthMode=WPAPSK
+	     # iwpriv wlan0 set WPAPSK=<WPAPSK_KEY>
+	     # iwpriv wlan0 set EncrypType=TKIP
+	     # iwconfig wlan0 essid <ESSID>
+	     
+	Note: Out-of-the-box, legacy drivers are _not_ compatible with
+	      wpa_supplicant (see below).
 
-i)  iwconfig comes with kernel.  
-ii) iwpriv usage, please refer to file "iwpriv_usage.txt" for details.
 
+==================
+Misc. informations
+==================
 
-=================
-Misc. information
-=================
+  * Firmware files
+	
+	rt61 chipsets use a firmware file which is loaded in device memory
+	using the kernel firmware_class facility. The standard location for
+	fimrwares is /lib/firmware ('make install' will put it there for you).
 
-If you want for rt61 driver to auto-load at boot time:
+	However some linux distributions divert from the standard and e.g. use
+	/lib/firmware/<KERNEL_VERSION>. If this is your case, you will have to
+	manually move the firmware file to the right location.
+	If you have problems with firmware loading, please ask on your distro's
+	support media (forum, etc).
 
-A) choose wlan0 for first RT61 WLAN card, wlan1 for second RT61 WLAN card, etc.
-   
-B) create(edit) 'ifcfg-wlan0' file in /etc/sysconfig/network-scripts/,      
-   edit(or add the line) in /etc/modules.conf:
-       alias wlan0 rt61        
-   
-C) edit(create) the file /etc/sysconfig/network-scripts/ifcfg-wlan0  
-   DEVICE='wlan0'
-   ONBOOT='yes'     
+	The firmware files mapping is as follows:
+	  - rt2561.bin    RT2561
+	  - rt2561s.bin   RT2561turbo
+	  - rt2661.bin    RT2661
 
-NOTE:
-   if you use dhcp, add this line:
-     BOOTPROTO='dhcp'
-   in the file ifcfg-wlan0.
+  * Driver alias
+  
+	rt61 uses wlan* as its modprobe alias. This means you can have several
+	devices and they will be named wlan0, wlan1, etc.
 
-*D) To ease the Default Gateway setting, 
-    add the line
-    GATEWAY=x.x.x.x   
-    in /etc/sysconfig/network
+	If for some reason you want this interface number 'static' (e.g. if you
+	have several wlan devices and their numbers change on reboot) you can
+	change the rt61 alias in /etc/modprobe.conf back to wlan0 (or wlan1...).
+	
+	However the proper way to achieve this purpose is to use a udev rule
+	based on the wlan MAC address, like the following:
+	  KERNEL=="wlan*", SYSFS{address}=="00:de:ad:be:ef:00", NAME="wlan0"
+	(More info: http://www.reactivated.net/writing_udev_rules.html)
+  	
+  * Module parameters
+
+	You can load the rt61 module with two optional parameters:
+	  - ifname=<INTERFACE_NAME>  Customize interface names. For example, set
+	                             it to ra%d to return to old-style naming.
+	  - debug=<DEBUG_MASK>       Turn debug on (least verbose mask: 1). The
+	                             driver needs to be compiled with
+	                             'make debug' for this option to work.
+
+  * Auto-load on boot
+
+	If you want your rt61 device to come up on boot the best is to rely
+	on your specific linux distribution boot scripts.
+	If you need support doing so, ask on your distro's support media.
+	
+  * wpa_supplicant
+
+	wpa_supplicant is a userland WPA/WPA2/802.1X layer. Most of these
+	features are embedded into legacy drivers and you should not need it.
+	If you need to use a feature that only wpa_supplicant provides:
+	 - either use our next-generation rt2x00 driver which is compatible with
+	   wpa_supplicant
+	 - or patch wpa_supplicant to make it work with rt61 (more information:
+	   http://mjh.name/Ralink_rt73_wpa_supplicant_rt2x00_wpa2)
+
+  * hostapd
+
+	hostapd allows your wlan device to act like an Access Point. Legacy
+	drivers are _not_ compatible with it, but our next-generation rt2x00
+	drivers are.
+	
+  * Testing / debugging
+
+	If you experience any rt61 related problem you can ask for support on
+	our mailing list or our rt61 forum.
+	Before asking for help, read the TESTING file and follow its advices.
+	Do *not* post messages like: "wlan does not work. please help!".
+

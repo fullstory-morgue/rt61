@@ -347,6 +347,7 @@ static VOID PeerAuthRspAtSeq4Action(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * E
     Description:
     ==========================================================================
  */
+ #if 0
 static VOID MlmeDeauthReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 {
 	MLME_DEAUTH_REQ_STRUCT *pInfo;
@@ -421,6 +422,7 @@ static VOID Cls2errAction(IN PRTMP_ADAPTER pAd, IN PUCHAR pAddr)
 	pAd->PortCfg.DeauthReason = Reason;
 	memcpy(pAd->PortCfg.DeauthSta, pAddr, ETH_ALEN);
 }
+#endif
 
 VOID AuthStateMachineInit(IN PRTMP_ADAPTER pAd,
 			  IN PSTATE_MACHINE Sm, OUT STATE_MACHINE_FUNC Trans[])

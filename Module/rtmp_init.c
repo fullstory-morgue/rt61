@@ -35,6 +35,7 @@
  *      MarkW (rt2500)  19th Feb 06     Promisc mode support
  * 	OlivierC	7th  May 07     firmware_class support
  * 	OlivierC	8th  May 07	Remove rt61sta.dat file support
+ * 	OlivierC	20th May 07	WEP settings persist on ifup
  ***************************************************************************/
 
 #include    "rt_config.h"
@@ -199,8 +200,7 @@ NDIS_STATUS RTMPAllocAdapterBlock(IN PRTMP_ADAPTER pAdapter)
 #ifdef RX_TASKLET
 	// Init tasklet
 	tasklet_init(&pAdapter->RxTasklet, RxProcessFrameQueue,
-										(unsigned long) (pAdapter));
-
+		     (unsigned long) pAdapter);
 #endif
 	DBGPRINT(RT_DEBUG_TRACE, "<-- RTMPAllocAdapterBlock\n");
 
@@ -608,11 +608,10 @@ VOID NICInitTxRxRingAndBacklogQueue(IN PRTMP_ADAPTER pAdapter)
 	skb_queue_head_init(&pAdapter->TxSwQueue[QID_AC_VI]);
 	skb_queue_head_init(&pAdapter->TxSwQueue[QID_AC_VO]);
 	skb_queue_head_init(&pAdapter->TxSwQueue[QID_HCCA]);
-
 #ifdef RX_TASKLET
 	skb_queue_head_init(&pAdapter->RxQueue);
-
 #endif
+
 	// Init RX Ring index pointer
 	pAdapter->RxRing.CurRxIndex = 0;
 
@@ -657,6 +656,9 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 	EEPROM_VERSION_STRUC Version;
 	EEPROM_ANTENNA_STRUC Antenna;
 	EEPROM_LED_STRUC LedSetting;
+	USHORT Addr01, Addr23, Addr45;
+	MAC_CSR2_STRUC csr2;
+	MAC_CSR3_STRUC csr3;
 
 	DBGPRINT(RT_DEBUG_TRACE, "--> NICReadEEPROMParameters\n");
 
@@ -670,38 +672,32 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 
 	// RT2660 MAC no longer auto load MAC address from E2PROM. Driver has to intialize
 	// MAC address registers according to E2PROM setting
-	{
-		USHORT Addr01, Addr23, Addr45;
-		MAC_CSR2_STRUC csr2;
-		MAC_CSR3_STRUC csr3;
+	Addr01 = RTMP_EEPROM_READ16(pAd, 0x04);
+	Addr23 = RTMP_EEPROM_READ16(pAd, 0x06);
+	Addr45 = RTMP_EEPROM_READ16(pAd, 0x08);
 
-		Addr01 = RTMP_EEPROM_READ16(pAd, 0x04);
-		Addr23 = RTMP_EEPROM_READ16(pAd, 0x06);
-		Addr45 = RTMP_EEPROM_READ16(pAd, 0x08);
+	pAd->PermanentAddress[0] = (UCHAR) (Addr01 & 0xff);
+	pAd->PermanentAddress[1] = (UCHAR) (Addr01 >> 8);
+	pAd->PermanentAddress[2] = (UCHAR) (Addr23 & 0xff);
+	pAd->PermanentAddress[3] = (UCHAR) (Addr23 >> 8);
+	pAd->PermanentAddress[4] = (UCHAR) (Addr45 & 0xff);
+	pAd->PermanentAddress[5] = (UCHAR) (Addr45 >> 8);
 
-		pAd->PermanentAddress[0] = (UCHAR) (Addr01 & 0xff);
-		pAd->PermanentAddress[1] = (UCHAR) (Addr01 >> 8);
-		pAd->PermanentAddress[2] = (UCHAR) (Addr23 & 0xff);
-		pAd->PermanentAddress[3] = (UCHAR) (Addr23 >> 8);
-		pAd->PermanentAddress[4] = (UCHAR) (Addr45 & 0xff);
-		pAd->PermanentAddress[5] = (UCHAR) (Addr45 >> 8);
-
-		if (pAd->bLocalAdminMAC == FALSE) {
-			memcpy(pAd->CurrentAddress, pAd->PermanentAddress,
-			       ETH_ALEN);
-		}
-		csr2.field.Byte0 = pAd->CurrentAddress[0];
-		csr2.field.Byte1 = pAd->CurrentAddress[1];
-		csr2.field.Byte2 = pAd->CurrentAddress[2];
-		csr2.field.Byte3 = pAd->CurrentAddress[3];
-		RTMP_IO_WRITE32(pAd, MAC_CSR2, csr2.word);
-		csr3.word = 0;
-		csr3.field.Byte4 = pAd->CurrentAddress[4];
-		csr3.field.Byte5 = pAd->CurrentAddress[5];
-		csr3.field.U2MeMask = 0xff;
-		RTMP_IO_WRITE32(pAd, MAC_CSR3, csr3.word);
-		
+	if (pAd->bLocalAdminMAC == FALSE) {
+		memcpy(pAd->CurrentAddress, pAd->PermanentAddress,
+		       ETH_ALEN);
 	}
+	csr2.field.Byte0 = pAd->CurrentAddress[0];
+	csr2.field.Byte1 = pAd->CurrentAddress[1];
+	csr2.field.Byte2 = pAd->CurrentAddress[2];
+	csr2.field.Byte3 = pAd->CurrentAddress[3];
+	RTMP_IO_WRITE32(pAd, MAC_CSR2, csr2.word);
+	csr3.word = 0;
+	csr3.field.Byte4 = pAd->CurrentAddress[4];
+	csr3.field.Byte5 = pAd->CurrentAddress[5];
+	csr3.field.U2MeMask = 0xff;
+	RTMP_IO_WRITE32(pAd, MAC_CSR3, csr3.word);
+		
 	DBGPRINT(RT_DEBUG_TRACE, "E2PROM: MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
 		 pAd->PermanentAddress[0], pAd->PermanentAddress[1],
 		 pAd->PermanentAddress[2], pAd->PermanentAddress[3],
@@ -754,7 +750,6 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 	// Read BBP default value from EEPROM and store to array(EEPROMDefaultValue) in pAd
 	for (i = 0; i < NUM_EEPROM_BBP_PARMS; i++) {
 		value = RTMP_EEPROM_READ16(pAd, EEPROM_BBP_BASE_OFFSET + i * 2);
-
 		pAd->EEPROMDefaultValue[i] = value;
 	}
 
@@ -857,73 +852,69 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 
 	// Read TSSI reference and TSSI boundary for temperature compensation. This is ugly
 	// 0. 11b/g
-	{
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x54);
-		pAd->TssiMinusBoundaryG[4] = Power.field.Byte0;
-		pAd->TssiMinusBoundaryG[3] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x56);
-		pAd->TssiMinusBoundaryG[2] = Power.field.Byte0;
-		pAd->TssiMinusBoundaryG[1] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x58);
-		pAd->TssiPlusBoundaryG[1] = Power.field.Byte0;
-		pAd->TssiPlusBoundaryG[2] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x5a);
-		pAd->TssiPlusBoundaryG[3] = Power.field.Byte0;
-		pAd->TssiPlusBoundaryG[4] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x5c);
-		pAd->TssiRefG = Power.field.Byte0;
-		pAd->TxAgcStepG = Power.field.Byte1;
-		pAd->TxAgcCompensateG = 0;
-		pAd->TssiMinusBoundaryG[0] = pAd->TssiRefG;
-		pAd->TssiPlusBoundaryG[0] = pAd->TssiRefG;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x54);
+	pAd->TssiMinusBoundaryG[4] = Power.field.Byte0;
+	pAd->TssiMinusBoundaryG[3] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x56);
+	pAd->TssiMinusBoundaryG[2] = Power.field.Byte0;
+	pAd->TssiMinusBoundaryG[1] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x58);
+	pAd->TssiPlusBoundaryG[1] = Power.field.Byte0;
+	pAd->TssiPlusBoundaryG[2] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x5a);
+	pAd->TssiPlusBoundaryG[3] = Power.field.Byte0;
+	pAd->TssiPlusBoundaryG[4] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x5c);
+	pAd->TssiRefG = Power.field.Byte0;
+	pAd->TxAgcStepG = Power.field.Byte1;
+	pAd->TxAgcCompensateG = 0;
+	pAd->TssiMinusBoundaryG[0] = pAd->TssiRefG;
+	pAd->TssiPlusBoundaryG[0] = pAd->TssiRefG;
 
-		// Disable TxAgc if the based value is not right
-		if (pAd->TssiRefG == 0xff)
-			pAd->bAutoTxAgcG = FALSE;
+	// Disable TxAgc if the based value is not right
+	if (pAd->TssiRefG == 0xff)
+		pAd->bAutoTxAgcG = FALSE;
 
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "E2PROM: G Tssi[-4 .. +4] = %d %d %d %d - %d -%d %d %d %d, step=%d, tuning=%d\n",
-			 pAd->TssiMinusBoundaryG[4], pAd->TssiMinusBoundaryG[3],
-			 pAd->TssiMinusBoundaryG[2], pAd->TssiMinusBoundaryG[1],
-			 pAd->TssiRefG, pAd->TssiPlusBoundaryG[1],
-			 pAd->TssiPlusBoundaryG[2], pAd->TssiPlusBoundaryG[3],
-			 pAd->TssiPlusBoundaryG[4], pAd->TxAgcStepG,
-			 pAd->bAutoTxAgcG);
-	}
+	DBGPRINT(RT_DEBUG_TRACE,
+		 "E2PROM: G Tssi[-4 .. +4] = %d %d %d %d - %d -%d %d %d %d, step=%d, tuning=%d\n",
+		 pAd->TssiMinusBoundaryG[4], pAd->TssiMinusBoundaryG[3],
+		 pAd->TssiMinusBoundaryG[2], pAd->TssiMinusBoundaryG[1],
+		 pAd->TssiRefG, pAd->TssiPlusBoundaryG[1],
+		 pAd->TssiPlusBoundaryG[2], pAd->TssiPlusBoundaryG[3],
+		 pAd->TssiPlusBoundaryG[4], pAd->TxAgcStepG,
+		 pAd->bAutoTxAgcG);
 	// 1. 11a
-	{
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x90);
-		pAd->TssiMinusBoundaryA[4] = Power.field.Byte0;
-		pAd->TssiMinusBoundaryA[3] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x92);
-		pAd->TssiMinusBoundaryA[2] = Power.field.Byte0;
-		pAd->TssiMinusBoundaryA[1] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x94);
-		pAd->TssiPlusBoundaryA[1] = Power.field.Byte0;
-		pAd->TssiPlusBoundaryA[2] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x96);
-		pAd->TssiPlusBoundaryA[3] = Power.field.Byte0;
-		pAd->TssiPlusBoundaryA[4] = Power.field.Byte1;
-		Power.word = RTMP_EEPROM_READ16(pAd, 0x98);
-		pAd->TssiRefA = Power.field.Byte0;
-		pAd->TxAgcStepA = Power.field.Byte1;
-		pAd->TxAgcCompensateA = 0;
-		pAd->TssiMinusBoundaryA[0] = pAd->TssiRefA;
-		pAd->TssiPlusBoundaryA[0] = pAd->TssiRefA;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x90);
+	pAd->TssiMinusBoundaryA[4] = Power.field.Byte0;
+	pAd->TssiMinusBoundaryA[3] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x92);
+	pAd->TssiMinusBoundaryA[2] = Power.field.Byte0;
+	pAd->TssiMinusBoundaryA[1] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x94);
+	pAd->TssiPlusBoundaryA[1] = Power.field.Byte0;
+	pAd->TssiPlusBoundaryA[2] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x96);
+	pAd->TssiPlusBoundaryA[3] = Power.field.Byte0;
+	pAd->TssiPlusBoundaryA[4] = Power.field.Byte1;
+	Power.word = RTMP_EEPROM_READ16(pAd, 0x98);
+	pAd->TssiRefA = Power.field.Byte0;
+	pAd->TxAgcStepA = Power.field.Byte1;
+	pAd->TxAgcCompensateA = 0;
+	pAd->TssiMinusBoundaryA[0] = pAd->TssiRefA;
+	pAd->TssiPlusBoundaryA[0] = pAd->TssiRefA;
 
-		// Disable TxAgc if the based value is not right
-		if (pAd->TssiRefA == 0xff)
-			pAd->bAutoTxAgcA = FALSE;
+	// Disable TxAgc if the based value is not right
+	if (pAd->TssiRefA == 0xff)
+		pAd->bAutoTxAgcA = FALSE;
 
-		DBGPRINT(RT_DEBUG_TRACE,
-			 "E2PROM: A Tssi[-4 .. +4] = %d %d %d %d - %d -%d %d %d %d, step=%d, tuning=%d\n",
-			 pAd->TssiMinusBoundaryA[4], pAd->TssiMinusBoundaryA[3],
-			 pAd->TssiMinusBoundaryA[2], pAd->TssiMinusBoundaryA[1],
-			 pAd->TssiRefA, pAd->TssiPlusBoundaryA[1],
-			 pAd->TssiPlusBoundaryA[2], pAd->TssiPlusBoundaryA[3],
-			 pAd->TssiPlusBoundaryA[4], pAd->TxAgcStepA,
-			 pAd->bAutoTxAgcA);
-	}
+	DBGPRINT(RT_DEBUG_TRACE,
+		 "E2PROM: A Tssi[-4 .. +4] = %d %d %d %d - %d -%d %d %d %d, step=%d, tuning=%d\n",
+		 pAd->TssiMinusBoundaryA[4], pAd->TssiMinusBoundaryA[3],
+		 pAd->TssiMinusBoundaryA[2], pAd->TssiMinusBoundaryA[1],
+		 pAd->TssiRefA, pAd->TssiPlusBoundaryA[1],
+		 pAd->TssiPlusBoundaryA[2], pAd->TssiPlusBoundaryA[3],
+		 pAd->TssiPlusBoundaryA[4], pAd->TxAgcStepA,
+		 pAd->bAutoTxAgcA);
 	pAd->BbpRssiToDbmDelta = 0x79;
 
 	// Read frequency offset and RF programming sequence setting for RT5225
@@ -1119,6 +1110,13 @@ VOID NICInitAsicFromEEPROM(IN PRTMP_ADAPTER pAd)
 
 	DBGPRINT(RT_DEBUG_TRACE, "RFIC=%d, LED mode=%d\n", pAd->RfIcType,
 		 pAd->LedCntl.field.LedMode);
+
+	if (pAd->PortCfg.WepStatus == Ndis802_11WEPEnabled) {
+		u16 idx = pAd->PortCfg.DefaultKeyId;
+		CIPHER_KEY *cipher = &pAd->PortCfg.DesireSharedKey[idx];
+		AsicAddSharedKeyEntry(pAd, 0, idx, cipher->CipherAlg,
+				      cipher->Key, NULL, NULL);
+	}
 
 	DBGPRINT(RT_DEBUG_TRACE, "<-- NICInitAsicFromEEPROM\n");
 }
@@ -1370,11 +1368,12 @@ VOID NICIssueReset(IN PRTMP_ADAPTER pAdapter)
 
     ========================================================================
 */
+#if 0
 static BOOLEAN NICCheckForHang(IN PRTMP_ADAPTER pAd)
 {
 	return (FALSE);
 }
-
+#endif
 /*
 	========================================================================
 
@@ -1600,6 +1599,8 @@ NDIS_STATUS NICLoadFirmware(IN PRTMP_ADAPTER pAd)
 		goto error;
 	}
 	
+	// Reset LED
+	RTMPSetLED(pAd, LED_LINK_DOWN);
 	// Firmware loaded successfully
 	Status = NDIS_STATUS_SUCCESS;
 
@@ -1624,6 +1625,7 @@ error:
         Others                      Success
     ========================================================================
 */
+#if 0
 static PUCHAR RTMPFindSection(IN PCHAR buffer)
 {
 	CHAR temp_buf[255];
@@ -1713,7 +1715,7 @@ static INT RTMPGetKeyParameter(IN PCHAR key,
 
 	return TRUE;
 }
-
+#endif
 /*
     ========================================================================
 
