@@ -1111,13 +1111,6 @@ VOID NICInitAsicFromEEPROM(IN PRTMP_ADAPTER pAd)
 	DBGPRINT(RT_DEBUG_TRACE, "RFIC=%d, LED mode=%d\n", pAd->RfIcType,
 		 pAd->LedCntl.field.LedMode);
 
-	if (pAd->PortCfg.WepStatus == Ndis802_11WEPEnabled) {
-		u16 idx = pAd->PortCfg.DefaultKeyId;
-		CIPHER_KEY *cipher = &pAd->PortCfg.DesireSharedKey[idx];
-		AsicAddSharedKeyEntry(pAd, 0, idx, cipher->CipherAlg,
-				      cipher->Key, NULL, NULL);
-	}
-
 	DBGPRINT(RT_DEBUG_TRACE, "<-- NICInitAsicFromEEPROM\n");
 }
 
@@ -1295,9 +1288,6 @@ NDIS_STATUS NICInitializeAdapter(IN PRTMP_ADAPTER pAdapter)
 
 	// Initialze ASIC for TX & Rx operation
 	NICInitializeAsic(pAdapter);
-
-	// Load firmware
-	//Status = NICLoadFirmware(pAdapter);
 
 	DBGPRINT(RT_DEBUG_TRACE, "<-- NICInitializeAdapter\n");
 	return Status;

@@ -588,20 +588,23 @@ static INT rt61_open(IN struct net_device * net_dev)
 	// Initialize Asics
 	NICInitializeAdapter(pAd);
 
-	// We should read EEPROM for all cases.
-	NICReadEEPROMParameters(pAd);
-
 	// hardware initialization after all parameters are acquired from
 	// Registry or E2PROM
 	TmpPhy = pAd->PortCfg.PhyMode;
 	pAd->PortCfg.PhyMode = 0xff;
 	RTMPSetPhyMode(pAd, TmpPhy);
 
-	NICInitAsicFromEEPROM(pAd);
-
 	//
 	// other settings
 	//
+
+	// WEP settings
+	if (pAd->PortCfg.WepStatus == Ndis802_11WEPEnabled) {
+		u16 idx = pAd->PortCfg.DefaultKeyId;
+		CIPHER_KEY *cipher = &pAd->PortCfg.DesireSharedKey[idx];
+		AsicAddSharedKeyEntry(pAd, 0, idx, cipher->CipherAlg,
+				      cipher->Key, NULL, NULL);
+	}
 
 	// PCI_ID info
 	pAd->VendorDesc =
@@ -629,13 +632,6 @@ static INT rt61_open(IN struct net_device * net_dev)
 		pAd->BbpTuning.R17LowerBoundG += 0x10;
 		pAd->BbpTuning.R17UpperBoundG += 0x10;
 	}
-
-	net_dev->dev_addr[0] = pAd->CurrentAddress[0];
-	net_dev->dev_addr[1] = pAd->CurrentAddress[1];
-	net_dev->dev_addr[2] = pAd->CurrentAddress[2];
-	net_dev->dev_addr[3] = pAd->CurrentAddress[3];
-	net_dev->dev_addr[4] = pAd->CurrentAddress[4];
-	net_dev->dev_addr[5] = pAd->CurrentAddress[5];
 
 	// initialize MLME
 	status = MlmeInit(pAd);
@@ -845,6 +841,17 @@ static INT __devinit rt61_pci_probe(IN struct pci_dev *dev,
 					" (is firmware file installed?)\n");
 		goto err_adapter;
 	}
+	
+	// Read default settings from EPROM
+	NICReadEEPROMParameters(pAd);
+	NICInitAsicFromEEPROM(pAd);
+	// Set MAC address
+	net_dev->dev_addr[0] = pAd->CurrentAddress[0];
+	net_dev->dev_addr[1] = pAd->CurrentAddress[1];
+	net_dev->dev_addr[2] = pAd->CurrentAddress[2];
+	net_dev->dev_addr[3] = pAd->CurrentAddress[3];
+	net_dev->dev_addr[4] = pAd->CurrentAddress[4];
+	net_dev->dev_addr[5] = pAd->CurrentAddress[5];
 
 	// Register net_device
 	if ((Status = register_netdev(net_dev))) {
@@ -1022,7 +1029,11 @@ static INT __init rt61_module_init(VOID)
 {
 	printk(KERN_INFO DRIVER_NAME " %s %s http://rt2x00.serialmonkey.com\n",
 		DRIVER_VERSION, DRIVER_RELDATE);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
 	return pci_module_init(&rt61_pci_driver);
+#else
+	return pci_register_driver(&rt61_pci_driver);
+#endif
 }
 
 //
