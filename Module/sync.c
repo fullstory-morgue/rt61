@@ -465,8 +465,10 @@ static VOID MlmeJoinReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 		 Info->BssIdx);
 
 	// reset all the timers
-	del_timer_sync(&pAd->MlmeAux.ScanTimer);
-	del_timer_sync(&pAd->MlmeAux.BeaconTimer);
+	if (timer_pending(&pAd->MlmeAux.ScanTimer))
+		del_timer_sync(&pAd->MlmeAux.ScanTimer);
+	if (timer_pending(&pAd->MlmeAux.BeaconTimer))
+		del_timer_sync(&pAd->MlmeAux.BeaconTimer);
 
 	pBss = &pAd->MlmeAux.SsidBssTab.BssEntry[Info->BssIdx];
 

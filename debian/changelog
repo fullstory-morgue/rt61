@@ -1,3 +1,10 @@
+rt61 (1.1.0.dfsg.2+cvs20070527-1) unstable; urgency=low
+
+  * New upstream snapshot:
+    - Quick hack to protect against another timer-related soft lockup.
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sun, 27 May 2007 10:48:57 +0200
+
 rt61 (1.1.0.dfsg.2+cvs20070524-2) UNRELEASED; urgency=low
 
   * NOT RELEASED YET
