@@ -37,13 +37,21 @@ install/rt61-fwcutter::
 	install -m 0755	debian/install_rt61_firmware.sh \
 			debian/rt61-fwcutter/usr/share/rt61-fwcutter/
 
-get-orig-source:
+upstream:
 	@rm -rf ../rt61-$(DATE) ../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz
 	cd .. && cvs -z3 -d:pserver:anonymous@rt2400.cvs.sourceforge.net:/cvsroot/rt2400 \
 		export -d rt61-$(DATE) -D $(DATE) source/rt61/
 	@test -d ../rt61-$(DATE)
 	tar zcf ../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz \
 		--exclude='*.bin' --exclude='WPA_Supplicant' -C .. rt61-$(DATE)
+	if [ -x /usr/bin/diff ] && [ -x /usr/bin/diffstat ]; then \
+		diff	-Nrup \
+			--exclude=debian \
+			--exclude=*.svn \
+			--exclude=*.bin \
+			--exclude=WPA_Supplicant \
+				../trunk/ ../rt61-$(DATE) | diffstat -p2; \
+	fi
 	@rm -rf ../rt61-$(DATE)
 	@echo "Don't forget to update your upstream with " \
 		"../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz"
