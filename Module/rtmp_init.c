@@ -1516,7 +1516,11 @@ NDIS_STATUS NICLoadFirmware(IN PRTMP_ADAPTER pAd)
 	RTMP_IO_WRITE32(pAd, H2M_MAILBOX_CSR, 0x00000000);	// MBOX owned by HOST
 	RTMP_IO_WRITE32(pAd, HOST_CMD_CSR, 0x00000000);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+	if (request_firmware(&fw_entry, fw_name, (const char *)&dev->slot_name)) {
+#else
 	if (request_firmware(&fw_entry, fw_name, &dev->dev)) {
+#endif
 		DBGPRINT(RT_DEBUG_ERROR, "Failed to load Firmware.\n");
 		return NDIS_STATUS_FAILURE;
 	}
