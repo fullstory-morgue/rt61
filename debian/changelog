@@ -1,6 +1,7 @@
-rt61 (1.1.0.dfsg.2+cvs20070527-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070623-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - Fix compiling on 2.4 kernels.
   * rework upstream target.
 
  -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 05 Jun 2007 14:55:11 +0200
@@ -12,35 +13,17 @@ rt61 (1.1.0.dfsg.2+cvs20070527-1) unstable; urgency=low
 
  -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sun, 27 May 2007 10:48:57 +0200
 
-rt61 (1.1.0.dfsg.2+cvs20070524-2) UNRELEASED; urgency=low
-
-  * NOT RELEASED YET
-
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Thu, 24 May 2007 16:06:20 +0200
-
 rt61 (1.1.0.dfsg.2+cvs20070524-1) unstable; urgency=low
 
   * New upstream snapshot.
 
  -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Thu, 24 May 2007 16:05:06 +0200
 
-rt61 (1.1.0.dfsg.2+cvs20070522-2) UNRELEASED; urgency=low
-
-  * NOT RELEASED YET
-
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 22 May 2007 14:45:18 +0200
-
 rt61 (1.1.0.dfsg.2+cvs20070522-1) unstable; urgency=low
 
   * New upstream snapshot.
 
  -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 22 May 2007 14:42:50 +0200
-
-rt61 (1.1.0.dfsg.2+cvs20070508-2) UNRELEASED; urgency=low
-
-  * NOT RELEASED YET
-
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 08 May 2007 15:22:20 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070508-1) unstable; urgency=low
 
@@ -53,12 +36,6 @@ rt61 (1.1.0.dfsg.2+cvs20070508-1) unstable; urgency=low
   * we no longer need to build-depend on dpatch.
 
  -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 08 May 2007 15:19:30 +0200
-
-rt61 (1.1.0.dfsg.2+cvs20070502-3) UNRELEASED; urgency=low
-
-  * NOT RELEASED YET
-
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Wed, 02 May 2007 03:06:42 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070502-2) unstable; urgency=low
 
