@@ -98,6 +98,8 @@ else
  MODULE_CONF := /etc/modprobe.conf
 endif
 
+all: module
+
 ifeq ($(PATCHLEVEL), 4)
 $(obj)/$(MODULE_NAME).o: $($(MODULE_NAME)-objs)
 	$(LD) $(EXTRA_LDFLAGS) -r -o $@ $($(MODULE_NAME)-objs)
@@ -114,8 +116,6 @@ MODULE_CHECK :=	if ! [ -f $(MODULE_OBJECT) ]; then \
 			echo "!!! Check your kernel settings or use 'strip'"; \
 		fi; \
 		echo "*** Module $(MODULE_OBJECT) built successfully"
-
-all: module
 
 module:
 	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=$(EXTRA_CFLAGS)' modules; \

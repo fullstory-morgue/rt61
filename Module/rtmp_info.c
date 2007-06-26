@@ -4262,7 +4262,7 @@ INT RTMPQueryInformation(IN PRTMP_ADAPTER pAdapter,
 	case RT_OID_802_11_STA_CONFIG:
 		DBGPRINT(RT_DEBUG_TRACE, "Query::RT_OID_802_11_STA_CONFIG\n");
 		StaConfig.EnableTxBurst = pAdapter->PortCfg.bEnableTxBurst;
-		StaConfig.EnableTurboRate = 0;	//pAdapter->PortCfg.EnableTurboRate;
+		StaConfig.EnableTurboRate = pAdapter->PortCfg.EnableTurboRate;
 		StaConfig.UseBGProtection = pAdapter->PortCfg.UseBGProtection;
 		StaConfig.UseShortSlotTime = pAdapter->PortCfg.UseShortSlotTime;
 		StaConfig.AdhocMode = pAdapter->PortCfg.AdhocMode;

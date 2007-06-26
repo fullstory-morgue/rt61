@@ -1,8 +1,10 @@
-rt61 (1.1.0.dfsg.2+cvs20070623-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070626-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - Report TurboRate state back.
+    - Fix default Makefile target.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sat, 23 Jun 2007 14:28:39 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 26 Jun 2007 14:20:58 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070623-1) unstable; urgency=low
 
