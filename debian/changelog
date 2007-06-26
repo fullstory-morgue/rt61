@@ -1,8 +1,10 @@
-rt61 (1.1.0.dfsg.2+cvs20070626-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070626-2) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * enable dpatch.
+  * port kernel 2.6.22 compatibility patch by Bryan Batten
+    <bbatten@users.sourceforge.net> from rt2400 to rt61.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 26 Jun 2007 14:25:33 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Wed, 27 Jun 2007 00:41:39 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070626-1) unstable; urgency=low
 
