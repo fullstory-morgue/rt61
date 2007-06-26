@@ -1342,8 +1342,8 @@ typedef struct _RTMP_ADAPTER {
 #ifdef RX_TASKLET
 	struct sk_buff_head RxQueue;
 	struct tasklet_struct RxTasklet;		// RxDone irq worker
-#endif	
-	
+#endif
+
 	// SpinLocks
 	spinlock_t TxRingLock;	// Tx Ring spinlock
 	spinlock_t MgmtRingLock;	// Prio Ring spinlock
@@ -1754,7 +1754,7 @@ VOID ReassocTimeoutAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem);
 VOID DisassocTimeoutAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem);
 VOID InvalidStateWhenAssoc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem);
 VOID InvalidStateWhenReassoc(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem);
-VOID InvalidStateWhenDisassociate(IN PRTMP_ADAPTER pAd, 
+VOID InvalidStateWhenDisassociate(IN PRTMP_ADAPTER pAd,
 						IN MLME_QUEUE_ELEM * Elem);
 VOID Cls3errAction(IN PRTMP_ADAPTER pAd, IN PUCHAR pAddr);
 VOID AuthStateMachineInit(IN PRTMP_ADAPTER pAd,

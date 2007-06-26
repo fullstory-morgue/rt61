@@ -1189,7 +1189,7 @@ BOOLEAN BackDoorProbeRspSanity(IN PRTMP_ADAPTER pAd,
 		SupRateLen			Peer's Supported Rate Length
 		ExtRate				Peer's Extended Rate Buffer
 		ExtRateLen			Peer's Extended Rate Length
-		
+
 	Return Value:
     	1 - CCK
     	2 - OFDM
@@ -1225,7 +1225,7 @@ UCHAR PeerTxTypeInUseSanity(IN UCHAR Channel,
 
 		//
 		// Second check Extend Rate.
-		// Maybe OFDM rate store on Extend Rate. 
+		// Maybe OFDM rate store on Extend Rate.
 		//
 		if ((Type & 0x02) == 0) {
 			for (i = 0; i < ExtRateLen; i++) {

@@ -120,7 +120,7 @@ MODULE_CHECK :=	if ! [ -f $(MODULE_OBJECT) ]; then \
 module:
 	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=$(EXTRA_CFLAGS)' modules; \
 	$(MODULE_CHECK)
-	
+
 debug:
 	@$(MAKE) $(KBUILD_PARAMS) 'EXTRA_CFLAGS=$(EXTRA_CFLAGS) -DRT61_DBG' modules; \
 	$(MODULE_CHECK)

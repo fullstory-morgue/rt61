@@ -107,7 +107,7 @@ static inline VOID REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP
 		memcpy(skb_put(pSkb2, DataSize2), pData2, DataSize2);
 		pSkb2->protocol = eth_type_trans(pSkb2, pAd->net_dev);
 	}
-	
+
 	// Tailor skb for 802.3
 	skb->dev = pAd->net_dev;
 	memcpy(skb_push(skb, LENGTH_802_3), p8023hdr, LENGTH_802_3);
@@ -533,7 +533,7 @@ static inline UCHAR RxFrameCheck (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 	PHEADER_802_11 pHeader = (PHEADER_802_11) skb->data;
 	// WARNING: only 24 first bytes of RxD here. Don't use further bytes !!!
 	PRXD_STRUC pRxD = (PRXD_STRUC) &skb->cb;
-	
+
 	// Check for all RxD errors
 	if (RTMPCheckRxError(pAd, pHeader, pRxD) != NDIS_STATUS_SUCCESS) {
 		DBGPRINT(RT_DEBUG_INFO, "RxDone - drop error frame (len=%d)\n",
@@ -674,8 +674,8 @@ static inline UCHAR RxMonitorFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 	skb->protocol = htons(ETH_P_802_2);
 	skb->ip_summed = CHECKSUM_NONE;
 	netif_rx(skb);
-	
-	return NDIS_STATUS_SUCCESS; 
+
+	return NDIS_STATUS_SUCCESS;
 }
 
 
@@ -697,7 +697,7 @@ static inline UCHAR RxFirstFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 		skb_pull(skb, LENGTH_802_1_H);
 		pAd->FragFrame.Flags |= 0x01;
 	}
-	
+
 	//
 	// Fragmented frame? Store this one, prepare for the next
 	//
@@ -722,11 +722,11 @@ static inline UCHAR RxFirstFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 #ifdef NONCOPY_RX	// We keep the skb for re-assembly, don't touch it
 		return NDIS_STATUS_SUCCESS;
 #else		// We copied skb data, you can release it
-		return NDIS_STATUS_FAILURE; 
+		return NDIS_STATUS_FAILURE;
 #endif
 	}
 
-	//	
+	//
 	// Packet is complete...
 	//
 	// Is this an aggregation?
@@ -749,7 +749,7 @@ static inline UCHAR RxFirstFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 		     *skb->data, *(skb->data + 1), *(skb->data + 2), *(skb->data + 3),
 		     *(skb->data + 4), *(skb->data + 5), *(skb->data + 6), *(skb->data + 7));
 		// Report second packet to upper layer
-		pData2 = skb->tail; 
+		pData2 = skb->tail;
 		skb->data = skb->tail + LENGTH_802_3;
 		skb->len = Payload2Size;
 		skb->tail = skb->data + skb->len;
@@ -768,7 +768,7 @@ static inline UCHAR RxFirstFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 #endif
 		return NDIS_STATUS_SUCCESS;
 	}
-	
+
 	//
 	// No fragmentation nor aggregation (plain old lone packet in frame)
 	//
@@ -780,7 +780,7 @@ static inline UCHAR RxFirstFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 		    skb->len, Header802_3[12], Header802_3[13],
     		*skb->data, *(skb->data + 1), *(skb->data + 2), *(skb->data + 3),
      		*(skb->data + 4), *(skb->data + 5), *(skb->data + 6), *(skb->data + 7));
-	
+
 	return NDIS_STATUS_SUCCESS;
 }
 
@@ -794,11 +794,11 @@ static inline UCHAR RxNextFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb,
 	// WARNING: only 24 first bytes of RxD here. Don't use further bytes !!!
 	PRXD_STRUC pRxD = (PRXD_STRUC) &skb->cb;
 	struct sk_buff *fskb = pAd->FragFrame.skb;		// Re-assembly buffer
-	
+
 	//
 	// Middle & End of fragment burst fragments (i.e. no LLC-SNAP header)
 	//
-	
+
 	// Is fragment not from the same sequence?
 	// Is invalid fragment number?
 	// Does fragment exceeds max size limit?
@@ -811,7 +811,7 @@ static inline UCHAR RxNextFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb,
 		memset(&pAd->FragFrame, 0, sizeof(FRAGMENT_FRAME));
 		return NDIS_STATUS_FAILURE;	// give up this frame
 	}
-	
+
 	// concatenate this fragment into the re-assembly buffer
 	memcpy(skb_put(fskb, skb->len), skb->data, skb->len);
 	pAd->FragFrame.LastFrag = pHeader->Frag;	// Update fragment number
@@ -819,11 +819,11 @@ static inline UCHAR RxNextFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb,
 	// More fragment to come (is this a middle fragment)?
 	if (pHeader->FC.MoreFrag)
 		return NDIS_STATUS_FAILURE;	// Release this fragment
-		
+
 	//
 	// Last fragment, let's bring it all back together
 	//
-	
+
 	// For TKIP frame, calculate the MIC value
 	if (pRxD->CipherAlg == CIPHER_TKIP) {
 		PCIPHER_KEY pWpaKey = &pAd->SharedKey[pRxD->KeyIndex];
@@ -855,9 +855,9 @@ static inline UCHAR RxNextFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb,
 		// MIC ok, remove LLC/SNAP field if any
 		if (pAd->FragFrame.Flags & 0x00000001)
 			skb_pull(pAd->FragFrame.skb, LENGTH_802_1_H);
-		
+
 	}
-	
+
 	REPORT_ETHERNET_FRAME_TO_LLC(pAd, fskb, pAd->FragFrame.Header802_3);
 //	DBGPRINT_RAW(RT_DEBUG_TRACE, "!!! report DATA (fragmented) to LLC (len=%d) !!!\n", pAd->FragFrame.RxSize);
 
@@ -879,7 +879,7 @@ static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 	USHORT Offset = 0;
 	// Skip 802.11 header
 	skb_pull(skb, LENGTH_802_11);
-	
+
 	// before LINK UP, all DATA frames are rejected
 	if (!OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED)) {
 		DBGPRINT(RT_DEBUG_TRACE,
@@ -983,7 +983,7 @@ static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 //      DBGPRINT_RAW(RT_DEBUG_TRACE, "!!! report BCAST DATA to LLC (len=%d) !!!\n", skb->len);
 		return NDIS_STATUS_SUCCESS;
 	}
-	
+
 	//
 	// Case 2:  Process unicast-to-me DATA frame
 	//
@@ -1041,7 +1041,7 @@ static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 				if (pAd->PortCfg.DesireSharedKey[idx].KeyLen != 0) {
 					pAd->SharedKey[idx].KeyLen =
 									pAd->PortCfg.DesireSharedKey[idx].KeyLen;
-					memcpy(pAd->SharedKey[idx].Key, 
+					memcpy(pAd->SharedKey[idx].Key,
 									pAd->PortCfg.DesireSharedKey[idx].Key,
 							     	pAd->SharedKey[idx].KeyLen);
 					pAd->SharedKey[idx].CipherAlg =
@@ -1055,7 +1055,7 @@ static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 			}
 
 			return NDIS_STATUS_SUCCESS;
-			
+
 		} else
 //#else
 		// 2.1.2  Onboard MLME enabled
@@ -1072,18 +1072,18 @@ static inline UCHAR RxDataFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb)
 		}
 //#endif
 	}
-	
+
 	//
 	// 2.2  Normal data frame
 	//
-	
+
 	// First fragment (perhaps only)?
 	if (pHeader->Frag == 0)
 		return RxFirstFragment(pAd, skb, &Header802_3[0], pDA, pSA, Msdu2Size);
 
 	// Next fragment (perhaps last)
 	return RxNextFragment(pAd, skb, &Header802_3[0], pDA, pSA, Msdu2Size);
-	
+
 }
 
 
@@ -1091,7 +1091,7 @@ VOID RxProcessFrameQueue(unsigned long pAdd)
 {
 #ifdef RX_TASKLET
 #define MONITOR_FRAME	1
-#define DATA_FRAME		2	  
+#define DATA_FRAME		2
 #define MGMT_FRAME 		4
 	PRTMP_ADAPTER pAd = (PRTMP_ADAPTER)pAdd;
 	struct sk_buff *skb;
@@ -1106,7 +1106,7 @@ VOID RxProcessFrameQueue(unsigned long pAdd)
 		// Nothing left to process? Exit.
 		if(!skb)
 			return;
-		// WARNING: Only 24 first bytes of pRxD available in skb->cb !!! 		 
+		// WARNING: Only 24 first bytes of pRxD available in skb->cb !!!
 		pRxD = (PRXD_STRUC) &skb->cb;
 		pcktType = skb->cb[24];
 		result = NDIS_STATUS_FAILURE;
@@ -1161,7 +1161,7 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 #endif
 #ifdef NONCOPY_RX
 	struct sk_buff *nskb;
-#endif	
+#endif
 #if SL_IRQSAVE
 	ULONG IrqFlags;
 #endif
@@ -1250,7 +1250,7 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 				Count++;
 			}
 		} while (FALSE);
-		
+
 #else
 			// We'll need to release skbuff if no one else does !!!
 			BufferConsummed = NDIS_STATUS_FAILURE;
@@ -1316,10 +1316,10 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 		if (BufferConsummed == NDIS_STATUS_FAILURE) {
 			dev_kfree_skb_irq(skb);
 		}
-		
+
 		Count++;
 #endif
-		
+
 		// Map new skbuff to shared DMA
 #ifdef NONCOPY_RX
 		RTMP_SET_PACKET_SOURCE(nskb, PKTSRC_DRIVER);
@@ -2841,7 +2841,7 @@ static BOOLEAN RTMPCheckDHCPFrame(IN PRTMP_ADAPTER pAd, IN struct sk_buff *pSkb)
 				((pSrc[14] & 0xf0) == 0x40),
 				(pSrc[23] == 17),
 				(pSrc[36] << 8) | pSrc[37]);
-		}	
+		}
 	}
 
 	return FALSE;
@@ -2868,7 +2868,7 @@ static BOOLEAN RTMPCheckDHCPFrame(IN PRTMP_ADAPTER pAd, IN struct sk_buff *pSkb)
 
 	========================================================================
 */
-static 
+static
 #ifdef BIG_ENDIAN
  inline
 #endif
@@ -3054,17 +3054,17 @@ static
 		    (MpduRequired == 1) &&
 		    TxFrameIsAggregatible(pAd, NULL, pSrcBufVA)) {
 			PUCHAR pNextPacketBufVA;
-	
+
 			pNextSkb = skb_dequeue(&pAd->TxSwQueue[QueIdx]);
 			if (!pNextSkb)
 				break;
-	
+
 			DBGPRINT(RT_DEBUG_INFO,
 				 "AGGRE: 1st MSDU aggregatible(len=%d)\n", pSkb->len);
-	
+
 			pNextPacketBufVA = (PVOID) pNextSkb->data;
 			NextPacketBufLen = pNextSkb->len;
-	
+
 			if (TxFrameIsAggregatible(pAd, pSrcBufVA, pNextPacketBufVA)) {
 				// need to clone pNextSkb to assure it uses only 1 scatter buffer
 				DBGPRINT(RT_DEBUG_INFO,
@@ -3330,7 +3330,7 @@ static
 	// If fragment required, MPDU size is maximum fragment size
 	// Else, MPDU size should be frame with 802.11 header & CRC
 	if (MpduRequired > 1)
-		NextMpduSize = pAd->PortCfg.FragmentThreshold; 
+		NextMpduSize = pAd->PortCfg.FragmentThreshold;
 	else {
 		NextMpduSize = pSkb->len + LENGTH_802_11 + LENGTH_CRC -
 			       LENGTH_802_3;
@@ -3340,7 +3340,7 @@ static
 
 	if (RtsRequired
 	    || OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_RTS_PROTECTION_ENABLE)) {
-		RTMPSendRTSCTSFrame(pAd, Header_802_11.Addr1, 
+		RTMPSendRTSCTSFrame(pAd, Header_802_11.Addr1,
 				    NextMpduSize + EncryptionOverhead, TxRate,
 				    pAd->PortCfg.RtsRate, AckDuration, QueIdx,
 				    FrameGap, SUBTYPE_RTS);

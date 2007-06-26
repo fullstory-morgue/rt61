@@ -2174,14 +2174,14 @@ static int rt_ioctl_siwessid(struct net_device *dev,
 		pAdapter->PortCfg.AuthMode = Ndis802_11AuthModeOpen;
 		pAdapter->PortCfg.WepStatus = Ndis802_11EncryptionDisabled;
 	}
-	// Update desired settings 
+	// Update desired settings
 	memcpy(pAdapter->PortCfg.Ssid, Ssid.Ssid, Ssid.SsidLength);
 	pAdapter->PortCfg.SsidLen = Ssid.SsidLength;
 
 	DBGPRINT(RT_DEBUG_TRACE,
 		 "===>rt_ioctl_siwessid:: (Ssid.SsidLength = %d, %s)\n",
 		 Ssid.SsidLength, Ssid.Ssid);
-		 
+
 	// If interface is down don't run mlme
 	if (!RTMP_TEST_FLAG(pAdapter, fRTMP_ADAPTER_INTERRUPT_IN_USE))
 		return 0;
@@ -2358,7 +2358,7 @@ static int rt_ioctl_siwencode(struct net_device *dev,
 	idx = (erq->flags & IW_ENCODE_INDEX);
 
 	if (erq->flags & IW_ENCODE_NOKEY) {
-		// No key provided: set active index	
+		// No key provided: set active index
 		if ((idx < 1) || (idx > NR_WEP_KEYS))
 			return -EINVAL;
 		idx--;
