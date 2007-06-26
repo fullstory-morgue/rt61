@@ -23,6 +23,7 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	* Fix default Makefile target.
 	* Import adapter startup detection updates from new Ralink (1.1.0.0)
 	  driver.
 	* Import RTC/CTS frame sending updates from new Ralink (1.1.0.0)
