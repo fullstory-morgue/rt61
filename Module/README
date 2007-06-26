@@ -133,7 +133,7 @@ NOTES:
 * Auto-load on boot
 
 	If you want your device to come up on boot the best is to use your
-	specific linux distribution's tools (boot scripts, etc). 
+	specific linux distribution's tools (boot scripts, etc).
 	If you need support doing so, ask on your distro's support media.
 
 * wpa_supplicant

@@ -697,7 +697,7 @@ VOID NICReadEEPROMParameters(IN PRTMP_ADAPTER pAd)
 	csr3.field.Byte5 = pAd->CurrentAddress[5];
 	csr3.field.U2MeMask = 0xff;
 	RTMP_IO_WRITE32(pAd, MAC_CSR3, csr3.word);
-		
+
 	DBGPRINT(RT_DEBUG_TRACE, "E2PROM: MAC=%02x:%02x:%02x:%02x:%02x:%02x\n",
 		 pAd->PermanentAddress[0], pAd->PermanentAddress[1],
 		 pAd->PermanentAddress[2], pAd->PermanentAddress[3],
@@ -1524,7 +1524,7 @@ NDIS_STATUS NICLoadFirmware(IN PRTMP_ADAPTER pAd)
 		DBGPRINT(RT_DEBUG_ERROR, "Failed to load Firmware.\n");
 		return NDIS_STATUS_FAILURE;
 	}
-	
+
 	if (fw_entry->size != MAX_FIRMWARE_IMAGE_SIZE) {
 		DBGPRINT(RT_DEBUG_ERROR,
 			 "NICLoadFirmware: error file length (=%d) in BIN file\n",
@@ -1565,7 +1565,7 @@ NDIS_STATUS NICLoadFirmware(IN PRTMP_ADAPTER pAd)
 		 "NICLoadFirmware OK: CRC = 0x%04x ver=%d.%d\n",
 		 crc, fw_entry->data[size - 2], fw_entry->data[size - 1]);
 
-	// Copy firmware to NIC  
+	// Copy firmware to NIC
 	// select 8051 program bank; write entire firmware image
 	RTMP_IO_WRITE32(pAd, MCU_CNTL_CSR, 0x03);
 	for (i = 0; i < MAX_FIRMWARE_IMAGE_SIZE; i++)
@@ -1586,13 +1586,13 @@ NDIS_STATUS NICLoadFirmware(IN PRTMP_ADAPTER pAd)
 		}
 		RTMPusecDelay(1000);
 	} while (i++ < 1000);
-	
+
 	if (i >= 1000) {
 		DBGPRINT(RT_DEBUG_ERROR,
 				 "NICLoadFirmware: MCU is not ready\n\n\n");
 		goto error;
 	}
-	
+
 	// Reset LED
 	RTMPSetLED(pAd, LED_LINK_DOWN);
 	// Firmware loaded successfully

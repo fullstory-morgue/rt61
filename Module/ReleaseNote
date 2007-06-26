@@ -1,6 +1,6 @@
 *******************************************************************
-*               RALINK TECHNOLOGY, CORP.                  
-*              RALINK RT61 Wireless Card          
+*               RALINK TECHNOLOGY, CORP.
+*              RALINK RT61 Wireless Card
 *             SOFTWARE DRIVER RELEASE NOTE
 *
 *******************************************************************
@@ -35,7 +35,7 @@
 7. Rename rt61sta.dat, rt2561.bin, rt2561s.bin and rt2661.bin
 8. Update firmware to ver 0.8
 9. Correct Noise and signal level that get from the command "iwconfig"
-10. Invalid value checks on configured parameters 
+10. Invalid value checks on configured parameters
 11. Replace strtok with rstrtok, beacuse strtok is obsolote in linux kernel 2.6
 12. Enable TX rate auto fallback from OFDM to CCK 1M, 2M on(B/BG/ABG)
 13. Modify scan timing.

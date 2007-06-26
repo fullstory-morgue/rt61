@@ -34,7 +34,7 @@ testing/debugging of the rt61 kernel module:
 
 6. Report the following to the rt2400-devel mailing list (or rt61 forum):
      * Steps to reproduce the bug
-     * The _whole_content_ of your debugging output 
+     * The _whole_content_ of your debugging output
      * Your module details, i.e. the output of:
          # modinfo rt61.ko
      * Your kernel details, i.e. the output of:
@@ -60,4 +60,4 @@ If it's large (which it will be) then GZip it. Either attach it to your forum
 post or, if you're going to report via the mailing list, upload it somewhere and
 give a link to it (or email it directly to the developer you are working with).
 
-!!!! END NOTE !!!! 
+!!!! END NOTE !!!!

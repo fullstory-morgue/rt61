@@ -21,7 +21,7 @@ set		ATEDA		    xx:xx:xx:xx:xx:xx   	set ATE frame header addr1
 		ATEBSSID	    xx:xx:xx:xx:xx:xx		set ATE frame header addr3
 
 		ATETXPOW	    0 ~ 31			   		set ATE Tx power
-		
+
 		ATECHANNEL	    1 ~ 14			   		set ATE Channel
 
 		ATETXFREQOFFSET	1 ~ 14    				set ATE RF frequency offset
@@ -32,14 +32,14 @@ set		ATEDA		    xx:xx:xx:xx:xx:xx   	set ATE frame header addr1
 
 		ATETXRATE	    0 ~ 11			   		set ATE frame Tx rate (rate_1 ~ rate_54)
 
-		------- set ATE actions ------- 
+		------- set ATE actions -------
 		ATE		    	STASTOP			   		stop STA & ATE function
 		ATE          	STASTART           		start STA function
 		ATE           	TXCONT			   		start STA continuous TX
 		ATE           	TXCARR			   		start STA carrier test
 		ATE          	TXFRAME			   		transmit frame
 		ATE         	RXFRAME			   		continuous RX
-		-------------------------------                     
+		-------------------------------
 		ResetCounter	0				   		reset statistic counter
 
 		bbp				0 ~	xx				   	read/write BBP register
@@ -99,9 +99,9 @@ For example:
 	iwpriv wlan0 set ATE=TXCARR				; Start Tx carrier
 	...										; Measure carrier frequency with instrument
 	iwpriv wlan0 set ATETXFREQOFFSET=10		; Dynamic turning frequency offset 													; 10(decimal)
-	...                                 	
+	...
 	iwpriv wlan0 set ATETXFREQOFFSET=20		; Dynamic turning frequency offset 													; 20(decimal)
-	...                                 	
+	...
 	iwpriv wlan0 set ATE=STASTOP				; Stop
 											; Store the tuning result to EEPROM
 
@@ -123,7 +123,7 @@ For example:
 	iwpriv wlan0 e2p 0						; read E2PROM 0
 	iwpriv wlan0 e2p c=12ab					; write E2PROM 0xc as 0x12ab
 
-	
+
 Suggestion:
 ============
 	1. To turn on ATE functionality, you have to add compile flag "RT61_DBG" and "RALINK_ATE" to Makefile

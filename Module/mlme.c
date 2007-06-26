@@ -5069,7 +5069,7 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 			}
 		}
 	}
-	
+
 	// OK, we got all the informations, it is time to put things into queue
 #if SL_IRQSAVE
 	spin_lock_irqsave(&(Queue->Lock), IrqFlags);

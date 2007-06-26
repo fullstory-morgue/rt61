@@ -218,7 +218,7 @@ static
 	    ret++;
 		goto out;
 	}
-	
+
 	//
 	// Handle interrupt, walking through all bits.
 	// Should start from highest priority interrupt.
@@ -334,7 +334,7 @@ static INT rt61_hard_start_xmit(IN struct sk_buff * pSkb, IN struct net_device *
 	// Record that orignal packet source is from protocol layer,so that
 	// later on driver knows how to release this skb buffer
 	RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_NDIS);
-	
+
 	// Send packet
 	pAdapter->RalinkCounters.PendingNdisPacketCount++;
 	RTMPSendPacket(pAdapter, pSkb);
@@ -694,7 +694,7 @@ static INT rt61_close(IN struct net_device *net_dev)
 	MlmeHalt(pAd);
 
 #ifdef RX_TASKLET
-	// Stop tasklet 
+	// Stop tasklet
 	tasklet_kill(&pAd->RxTasklet);
 	while (TRUE) {
 		skb = skb_dequeue(&pAd->RxQueue);
@@ -748,8 +748,8 @@ static INT __devinit rt61_pci_probe(IN struct pci_dev *dev,
 		Status = -EIO;
 		goto out;
 	}
-		
-	// Check if device is supported (useless?) 
+
+	// Check if device is supported (useless?)
 	for (i = 0; i < rt61_pci_tbl_len; i++) {
 		if (dev->vendor != rt61_pci_tbl[i].vendor ||
 		    dev->device != rt61_pci_tbl[i].device)
@@ -763,7 +763,7 @@ static INT __devinit rt61_pci_probe(IN struct pci_dev *dev,
 		Status = -ENODEV;
 		goto err_disable;
 	}
-	
+
 	// Reserve PCI regions
 	if (pci_request_regions(dev, pci_name(dev))) {
 		printk(KERN_ERR DRIVER_NAME ": pci_request_regions failed\n");
@@ -841,7 +841,7 @@ static INT __devinit rt61_pci_probe(IN struct pci_dev *dev,
 					" (is firmware file installed?)\n");
 		goto err_adapter;
 	}
-	
+
 	// Read default settings from EPROM
 	NICReadEEPROMParameters(pAd);
 	NICInitAsicFromEEPROM(pAd);
@@ -867,7 +867,7 @@ static INT __devinit rt61_pci_probe(IN struct pci_dev *dev,
 	// Probe successfull
 	Status = 0;
 	goto out;
-		
+
     err_adapter:
 	pci_free_consistent(dev, sizeof(RTMP_ADAPTER), pAd, dma_adapter);
 
@@ -877,7 +877,7 @@ static INT __devinit rt61_pci_probe(IN struct pci_dev *dev,
 #else
 	free_netdev(net_dev);
 #endif
-		
+
     err_unmap:
 	iounmap((void *)csr_addr);
 
