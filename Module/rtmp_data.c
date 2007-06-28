@@ -669,7 +669,7 @@ static inline UCHAR RxMonitorFrame (IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 	}
 
 	skb->dev = pAd->net_dev;
-	skb->mac.raw = skb->data;
+	skb_reset_mac_header(skb);
 	skb->pkt_type = PACKET_OTHERHOST;
 	skb->protocol = htons(ETH_P_802_2);
 	skb->ip_summed = CHECKSUM_NONE;
