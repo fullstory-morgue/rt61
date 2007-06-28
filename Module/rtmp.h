@@ -59,19 +59,6 @@ typedef void irqreturn_t;
 #define IRQ_RETVAL(x)
 #endif
 
-#ifndef pci_name
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
-#define pci_name(__pPci_Dev)   (__pPci_Dev)->dev.bus_id
-#else				/* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
-#define pci_name(__pPci_Dev)   (__pPci_Dev)->slot_name
-#endif				/*(LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
-#endif				/* pci_name */
-
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,27)
-#undef del_timer_sync
-#define del_timer_sync(x) del_timer(x)
-#endif
-
 //
 // Extern
 //

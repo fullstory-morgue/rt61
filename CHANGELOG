@@ -23,6 +23,8 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	* Forward compatibility with kernel 2.6.22-rc4 skbuff changes. Put all
+	  version compatibility macros in rt_config.h.
 	* Remove cruft (again).
 	* Fix default Makefile target.
 	* Import adapter startup detection updates from new Ralink (1.1.0.0)

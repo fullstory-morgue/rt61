@@ -1,3 +1,12 @@
+rt61 (1.1.0.dfsg.2+cvs20070628-1) unstable; urgency=low
+
+  * New upstream release:
+    - Forward compatibility with kernel 2.6.22-rc4 skbuff changes. Put all
+      version compatibility macros in rt_config.h.
+  * kcompat_2.6.22.dpatch has been obsoleted by upstream.
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Thu, 28 Jun 2007 19:08:55 +0200
+
 rt61 (1.1.0.dfsg.2+cvs20070627-2) UNRELEASED; urgency=low
 
   * NOT RELEASED YET

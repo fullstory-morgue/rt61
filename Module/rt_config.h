@@ -195,6 +195,27 @@ typedef union _LARGE_INTEGER {
 #define KERNEL_VERSION(a,b,c) ((a)*65536+(b)*256+(c))
 #endif
 
+#ifndef pci_name
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
+#define pci_name(__pPci_Dev)   (__pPci_Dev)->dev.bus_id
+#else				/* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
+#define pci_name(__pPci_Dev)   (__pPci_Dev)->slot_name
+#endif				/*(LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
+#endif				/* pci_name */
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,27)
+#undef del_timer_sync
+#define del_timer_sync(x) del_timer(x)
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+#define pci_module_init	pci_register_driver
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
+#define skb_reset_mac_header(skb) (skb->mac.raw = skb->data)
+#endif
+
 #define SL_IRQSAVE          1	// 0: use spin_lock_bh/spin_unlock_bh pair,
 			       // 1: use spin_lock_irqsave/spin_unlock_irqrestore pair
 
