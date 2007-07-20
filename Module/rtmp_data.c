@@ -1163,7 +1163,7 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 	struct sk_buff *nskb;
 #endif
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 //      DBGPRINT(RT_DEBUG_INFO, "====> RTMPHandleRxDoneInterrupt\n");
@@ -1346,7 +1346,7 @@ drop:
 
 	// Make sure to release Rx ring resource
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->RxRingLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->RxRingLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->RxRingLock);
 #endif
@@ -1671,7 +1671,7 @@ VOID RTMPHandleTxRingDmaDoneInterrupt(IN PRTMP_ADAPTER pAdapter,
 				      IN INT_SOURCE_CSR_STRUC TxRingBitmap)
 {
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 	UCHAR Index;
 	// Make sure Tx ring resource won't be used by other threads
@@ -1731,7 +1731,7 @@ VOID RTMPHandleTxRingDmaDoneInterrupt(IN PRTMP_ADAPTER pAdapter,
 
 	// Make sure to release Tx ring resource
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAdapter->TxRingLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAdapter->TxRingLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAdapter->TxRingLock);
 #endif
@@ -1775,7 +1775,7 @@ VOID RTMPHandleMgmtRingDmaDoneInterrupt(IN PRTMP_ADAPTER pAdapter)
 	struct sk_buff *pSkb;
 	int i;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 	DBGPRINT(RT_DEBUG_INFO, "RTMPHandleMgmtRingDmaDoneInterrupt...\n");
@@ -1834,7 +1834,7 @@ VOID RTMPHandleMgmtRingDmaDoneInterrupt(IN PRTMP_ADAPTER pAdapter)
 
 #if SL_IRQSAVE
 	spin_unlock_irqrestore(&pAdapter->MgmtRingLock,
-			       (unsigned long)IrqFlags);
+			       IrqFlags);
 #else
 	spin_unlock_bh(&pAdapter->MgmtRingLock);
 #endif
@@ -1906,7 +1906,7 @@ static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 	BOOLEAN bAckRequired, bInsertTimestamp;
 	UCHAR MlmeRate;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 	DBGPRINT(RT_DEBUG_INFO, "MlmeHardTransmit\n");
@@ -1942,7 +1942,7 @@ static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAdapter->MgmtRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAdapter->MgmtRingLock);
 #endif
@@ -1955,7 +1955,7 @@ static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAdapter->MgmtRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAdapter->MgmtRingLock);
 #endif
@@ -2038,7 +2038,7 @@ static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 			 "MlmeHardTransmit --> radar detect not in normal mode !!!\n");
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAdapter->MgmtRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAdapter->MgmtRingLock);
 #endif
@@ -2086,7 +2086,7 @@ static NDIS_STATUS MlmeHardTransmit(IN PRTMP_ADAPTER pAdapter,
 	// Make sure to release MGMT ring resource
 #if SL_IRQSAVE
 	spin_unlock_irqrestore(&pAdapter->MgmtRingLock,
-			       (unsigned long)IrqFlags);
+			       IrqFlags);
 #else
 	spin_unlock_bh(&pAdapter->MgmtRingLock);
 #endif
@@ -2502,7 +2502,7 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 	PHEADER_802_11 pHeader_802_11;
 	UCHAR PID;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 	if (RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_RESET_IN_PROGRESS) ||
@@ -2581,7 +2581,7 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAd->TxRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -2625,7 +2625,7 @@ VOID RTMPSendNullFrame(IN PRTMP_ADAPTER pAd,
 	RTMP_IO_WRITE32(pAd, TX_CNTL_CSR, BIT8[QID_AC_BE]);	// use AC_BE
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->TxRingLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->TxRingLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -2651,7 +2651,7 @@ static VOID RTMPSendRTSCTSFrame(IN PRTMP_ADAPTER pAd,
 	PUCHAR pBuf;
 	PRTMP_TX_RING pTxRing = &pAd->TxRing[QueIdx];
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 	if ((Type != SUBTYPE_RTS) && (Type != SUBTYPE_CTS)) {
@@ -2687,7 +2687,7 @@ static VOID RTMPSendRTSCTSFrame(IN PRTMP_ADAPTER pAd,
 
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAd->TxRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -2708,7 +2708,7 @@ static VOID RTMPSendRTSCTSFrame(IN PRTMP_ADAPTER pAd,
 			// should not use RTS/CTS to protect MCAST frame since no one will reply CTS
 #if SL_IRQSAVE
 			spin_unlock_irqrestore(&pAd->TxRingLock,
-					       (unsigned long)IrqFlags);
+					       IrqFlags);
 #else
 			spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -2767,7 +2767,7 @@ static VOID RTMPSendRTSCTSFrame(IN PRTMP_ADAPTER pAd,
 
 	// leave the KICK action until the protected MPDU is ready
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->TxRingLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->TxRingLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -2916,7 +2916,7 @@ static
 	// To indicate cipher used for this packet
 	NDIS_802_11_ENCRYPTION_STATUS Cipher;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 	BOOLEAN bRTS_CTSFrame = FALSE;
 	UINT NextMpduSize;
@@ -2954,7 +2954,7 @@ static
 
 #if SL_IRQSAVE
 			spin_unlock_irqrestore(&pAd->TxRingLock,
-					       (unsigned long)IrqFlags);
+					       IrqFlags);
 #else
 			spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -2986,7 +2986,7 @@ static
 
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAd->TxRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -3407,7 +3407,7 @@ static
 
 #if SL_IRQSAVE
 			spin_unlock_irqrestore(&pAd->TxRingLock,
-					       (unsigned long)IrqFlags);
+					       IrqFlags);
 #else
 			spin_unlock_bh(&pAd->TxRingLock);
 #endif
@@ -3721,7 +3721,7 @@ static
 
 	// Make sure to release Tx ring resource
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->TxRingLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->TxRingLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->TxRingLock);
 #endif

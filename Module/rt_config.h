@@ -208,6 +208,12 @@ typedef union _LARGE_INTEGER {
 #define del_timer_sync(x) del_timer(x)
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
+#define IRQFLAGS SA_SHIRQ
+#else
+#define IRQFLAGS IRQF_SHARED
+#endif
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
 #define pci_module_init	pci_register_driver
 #endif

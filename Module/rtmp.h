@@ -114,11 +114,15 @@ extern UCHAR RALINK_OUI[];
 //
 //  MACRO for debugging information
 //
-extern int debug;
-
 #ifdef RT61_DBG
-#define DBGPRINT(Level, fmt, args...) 	   if (debug) { printk(Level DRIVER_NAME ": " fmt, ## args); }
-#define DBGPRINT_RAW(Level, fmt, args...)  if (debug) { printk(Level " " fmt, ## args); }
+extern ULONG	RT61DebugLevel;
+
+#define DBGPRINT(Level, fmt, args...)	\
+		if (RT61DebugLevel & Level)				\
+		{ printk(KERN_DEBUG DRIVER_NAME ": " fmt, ## args); }
+
+#define DBGPRINT_RAW(Level, fmt, args...)	\
+	if (RT61DebugLevel & Level) { printk(fmt, ## args); }
 #else
 #define DBGPRINT(Level, fmt, args...)
 #define DBGPRINT_RAW(Level, fmt, args...)

@@ -38,12 +38,12 @@
 //
 //  Debug information verbosity: lower values indicate higher urgency
 //
-#define RT_DEBUG_OFF        KERN_CRIT
-#define RT_DEBUG_ERROR      KERN_ERR
-#define RT_DEBUG_WARN       KERN_WARNING
-#define RT_DEBUG_TRACE      KERN_NOTICE
-#define RT_DEBUG_INFO       KERN_INFO
-#define RT_DEBUG_LOUD       KERN_DEBUG
+#define RT_DEBUG_OFF        0
+#define RT_DEBUG_ERROR      1
+#define RT_DEBUG_WARN       2
+#define RT_DEBUG_TRACE      4
+#define RT_DEBUG_INFO       8
+#define RT_DEBUG_LOUD       16
 
 #ifdef BIG_ENDIAN
 #define DIR_READ                    0

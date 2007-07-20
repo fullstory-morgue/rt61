@@ -1738,7 +1738,7 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 	RXD_STRUC RxD;
 #endif
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 	struct sk_buff *pSkb;
@@ -1805,7 +1805,7 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 		pTxRing->NextTxDmaDoneIndex = 0;
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAdapter->TxRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAdapter->TxRingLock);
 #endif
@@ -1861,7 +1861,7 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 		pAdapter->MgmtRing.NextTxDmaDoneIndex = 0;
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAdapter->MgmtRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAdapter->MgmtRingLock);
 #endif
@@ -1895,7 +1895,7 @@ VOID RTMPRingCleanUp(IN PRTMP_ADAPTER pAdapter, IN UCHAR RingType)
 		pAdapter->RxRing.CurRxIndex = 0;
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAdapter->RxRingLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAdapter->RxRingLock);
 #endif

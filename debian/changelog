@@ -1,8 +1,11 @@
-rt61 (1.1.0.dfsg.2+cvs20070628-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070720-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - Fix amd64 compile. Fix "deprecated irqflag" message when compiling
+      for 2.6.22.
+    - Change debug handling to conform with rt2500/rt2570 drivers.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Thu, 28 Jun 2007 19:11:48 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Fri, 20 Jul 2007 14:21:30 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070628-1) unstable; urgency=low
 
@@ -12,12 +15,6 @@ rt61 (1.1.0.dfsg.2+cvs20070628-1) unstable; urgency=low
   * kcompat_2.6.22.dpatch has been obsoleted by upstream.
 
  -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Thu, 28 Jun 2007 19:08:55 +0200
-
-rt61 (1.1.0.dfsg.2+cvs20070627-2) UNRELEASED; urgency=low
-
-  * NOT RELEASED YET
-
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Wed, 27 Jun 2007 00:54:01 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070627-1) unstable; urgency=low
 
