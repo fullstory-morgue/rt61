@@ -23,6 +23,9 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	* Fix amd64 compile. Fix "deprecated irqflag" message when compiling
+	  for 2.6.22.
+	* Change debug handling to conform with rt2500/rt2570 drivers.
 	* Forward compatibility with kernel 2.6.22-rc4 skbuff changes. Put all
 	  version compatibility macros in rt_config.h.
 	* Remove cruft (again).
@@ -33,7 +36,7 @@
 	  driver.
 	* Import assorted RSSI reporting updates from new Ralink (1.1.0.0)
 	  driver.
- 	* Import WPA-related updates from new Ralink (1.1.0.0) driver.
+	* Import WPA-related updates from new Ralink (1.1.0.0) driver.
 	* Import A-band region code updates from new Ralink (1.1.0.0) driver.
 	* Import WMM-APSD enhancements from new Ralink (1.1.0.0) driver.
 	* Import wpa_supplicant fixes from new Ralink (1.1.0.0) driver.
@@ -43,7 +46,7 @@
 	* Remove rt61sta.dat config file support
 
  Version: 1.1.0-beta2
- 	* Fix oops upon loading module without proper firmware file installed
+	* Fix oops upon loading module without proper firmware file installed
 	  (bug 1518488).
 	* Fix resetting of WEP keys while reading them.
 	* Add 2.4.x kernel compatibility code.

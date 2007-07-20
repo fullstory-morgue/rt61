@@ -47,15 +47,16 @@
 #include <linux/ethtool.h>
 
 // Global variable, debug level flag
+ULONG RT61DebugLevel;
+
 // Don't hide this behing debug define. There should be as little difference between debug and no-debug as possible.
-int debug = 0;
+static int debug = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
 module_param(debug, int, 0444);
 #else
 MODULE_PARM(debug, "i");
 #endif
-MODULE_PARM_DESC(debug,
-		 "Enable level: accepted values: 1 to switch debug on, 0 to switch debug off.");
+MODULE_PARM_DESC(debug, "Debug mask: n selects filter, 0 for none");
 
 static char *ifname = NULL;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
@@ -579,7 +580,7 @@ static INT rt61_open(IN struct net_device * net_dev)
 		NICDisableInterrupt(pAd);
 	}
 
-	if ((status = request_irq(net_dev->irq, &rt61_do_irq, SA_SHIRQ,
+	if ((status = request_irq(net_dev->irq, &rt61_do_irq, IRQFLAGS,
 				  net_dev->name, net_dev)))
 		goto out_free_dma_memory;
 
@@ -1027,8 +1028,14 @@ static struct pci_driver rt61_pci_driver = {
 //
 static INT __init rt61_module_init(VOID)
 {
+#ifdef RT61_DBG
+	RT61DebugLevel = debug;
+#else
+	if (debug) {}
+#endif
 	printk(KERN_INFO DRIVER_NAME " %s %s http://rt2x00.serialmonkey.com\n",
 		DRIVER_VERSION, DRIVER_RELDATE);
+	DBGPRINT(RT_DEBUG_TRACE, "==> %s\n", __FUNCTION__);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
 	return pci_module_init(&rt61_pci_driver);
 #else

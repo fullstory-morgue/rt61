@@ -754,25 +754,25 @@ VOID MlmeDisassocReqAction(IN PRTMP_ADAPTER pAd, IN MLME_QUEUE_ELEM * Elem)
 
 #if WPA_SUPPLICANT_SUPPORT
 #ifdef RT61_DBG
-static void _rtmp_hexdump(const char *title, const u8 * buf,
+static void _rtmp_hexdump(int level, const char *title, const u8 * buf,
 			  size_t len, int show)
 {
 	size_t i;
-	if (!debug)
-		return;
-	printk("%s - hexdump(len=%lu):", title, (unsigned long)len);
-	if (show) {
-		for (i = 0; i < len; i++)
-			printk(" %02x", buf[i]);
-	} else {
-		printk(" [REMOVED]");
+	if (level & RT61DebugLevel) {
+		printk("%s - hexdump(len=%lu):", title, (unsigned long)len);
+		if (show) {
+			for (i = 0; i < len; i++)
+				printk(" %02x", buf[i]);
+		} else {
+			printk(" [REMOVED]");
+		}
+		printk("\n");
 	}
-	printk("\n");
 }
 
-void rtmp_hexdump(const char *title, const u8 * buf, size_t len)
+void rtmp_hexdump(int level, const char *title, const u8 * buf, size_t len)
 {
-	_rtmp_hexdump(title, buf, len, 1);
+	_rtmp_hexdump(level, title, buf, len, 1);
 }
 #endif
 
@@ -830,7 +830,7 @@ VOID link_status_handler(IN PRTMP_ADAPTER pAd)
 	 */
 
 #ifdef RT61_DBG
-	rtmp_hexdump("ASSOCINFO", (const u8 *)ndis_assoc_info,
+	rtmp_hexdump(RT_DEBUG_TRACE, "ASSOCINFO", (const u8 *)ndis_assoc_info,
 		     sizeof(NDIS_802_11_ASSOCIATION_INFORMATION));
 #endif
 

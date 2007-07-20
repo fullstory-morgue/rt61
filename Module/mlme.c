@@ -4956,7 +4956,7 @@ BOOLEAN MlmeEnqueue(IN PRTMP_ADAPTER pAd,
 	INT Tail;
 	MLME_QUEUE *Queue = (MLME_QUEUE *) & pAd->Mlme.Queue;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 	// Do nothing if the driver is starting halt state.
@@ -4982,7 +4982,7 @@ BOOLEAN MlmeEnqueue(IN PRTMP_ADAPTER pAd,
 		printk(KERN_ERR DRIVER_NAME
 		       "MlmeEnqueue: full, msg dropped and may corrupt MLME\n");
 	#if SL_IRQSAVE
-		spin_unlock_irqrestore(&(Queue->Lock), (unsigned long)IrqFlags);
+		spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
 	#else
 		spin_unlock_bh(&(Queue->Lock));
 	#endif
@@ -5004,7 +5004,7 @@ BOOLEAN MlmeEnqueue(IN PRTMP_ADAPTER pAd,
 	Queue->Entry[Tail].MsgLen = MsgLen;
 	memcpy(Queue->Entry[Tail].Msg, Msg, MsgLen);
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&(Queue->Lock), (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
 #else
 	spin_unlock_bh(&(Queue->Lock));
 #endif
@@ -5034,7 +5034,7 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 	ULONG MsgType;
 	MLME_QUEUE *Queue = (MLME_QUEUE *) & pAd->Mlme.Queue;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 	// Do nothing if the driver is starting halt state.
@@ -5082,7 +5082,7 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 		DBGPRINT(RT_DEBUG_ERROR,
 			 "MlmeEnqueueForRecv: full and dropped\n");
 	#if SL_IRQSAVE
-		spin_unlock_irqrestore(&(Queue->Lock), (unsigned long)IrqFlags);
+		spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
 	#else
 		spin_unlock_bh(&(Queue->Lock));
 	#endif
@@ -5110,7 +5110,7 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 	memcpy(Queue->Entry[Tail].Msg, Msg, MsgLen);
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&(Queue->Lock), (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
 #else
 	spin_unlock_bh(&(Queue->Lock));
 #endif
@@ -5147,8 +5147,8 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 	MLME_QUEUE *Queue = (MLME_QUEUE *) & pAd->Mlme.Queue;
 	MLME_QUEUE_ELEM *Elem = NULL;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
-	ULONG QueueIrqFlags;
+	unsigned long IrqFlags;
+	unsigned long QueueIrqFlags;
 #endif
 
 	if (!RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_MLME_INITIALIZED)) {
@@ -5167,7 +5167,7 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 	if (pAd->Mlme.bRunning) {
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAd->Mlme.TaskLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAd->Mlme.TaskLock);
 #endif
@@ -5177,7 +5177,7 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 	}
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->Mlme.TaskLock);
 #endif
@@ -5202,7 +5202,7 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 	}
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&(Queue->Lock), (unsigned long)QueueIrqFlags);
+	spin_unlock_irqrestore(&(Queue->Lock), QueueIrqFlags);
 #else
 	spin_unlock_bh(&(Queue->Lock));
 #endif
@@ -5241,7 +5241,7 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 	pAd->Mlme.bRunning = FALSE;
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->Mlme.TaskLock);
 #endif
@@ -5258,7 +5258,7 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 static VOID MlmeQueueDestroy(IN MLME_QUEUE * pQueue)
 {
 #if SL_IRQSAVE
-	ULONG IrqFlags;
+	unsigned long IrqFlags;
 #endif
 
 #if SL_IRQSAVE
@@ -5272,7 +5272,7 @@ static VOID MlmeQueueDestroy(IN MLME_QUEUE * pQueue)
 	pQueue->Tail = 0;
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&(pQueue->Lock), (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&(pQueue->Lock), IrqFlags);
 #else
 	spin_unlock_bh(&(pQueue->Lock));
 #endif
@@ -5632,8 +5632,8 @@ VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
 	MLME_QUEUE_ELEM *Elem = NULL;
 	BOOLEAN Dequeue;
 #if SL_IRQSAVE
-	ULONG IrqFlags;
-	ULONG QueueIrqFlags;
+	unsigned long IrqFlags;
+	unsigned long QueueIrqFlags;
 #endif
 
 	// Only accept MLME and Frame from peer side, no other (control/data) frame should
@@ -5647,7 +5647,7 @@ VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
 	if (pAd->Mlme.bRunning) {
 #if SL_IRQSAVE
 		spin_unlock_irqrestore(&pAd->Mlme.TaskLock,
-				       (unsigned long)IrqFlags);
+				       IrqFlags);
 #else
 		spin_unlock_bh(&pAd->Mlme.TaskLock);
 #endif
@@ -5657,7 +5657,7 @@ VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
 	}
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->Mlme.TaskLock);
 #endif
@@ -5670,7 +5670,7 @@ VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
 	#endif
 		if (Queue->Num <= 0) {
 		#if SL_IRQSAVE
-			spin_unlock_irqrestore(&(Queue->Lock), (unsigned long)QueueIrqFlags);
+			spin_unlock_irqrestore(&(Queue->Lock), QueueIrqFlags);
 		#else
 			spin_unlock_bh(&(Queue->Lock));
 		#endif
@@ -5678,7 +5678,7 @@ VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
 		}
 		Dequeue = MlmeDequeue(&pAd->Mlme.Queue, &Elem);
 	#if SL_IRQSAVE
-		spin_unlock_irqrestore(&(Queue->Lock), (unsigned long)QueueIrqFlags);
+		spin_unlock_irqrestore(&(Queue->Lock), QueueIrqFlags);
 	#else
 		spin_unlock_bh(&(Queue->Lock));
 	#endif
@@ -5742,7 +5742,7 @@ VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
 	pAd->Mlme.bRunning = FALSE;
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, (unsigned long)IrqFlags);
+	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
 #else
 	spin_unlock_bh(&pAd->Mlme.TaskLock);
 #endif
