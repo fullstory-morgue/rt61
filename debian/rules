@@ -50,8 +50,9 @@ upstream:
 			--exclude=*.svn \
 			--exclude=*.bin \
 			--exclude=WPA_Supplicant \
-				../trunk/ ../rt61-$(DATE) | diffstat -p2; \
+				$(CURDIR)/ ../rt61-$(DATE)/ | diffstat -p2; \
 	fi
 	@rm -rf ../rt61-$(DATE)
 	@echo "Don't forget to update your upstream with " \
 		"../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz"
+
