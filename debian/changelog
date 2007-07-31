@@ -1,3 +1,9 @@
+rt61 (1.1.0.dfsg.2+cvs20070731-3) UNRELEASED; urgency=low
+
+  * NOT RELEASED YET
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 31 Jul 2007 13:22:29 +0200
+
 rt61 (1.1.0.dfsg.2+cvs20070731-2) unstable; urgency=low
 
   * fix diff/ diffstat comparison.
