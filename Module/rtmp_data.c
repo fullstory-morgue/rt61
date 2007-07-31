@@ -99,8 +99,8 @@ static inline VOID REPORT_AGGREGATE_ETHERNET_FRAME_TO_LLC_WITH_NON_COPY(IN PRTMP
 	// Copy 2d packet from original 802.11 skb
 	if ((pSkb2 = __dev_alloc_skb(DataSize2 + LENGTH_802_3 + 2,
 			     	MEM_ALLOC_FLAG))) {
-		PUCHAR pData2 = skb->tail + LENGTH_802_3;
-		PUCHAR phdr = skb->tail;
+		PUCHAR pData2 = skb_tail_pointer(skb) + LENGTH_802_3;
+		PUCHAR phdr = skb_tail_pointer(skb);
 		pSkb2->dev = pAd->net_dev;
 		skb_reserve(pSkb2, 2);	// 16 byte align the IP header
 		memcpy(skb_put(pSkb2, LENGTH_802_3), phdr, LENGTH_802_3);
@@ -737,7 +737,7 @@ static inline UCHAR RxFirstFragment(IN PRTMP_ADAPTER pAd, IN struct sk_buff *skb
 #endif
 		pAd->RalinkCounters.OneSecRxAggregationCount++;
 		skb->len -= Msdu2Size;
-		skb->tail = skb->data + skb->len;
+		skb_set_tail_pointer(skb, skb->len);
 		Payload2Size = Msdu2Size - LENGTH_802_3;
 #ifndef NONCOPY_RX
 		// Report first packet to upper layer
@@ -1217,7 +1217,7 @@ VOID RTMPHandleRxDoneInterrupt(IN PRTMP_ADAPTER pAd)
 #ifdef NONCOPY_RX
 			// Update skb
 			skb->len = pRxD->DataByteCnt;
-			skb->tail = skb->data + skb->len;
+			skb_set_tail_pointer(skb, skb->len);
 #else
 			// Fill current skbuff
 			memcpy(skb_put(skb, pRxD->DataByteCnt), DmaBuf->AllocVa,

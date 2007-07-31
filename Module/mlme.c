@@ -5064,7 +5064,7 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 			if (BackDoorProbeRspSanity(pAd, Msg, MsgLen, CfgData)) {
 				printk
 				    ("MlmeEnqueueForRecv: CfgData(len:%d):\n%s\n",
-				     strlen(CfgData), CfgData);
+				     (unsigned int)strlen(CfgData), CfgData);
 				pAd->PortCfg.bGetAPConfig = FALSE;
 			}
 		}
