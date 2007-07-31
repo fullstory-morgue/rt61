@@ -35,6 +35,10 @@
 #ifndef __RT_CONFIG_H__
 #define __RT_CONFIG_H__
 
+#ifdef __BIG_ENDIAN		// Propagate compiler environment asap - bb
+#define BIG_ENDIAN TRUE
+#endif /* __BIG_ENDIAN */
+
 #ifndef BIG_ENDIAN
 #ifndef NO_RX_TASKLET
 #define RX_TASKLET
@@ -82,9 +86,9 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+#include <linux/delay.h>		// For udelay, mdelay
 #include <linux/wireless.h>
 #include <linux/proc_fs.h>
-#include <linux/delay.h>
 #include <linux/if_arp.h>
 #include <linux/ctype.h>
 #include <linux/sockios.h>
@@ -105,7 +109,7 @@
 #ifndef ULONG
 #define CHAR            signed char
 #define INT             int
-#define SHORT           int
+#define SHORT           short
 #define UINT            u32
 #define ULONG           u32
 #define USHORT          u16
@@ -120,12 +124,12 @@
 #define LONG            int
 #define LONGLONG        s64
 #define ULONGLONG       u64
-typedef VOID *PVOID;
-typedef CHAR *PCHAR;
-typedef UCHAR *PUCHAR;
-typedef USHORT *PUSHORT;
-typedef LONG *PLONG;
-typedef ULONG *PULONG;
+typedef VOID            *PVOID;
+typedef CHAR            *PCHAR;
+typedef UCHAR           *PUCHAR;
+typedef USHORT          *PUSHORT;
+typedef LONG            *PLONG;
+typedef ULONG           *PULONG;
 
 typedef union _LARGE_INTEGER {
 	struct {
@@ -161,11 +165,6 @@ typedef union _LARGE_INTEGER {
 #define WPA_SUPPLICANT_SUPPORT	0
 #endif
 
-#ifdef __BIG_ENDIAN
-#warning Compiling for big endian machine.
-#define BIG_ENDIAN TRUE
-#endif				/* __BIG_ENDIAN */
-
 #include    "rtmp_type.h"
 #include    "rtmp_def.h"
 #include    "rt2661.h"
@@ -197,13 +196,13 @@ typedef union _LARGE_INTEGER {
 
 #ifndef pci_name
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
-#define pci_name(__pPci_Dev)   (__pPci_Dev)->dev.bus_id
-#else				/* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
-#define pci_name(__pPci_Dev)   (__pPci_Dev)->slot_name
-#endif				/*(LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
-#endif				/* pci_name */
+#define pci_name(__pPci_Dev)	(__pPci_Dev)->dev.bus_id
+#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
+#define pci_name(__pPci_Dev)	(__pPci_Dev)->slot_name
+#endif /*(LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)) */
+#endif /* pci_name */
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,27)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,23)
 #undef del_timer_sync
 #define del_timer_sync(x) del_timer(x)
 #endif
@@ -214,15 +213,21 @@ typedef union _LARGE_INTEGER {
 #define IRQFLAGS IRQF_SHARED
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
-#define pci_module_init	pci_register_driver
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
+
+// Accomodate 64 bit compatibility macros
+#define skb_end_pointer(skb) (skb->end)
+#define skb_tail_pointer(skb) (skb->tail)
+#define skb_reset_mac_header(skb) (skb->mac.raw = skb->data)
+#define skb_reset_tail_pointer(skb) (skb->tail = skb->data)
+#define skb_set_tail_pointer(skb, offset) (skb->tail = skb->data + offset)
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
-#define skb_reset_mac_header(skb) (skb->mac.raw = skb->data)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
+#define pci_module_init	pci_register_driver
 #endif
 
 #define SL_IRQSAVE          1	// 0: use spin_lock_bh/spin_unlock_bh pair,
 			       // 1: use spin_lock_irqsave/spin_unlock_irqrestore pair
 
-#endif				// __RT_CONFIG_H__
+#endif // __RT_CONFIG_H__
