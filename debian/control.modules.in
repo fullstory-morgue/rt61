@@ -8,7 +8,7 @@ Standards-Version: 3.7.2
 Package: rt61-modules-_KVERS_
 Architecture: any
 Depends: linux-image-_KVERS_
-Recommends: rt61-firmware
+Recommends: rt61-fwcutter
 Provides: rt61-modules
 Description: rt61 modules for Linux (kernel _KVERS_)
  This package contains the set of loadable kernel module for the

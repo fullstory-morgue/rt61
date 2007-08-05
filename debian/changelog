@@ -1,8 +1,9 @@
 rt61 (1.1.0.dfsg.2+cvs20070731-3) UNRELEASED; urgency=low
 
   * NOT RELEASED YET
+  * rt61-fwcutter, not rt61-firmware.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 31 Jul 2007 13:22:29 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Mon, 06 Aug 2007 01:23:18 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070731-2) unstable; urgency=low
 
