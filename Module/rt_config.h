@@ -72,9 +72,12 @@
 #error  You must compile this driver with "-O".
 #endif
 
-#include <linux/module.h>
 #include <linux/version.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,25))	// N.A. earlier
+#include <linux/moduleparam.h>	// Only need to explicitly include
+#endif							// in early 2.6 series
 
 #include <linux/init.h>
 #include <linux/string.h>
