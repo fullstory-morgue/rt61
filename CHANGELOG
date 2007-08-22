@@ -23,6 +23,10 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	* Fix 2.6 compile problem w/prev patch. Discovery/diagnosis/resolution
+	  by xqterry.
+	* Fix Bug #1763773 - does not build on 2.6.5. Needed for early 2.6
+	  series kernels.
 	* More forward compatibility macros for 2.6.22 and 64 bit compile.
 	  Header consolidation.
 	* Fix amd64 compile. Fix "deprecated irqflag" message when compiling

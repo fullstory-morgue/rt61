@@ -1,9 +1,13 @@
-rt61 (1.1.0.dfsg.2+cvs20070731-3) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070822-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - Fix 2.6 compile problem w/prev patch. Discovery/diagnosis/resolution
+      by xqterry.
+    - Fix Bug #1763773 - does not build on 2.6.5. Needed for early 2.6
+      series kernels.
   * rt61-fwcutter, not rt61-firmware.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Mon, 06 Aug 2007 01:23:18 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Wed, 22 Aug 2007 15:32:53 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070731-2) unstable; urgency=low
 
