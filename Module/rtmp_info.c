@@ -2357,7 +2357,7 @@ static int rt_ioctl_siwencode(struct net_device *dev,
 	// Get key index (if any)
 	idx = (erq->flags & IW_ENCODE_INDEX);
 
-	if (erq->flags & IW_ENCODE_NOKEY) {
+	if (erq->flags & IW_ENCODE_NOKEY && !(erq->flags & IW_ENCODE_DISABLED)) {
 		// No key provided: set active index
 		if ((idx < 1) || (idx > NR_WEP_KEYS))
 			return -EINVAL;

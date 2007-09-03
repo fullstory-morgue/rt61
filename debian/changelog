@@ -1,8 +1,11 @@
-rt61 (1.1.0.dfsg.2+cvs20070822-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070903-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - Looks like some patch stuff got in there, which had broken compilation.
+    - If encryption is being disabled, no key is provided obviously. But the
+      driver was reported an EINVAL error to userspace in this case.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Wed, 22 Aug 2007 15:43:26 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Mon, 03 Sep 2007 18:15:58 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070822-1) unstable; urgency=low
 

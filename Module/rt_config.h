@@ -168,6 +168,10 @@ typedef union _LARGE_INTEGER {
 #define WPA_SUPPLICANT_SUPPORT	0
 #endif
 
+#ifdef __BIG_ENDIAN
+#define BIG_ENDIAN TRUE
+#endif				/* __BIG_ENDIAN */
+
 #include    "rtmp_type.h"
 #include    "rtmp_def.h"
 #include    "rt2661.h"
