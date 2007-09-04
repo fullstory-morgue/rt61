@@ -1,14 +1,14 @@
 Source: rt61
-Section: contrib/net
+Section: net
 Priority: optional
-Maintainer: Kel Modderman <kelrin@tpg.com.au>
+Maintainer: Stefan Lippers-Hollmann <s.l-h@gmx.de>
 Build-Depends: debhelper (>= 5.0.37), bzip2
 Standards-Version: 3.7.2
 
 Package: rt61-modules-_KVERS_
 Architecture: any
 Depends: linux-image-_KVERS_
-Recommends: rt61-fwcutter
+Suggests: rt61-fwcutter
 Provides: rt61-modules
 Description: rt61 modules for Linux (kernel _KVERS_)
  This package contains the set of loadable kernel module for the

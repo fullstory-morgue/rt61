@@ -21,7 +21,7 @@ and the wpasupplicant support code, which doesn't show any license at all
 
 	WPA_Supplicant/
 
-by using debian/rules get-orig-source these parts are automatically stripped
+by using debian/rules upstream these parts are automatically stripped
 from the upstream CVS export.
 
 These files are distributed as is, and without modification.

@@ -1,7 +1,0 @@
-Template: rt61-fwcutter/cut_firmware
-Type: boolean
-_Description: Fetch and extract firmware?
- The rt61 driver needs extracted firmware - which cannot be shipped - to
- be working. This firmware can be automatically fetched and extracted as
- part of installing this package.
-

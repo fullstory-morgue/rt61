@@ -1,8 +1,14 @@
-rt61 (1.1.0.dfsg.2+cvs20070903-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20070904-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - revert previous commit.
+  * strip out rt61-fwcutter into the new source package ralink-fwcutter.
+  * move package to main.
+  * only suggest rt61-fwcutter, packages in main must not recommend non-free
+    parts.
+  * set myself as maintainer.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Mon, 03 Sep 2007 18:18:15 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 04 Sep 2007 12:52:24 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070903-1) unstable; urgency=low
 
