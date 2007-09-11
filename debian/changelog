@@ -1,8 +1,9 @@
 rt61 (1.1.0.dfsg.2+cvs20070904-2) UNRELEASED; urgency=low
 
   * NOT RELEASED YET
+  * add VCS control headers.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 04 Sep 2007 12:55:43 +0200
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 11 Sep 2007 20:20:36 +0200
 
 rt61 (1.1.0.dfsg.2+cvs20070904-1) unstable; urgency=low
 
