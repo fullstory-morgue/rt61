@@ -61,7 +61,7 @@ endif
 RESMAN_CORE_OBJS := 	rtmp_main.o
 RESMAN_GLUE_OBJS := 	mlme.o connect.o sync.o assoc.o auth.o auth_rsp.o \
 			rtmp_data.o rtmp_init.o sanity.o rtmp_wep.o wpa.o \
-			md5.o rtmp_tkip.o rtmp_info.o eeprom.o
+			md5.o rtmp_tkip.o rtmp_info.o eeprom.o rt2x00debug.o
 
 $(MODULE_NAME)-objs := $(RESMAN_CORE_OBJS) $(RESMAN_GLUE_OBJS)
 
