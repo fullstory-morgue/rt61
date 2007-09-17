@@ -79,84 +79,84 @@ extern const struct iw_handler_def rt61_iw_handler_def;
 #define EEPROM_BASE			0x0000
 #define EEPROM_SIZE			0x0100
 #define BBP_SIZE			0x0080
+#define RF_SIZE				0x0014
 
-static void rt61pci_read_csr(void *dev, const unsigned long word,
-		void *data)
+#define CSR_OFFSET(__word)	( CSR_REG_BASE + ((__word) * sizeof(u32)) )
+
+static void rt61pci_read_csr(const struct rt2x00_dev *rt2x00dev,
+			     const unsigned int word, u32 *data)
 {
-	RTMP_ADAPTER *pAd = dev;
-
-	RTMP_IO_READ32(pAd, CSR_REG_BASE + (word * sizeof(u32)), (u32*)data);
+	RTMP_IO_READ32(rt2x00dev->pAd, CSR_OFFSET(word), data);
 }
 
-static void rt61pci_write_csr(void *dev, const unsigned long word,
-	void *data)
+static void rt61pci_write_csr(const struct rt2x00_dev *rt2x00dev,
+			      const unsigned int word, u32 data)
 {
-	RTMP_ADAPTER *pAd = dev;
-
-	RTMP_IO_WRITE32(pAd, word, *((u32*)data));
+	RTMP_IO_WRITE32(rt2x00dev->pAd, CSR_OFFSET(word), data);
 }
 
-static void rt61pci_read_eeprom(void *dev, const unsigned long word,
-		void *data)
-{
-	RTMP_ADAPTER *pAd = dev;
 
-	*((u16*)data) = RTMP_EEPROM_READ16(pAd, word * sizeof(u16));
+static void rt61pci_read_eeprom(const struct rt2x00_dev *rt2x00dev,
+			        const unsigned int word, u16 *data)
+{
+	*data = RTMP_EEPROM_READ16(rt2x00dev->pAd, word * sizeof(u16));
 }
 
-static void rt61pci_write_eeprom(void *dev, const unsigned long word,
-	void *data)
+static void rt61pci_write_eeprom(const struct rt2x00_dev *rt2x00dev,
+			         const unsigned int word, u16 data)
 {
-	/* DANGEROUS, DON'T DO THIS! */
+
 }
 
-static void rt61pci_read_bbp(void *dev, const unsigned long word,
-		void *data)
+static void rt61pci_read_bbp(const struct rt2x00_dev *rt2x00dev,
+			     const unsigned int word, u8 *data)
 {
-	RTMP_ADAPTER *pAd = dev;
-
-	RTMP_BBP_IO_READ8_BY_REG_ID(pAd, (u8)word, ((u8*)data));
+	RTMP_BBP_IO_READ8_BY_REG_ID(rt2x00dev->pAd, word, data);
 }
 
-static void rt61pci_write_bbp(void *dev, const unsigned long word,
-	void *data)
+static void rt61pci_write_bbp(const struct rt2x00_dev *rt2x00dev,
+			      const unsigned int word, u8 data)
 {
-	RTMP_ADAPTER *pAd = dev;
-
-	RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, word, *((u8*)data));
+	RTMP_BBP_IO_WRITE8_BY_REG_ID(rt2x00dev->pAd, word, data);
 }
+
+static const struct rt2x00debug rt61pci_rt2x00debug = {
+	.owner	= THIS_MODULE,
+	.csr	= {
+		.read		= rt61pci_read_csr,
+		.write		= rt61pci_write_csr,
+		.word_size	= sizeof(u32),
+		.word_count	= CSR_REG_SIZE / sizeof(u32),
+	},
+	.eeprom	= {
+		.read		= rt61pci_read_eeprom,
+		.write		= rt61pci_write_eeprom,
+		.word_size	= sizeof(u16),
+		.word_count	= EEPROM_SIZE / sizeof(u16),
+	},
+	.bbp	= {
+		.read		= rt61pci_read_bbp,
+		.write		= rt61pci_write_bbp,
+		.word_size	= sizeof(u8),
+		.word_count	= BBP_SIZE / sizeof(u8),
+	},
+};
+
+static struct rt2x00_dev _rt2x00dev;
+static struct rt2x00_ops _ops;
 
 static void rt61pci_open_debugfs(RTMP_ADAPTER *pAd)
 {
-	struct rt2x00debug *debug = &pAd->debug;
+	_rt2x00dev.pAd = pAd;
+	_rt2x00dev.ops = &_ops;
+	_rt2x00dev.ops->debugfs = &rt61pci_rt2x00debug;
 
-	debug->owner 			= THIS_MODULE;
-	debug->mod_name			= DRIVER_NAME;
-	debug->mod_version		= DRIVER_VERSION;
-	debug->reg_csr.read		= rt61pci_read_csr;
-	debug->reg_csr.write		= rt61pci_write_csr;
-	debug->reg_csr.word_size	= sizeof(u32);
-	debug->reg_csr.length		= CSR_REG_SIZE;
-	debug->reg_eeprom.read		= rt61pci_read_eeprom;
-	debug->reg_eeprom.write		= rt61pci_write_eeprom;
-	debug->reg_eeprom.word_size	= sizeof(u16);
-	debug->reg_eeprom.length	= EEPROM_SIZE;
-	debug->reg_bbp.read		= rt61pci_read_bbp;
-	debug->reg_bbp.write		= rt61pci_write_bbp;
-	debug->reg_bbp.word_size	= sizeof(u8);
-	debug->reg_bbp.length		= BBP_SIZE;
-	debug->dev 			= pAd;
-
-	snprintf(debug->intf_name, sizeof(debug->intf_name),
-		"%s", pAd->net_dev->name);
-
-	if (rt2x00debug_register(debug))
-		printk(KERN_ERR "Failed to register debug handler.\n");
+	rt2x00debug_register(&_rt2x00dev);
 }
 
 static void rt61pci_close_debugfs(RTMP_ADAPTER *pAd)
 {
-	rt2x00debug_deregister(&pAd->debug);
+	rt2x00debug_deregister(&_rt2x00dev);
 }
 #else /* RT2X00DEBUGFS */
 static inline void rt61pci_open_debugfs(RTMP_ADAPTER *pAd){}

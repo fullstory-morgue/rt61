@@ -1308,8 +1308,6 @@ typedef struct _RTMP_ADAPTER {
 	struct net_device *net_dev;
 	ULONG VendorDesc;	// VID/PID
 
-	struct rt2x00debug debug;
-
 #if WIRELESS_EXT >= 12
 	struct iw_statistics iw_stats;
 #endif
