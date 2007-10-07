@@ -5,8 +5,8 @@ Maintainer: Stefan Lippers-Hollmann <s.l-h@gmx.de>
 Uploaders: Kel Modderman <kelrin@tpg.com.au>
 Build-Depends: cdbs, debhelper (>= 5.0.37), bzip2
 Standards-Version: 3.7.2
-XS-Vcs-Svn: svn://svn.berlios.de/fullstory/rt61/trunk
-XS-Vcs-Browser: http://svn.berlios.de/wsvn/fullstory/rt61/trunk/
+Vcs-Svn: svn://svn.berlios.de/fullstory/rt61/trunk
+Vcs-Browser: http://svn.berlios.de/wsvn/fullstory/rt61/trunk/
 
 Package: rt61-source
 Architecture: all
