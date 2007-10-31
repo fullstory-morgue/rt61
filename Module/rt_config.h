@@ -102,6 +102,10 @@
 #include <linux/mii.h>
 #endif
 
+#if WIRELESS_EXT > 12
+#include <net/iw_handler.h> /* New driver API */
+#endif /* WIRELESS_EXT > 12 */
+
 // load firmware
 #define __KERNEL_SYSCALLS__
 #include <linux/unistd.h>
@@ -208,6 +212,11 @@ typedef union _LARGE_INTEGER {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,23)
 #undef del_timer_sync
 #define del_timer_sync(x) del_timer(x)
+#endif
+
+// 2.5.44? 2.5.26?
+#ifndef smp_read_barrier_depends
+#define smp_read_barrier_depends() ((void)0)
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))

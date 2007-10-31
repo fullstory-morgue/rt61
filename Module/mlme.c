@@ -39,8 +39,6 @@
  ***************************************************************************/
 
 #include "rt_config.h"
-#include <stdarg.h>
-#include <net/iw_handler.h>
 
 // since RT61 has better RX sensibility, we have to limit TX ACK rate not to exceed our normal data TX rate.
 // otherwise the WLAN peer may not be able to receive the ACK thus downgrade its data TX rate
@@ -4979,16 +4977,16 @@ BOOLEAN MlmeEnqueue(IN PRTMP_ADAPTER pAd,
 
 	// Exit on full queue
 	if (Queue->Num == MAX_LEN_OF_MLME_QUEUE) {
-		printk(KERN_ERR DRIVER_NAME
-		       "MlmeEnqueue: full, msg dropped and may corrupt MLME\n");
 	#if SL_IRQSAVE
 		spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
 	#else
 		spin_unlock_bh(&(Queue->Lock));
 	#endif
+		printk(KERN_ERR DRIVER_NAME
+		       "MlmeEnqueue: full, msg dropped and may corrupt MLME\n");
 		return FALSE;
 	}
-
+	// If another context preempts us, it uses the next element - sic. bb
 	Tail = Queue->Tail;
 	Queue->Tail++;
 	Queue->Num++;
@@ -4996,18 +4994,29 @@ BOOLEAN MlmeEnqueue(IN PRTMP_ADAPTER pAd,
 		Queue->Tail = 0;
 	}
 
-	DBGPRINT(RT_DEBUG_INFO, "MlmeEnqueue, num=%d\n", Queue->Num);
-
-	Queue->Entry[Tail].Occupied = TRUE;
-	Queue->Entry[Tail].Machine = Machine;
-	Queue->Entry[Tail].MsgType = MsgType;
-	Queue->Entry[Tail].MsgLen = MsgLen;
-	memcpy(Queue->Entry[Tail].Msg, Msg, MsgLen);
+	// We guard against Ben Hutchings' incomplete queue element problem by not
+	// setting the Occupied flag until the memcpy is done. The ocurrence of a
+	// refresh cycle during a copy can stretch the time by up to 100 usec
+	// (well, quite a few usec, anyway); not good when interrupts are disabled.
+	// Note that this can leave a bubble in the queue, but it will have
+	// disappeared by the time this thread gets around to calling MlmeHandler.
+	// All items will be handled in their proper order, but possibly not in the
+	// context in which they were added. - bb
 #if SL_IRQSAVE
 	spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
 #else
 	spin_unlock_bh(&(Queue->Lock));
 #endif
+	DBGPRINT(RT_DEBUG_INFO, "MlmeEnqueue, num=%d\n", Queue->Num);
+
+	Queue->Entry[Tail].Machine = Machine;
+	Queue->Entry[Tail].MsgType = MsgType;
+	Queue->Entry[Tail].MsgLen = MsgLen;
+	memcpy(Queue->Entry[Tail].Msg, Msg, MsgLen);
+
+	//MlmeHandler will stop when it finds this false.
+    smp_wmb();
+    Queue->Entry[Tail].Occupied = TRUE;
 
 	return TRUE;
 }
@@ -5070,35 +5079,36 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 		}
 	}
 
-	// OK, we got all the informations, it is time to put things into queue
 #if SL_IRQSAVE
 	spin_lock_irqsave(&(Queue->Lock), IrqFlags);
 #else
 	spin_lock_bh(&(Queue->Lock));
 #endif
-
 	// Exit on full queue
 	if (Queue->Num == MAX_LEN_OF_MLME_QUEUE) {
-		DBGPRINT(RT_DEBUG_ERROR,
-			 "MlmeEnqueueForRecv: full and dropped\n");
 	#if SL_IRQSAVE
 		spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
 	#else
 		spin_unlock_bh(&(Queue->Lock));
 	#endif
+        DBGPRINT(RT_DEBUG_ERROR, "MlmeEnqueueForRecv (queue full error) \n");
 		return FALSE;
 	}
-
 	Tail = Queue->Tail;
 	Queue->Tail++;
 	Queue->Num++;
 	if (Queue->Tail == MAX_LEN_OF_MLME_QUEUE) {
 		Queue->Tail = 0;
 	}
-
+#if SL_IRQSAVE
+	spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
+#else
+	spin_unlock_bh(&(Queue->Lock));
+#endif
 	DBGPRINT(RT_DEBUG_INFO, "MlmeEnqueueForRecv, num=%d\n", Queue->Num);
 
-	Queue->Entry[Tail].Occupied = TRUE;
+	// OK, we got all the informations, it is time to put things into queue
+	// See MlmeEnqueue note for use of Occupied flag.
 	Queue->Entry[Tail].Machine = Machine;
 	Queue->Entry[Tail].MsgType = MsgType;
 	Queue->Entry[Tail].MsgLen = MsgLen;
@@ -5108,38 +5118,49 @@ BOOLEAN MlmeEnqueueForRecv(IN PRTMP_ADAPTER pAd,
 	Queue->Entry[Tail].Signal = Signal;
 	Queue->Entry[Tail].Channel = pAd->LatchRfRegs.Channel;
 	memcpy(Queue->Entry[Tail].Msg, Msg, MsgLen);
-
-#if SL_IRQSAVE
-	spin_unlock_irqrestore(&(Queue->Lock), IrqFlags);
-#else
-	spin_unlock_bh(&(Queue->Lock));
-#endif
+    smp_wmb();
+    Queue->Entry[Tail].Occupied = TRUE;
 
 	MlmeHandler(pAd);
 
 	return TRUE;
 }
 
-/*! \brief   Dequeue a message from the MLME Queue
- *  \brief   WARNING: must hold Mlme.Queue->Lock prior to any call
+/*! \brief   Get the first message from the MLME Queue
+ * 			WARNING: Must be call with Mlme.Queue.Lock held
  *  \param  *Queue    The MLME Queue
  *  \param  *Elem     The message dequeued from MLME Queue
  *  \return  TRUE if the Elem contains something, FALSE otherwise
  *  \pre
  *  \post
  */
-static BOOLEAN MlmeDequeue(IN MLME_QUEUE * Queue, OUT MLME_QUEUE_ELEM ** Elem)
+BOOLEAN MlmeGetHead(
+    IN MLME_QUEUE *Queue,
+    OUT MLME_QUEUE_ELEM **Elem)
 {
-	*Elem = &(Queue->Entry[Queue->Head]);
-	Queue->Num--;
-	Queue->Head++;
-	if (Queue->Head == MAX_LEN_OF_MLME_QUEUE) {
-		Queue->Head = 0;
-	}
+    if (Queue->Num == 0)
+	    return FALSE;
+    *Elem = &Queue->Entry[Queue->Head];
+    return TRUE;
+}
 
-	DBGPRINT(RT_DEBUG_INFO, "MlmeDequeue, num=%d\n", Queue->Num);
+/*! \brief   Remove the first message from the MLME Queue
+ * 			WARNING: Must be call with Mlme.Queue.Lock held
+ *  \param  *Queue    The MLME Queue
+ *  \return  TRUE if a message was removed, FALSE if the queue was empty
+ *  \pre
+ *  \post
+ */
+BOOLEAN MlmeDequeue(
+    IN MLME_QUEUE *Queue)
+{
+    if (Queue->Num == 0)
+	    return FALSE;
+    Queue->Head = (Queue->Head + 1) % MAX_LEN_OF_MLME_QUEUE;
+    Queue->Num--;
+    DBGPRINT(RT_DEBUG_INFO, "MlmeDequeue, num=%d\n",Queue->Num);
 
-	return TRUE;
+    return TRUE;
 }
 
 VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
@@ -5159,27 +5180,27 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 		// Continue the reset procedure...
 	}
 #if SL_IRQSAVE
-	spin_lock_irqsave(&pAd->Mlme.TaskLock, IrqFlags);
+	spin_lock_irqsave(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_lock_bh(&pAd->Mlme.TaskLock);
+	spin_lock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 
-	if (pAd->Mlme.bRunning) {
+	if (pAd->Mlme.Running) {
 #if SL_IRQSAVE
-		spin_unlock_irqrestore(&pAd->Mlme.TaskLock,
+		spin_unlock_irqrestore(&pAd->Mlme.Queue.Lock,
 				       IrqFlags);
 #else
-		spin_unlock_bh(&pAd->Mlme.TaskLock);
+		spin_unlock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 		return;
 	} else {
-		pAd->Mlme.bRunning = TRUE;
+		pAd->Mlme.Running = TRUE;
 	}
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
+	spin_unlock_irqrestore(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_unlock_bh(&pAd->Mlme.TaskLock);
+	spin_unlock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 
 #if SL_IRQSAVE
@@ -5191,10 +5212,9 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 	// Remove all Mlme queues elements
 	while (Queue->Num > 0) {
 		//From message type, determine which state machine I should drive
-		if (MlmeDequeue(Queue, &Elem)) {
-			// free MLME element
+		if (MlmeGetHead(Queue, &Elem)) {
+			MlmeDequeue(&pAd->Mlme.Queue);
 			Elem->Occupied = FALSE;
-			Elem->MsgLen = 0;
 		} else {
 			printk(KERN_ERR DRIVER_NAME
 			       "ERROR: empty Elem in MlmeQueue\n");
@@ -5233,17 +5253,17 @@ VOID MlmeRestartStateMachine(IN PRTMP_ADAPTER pAd)
 
 	// Remove running state
 #if SL_IRQSAVE
-	spin_lock_irqsave(&pAd->Mlme.TaskLock, IrqFlags);
+	spin_lock_irqsave(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_lock_bh(&pAd->Mlme.TaskLock);
+	spin_lock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 
-	pAd->Mlme.bRunning = FALSE;
+	pAd->Mlme.Running = FALSE;
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
+	spin_unlock_irqrestore(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_unlock_bh(&pAd->Mlme.TaskLock);
+	spin_unlock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 
 }
@@ -5477,8 +5497,8 @@ NDIS_STATUS MlmeInit(IN PRTMP_ADAPTER pAd)
 	DBGPRINT(RT_DEBUG_TRACE, "--> MLME Initialize\n");
 
 	do {
-		pAd->Mlme.bRunning = FALSE;
-		spin_lock_init(&pAd->Mlme.TaskLock);
+		pAd->Mlme.Running = FALSE;
+		spin_lock_init(&pAd->Mlme.Queue.Lock);
 		spin_lock_init(&pAd->Mlme.MemLock);
 
 		// initialize table
@@ -5628,123 +5648,86 @@ VOID MlmeHalt(IN PRTMP_ADAPTER pAd)
  */
 VOID MlmeHandler(IN PRTMP_ADAPTER pAd)
 {
-	MLME_QUEUE *Queue = (MLME_QUEUE *) & pAd->Mlme.Queue;
 	MLME_QUEUE_ELEM *Elem = NULL;
-	BOOLEAN Dequeue;
 #if SL_IRQSAVE
 	unsigned long IrqFlags;
-	unsigned long QueueIrqFlags;
 #endif
 
-	// Only accept MLME and Frame from peer side, no other (control/data) frame should
-	// get into this state machine
+	// Only accept MLME and Frame from peer side, no other (control/data) 
+	// frame should get into this state machine
+
+	// We fix the multiple context service drop problem identified by
+	// Ben Hutchings in an SMP- safe way by combining TaskLock and Queue.Lock
+	// per his suggestion.
 #if SL_IRQSAVE
-	spin_lock_irqsave(&pAd->Mlme.TaskLock, IrqFlags);
+	spin_lock_irqsave(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_lock_bh(&pAd->Mlme.TaskLock);
+	spin_lock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 
-	if (pAd->Mlme.bRunning) {
+	if (pAd->Mlme.Running) {
 #if SL_IRQSAVE
-		spin_unlock_irqrestore(&pAd->Mlme.TaskLock,
-				       IrqFlags);
+		spin_unlock_irqrestore(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-		spin_unlock_bh(&pAd->Mlme.TaskLock);
+		spin_unlock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 		return;
-	} else {
-		pAd->Mlme.bRunning = TRUE;
 	}
+	pAd->Mlme.Running = TRUE;
+
+	// If there's a bubble, wait for it to collapse before proceeding.
+    while (MlmeGetHead(&pAd->Mlme.Queue, &Elem)) {
+		smp_read_barrier_depends();
+		if (!Elem->Occupied) break;
 
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
+		spin_unlock_irqrestore(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_unlock_bh(&pAd->Mlme.TaskLock);
+		spin_unlock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 
-	while (TRUE) {
-	#if SL_IRQSAVE
-		spin_lock_irqsave(&(Queue->Lock), QueueIrqFlags);
-	#else
-		spin_lock_bh(&(Queue->Lock));
-	#endif
-		if (Queue->Num <= 0) {
-		#if SL_IRQSAVE
-			spin_unlock_irqrestore(&(Queue->Lock), QueueIrqFlags);
-		#else
-			spin_unlock_bh(&(Queue->Lock));
-		#endif
-			break;
-		}
-		Dequeue = MlmeDequeue(&pAd->Mlme.Queue, &Elem);
-	#if SL_IRQSAVE
-		spin_unlock_irqrestore(&(Queue->Lock), QueueIrqFlags);
-	#else
-		spin_unlock_bh(&(Queue->Lock));
-	#endif
 		//From message type, determine which state machine I should drive
-		if (Dequeue
-		    && pAd->PortCfg.BssType != BSS_MONITOR) {
-			// if dequeue success
-			switch (Elem->Machine) {
+        if (pAd->PortCfg.BssType != BSS_MONITOR) switch (Elem->Machine)
+		{
 			case ASSOC_STATE_MACHINE:
-				StateMachinePerformAction(pAd,
-							  &pAd->Mlme.
-							  AssocMachine, Elem);
+				StateMachinePerformAction(pAd, &pAd->Mlme.AssocMachine, Elem);
 				break;
 			case AUTH_STATE_MACHINE:
-				StateMachinePerformAction(pAd,
-							  &pAd->Mlme.
-							  AuthMachine, Elem);
+				StateMachinePerformAction(pAd, &pAd->Mlme.AuthMachine, Elem);
 				break;
 			case AUTH_RSP_STATE_MACHINE:
-				StateMachinePerformAction(pAd,
-							  &pAd->Mlme.
-							  AuthRspMachine, Elem);
+				StateMachinePerformAction(pAd, &pAd->Mlme.AuthRspMachine, Elem);
 				break;
 			case SYNC_STATE_MACHINE:
-				StateMachinePerformAction(pAd,
-							  &pAd->Mlme.
-							  SyncMachine, Elem);
+				StateMachinePerformAction(pAd, &pAd->Mlme.SyncMachine, Elem);
 				break;
 			case MLME_CNTL_STATE_MACHINE:
-				MlmeCntlMachinePerformAction(pAd,
-							     &pAd->Mlme.
-							     CntlMachine, Elem);
+				MlmeCntlMachinePerformAction(pAd, &pAd->Mlme.CntlMachine, Elem);
 				break;
 			case WPA_PSK_STATE_MACHINE:
-				StateMachinePerformAction(pAd,
-							  &pAd->Mlme.
-							  WpaPskMachine, Elem);
+				StateMachinePerformAction(pAd, &pAd->Mlme.WpaPskMachine, Elem);
 				break;
 			default:
-				DBGPRINT(RT_DEBUG_TRACE,
+				DBGPRINT(RT_DEBUG_ERROR,
 					 "ERROR: Illegal machine in MlmeHandler()\n");
 				break;
-			}	// end of switch
+		}	// end of switch
 
-			// free MLME element
-			Elem->Occupied = FALSE;
-			Elem->MsgLen = 0;
-
-		} else {
-			DBGPRINT(RT_DEBUG_ERROR,
-				 "MlmeHandler: MlmeQueue empty\n");
-		}
-	}
-
+		// free MLME element
+        smp_mb();
+        Elem->Occupied = FALSE;	// sic - bb
 #if SL_IRQSAVE
-	spin_lock_irqsave(&pAd->Mlme.TaskLock, IrqFlags);
+		spin_lock_irqsave(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_lock_bh(&pAd->Mlme.TaskLock);
+		spin_lock_bh(&pAd->Mlme.Queue.Lock);
 #endif
-
-	pAd->Mlme.bRunning = FALSE;
-
+		MlmeDequeue(&pAd->Mlme.Queue);
+	}
+	pAd->Mlme.Running = FALSE;
 #if SL_IRQSAVE
-	spin_unlock_irqrestore(&pAd->Mlme.TaskLock, IrqFlags);
+	spin_unlock_irqrestore(&pAd->Mlme.Queue.Lock, IrqFlags);
 #else
-	spin_unlock_bh(&pAd->Mlme.TaskLock);
+	spin_unlock_bh(&pAd->Mlme.Queue.Lock);
 #endif
 
 }
