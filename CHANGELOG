@@ -23,6 +23,8 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	* Propagate incomplete queue element, multi- context service drop fixes.
+	  Patch by Ben Hutchings.
 	* Fix 2.6 compile problem w/prev patch. Discovery/diagnosis/resolution
 	  by xqterry.
 	* Fix Bug #1763773 - does not build on 2.6.5. Needed for early 2.6
