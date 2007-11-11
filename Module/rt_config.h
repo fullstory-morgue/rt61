@@ -239,6 +239,11 @@ typedef union _LARGE_INTEGER {
 #define pci_module_init	pci_register_driver
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24))
+#define SET_MODULE_OWNER(some_struct) do { } while (0)
+#define dev_get_by_name(slot_name) dev_get_by_name(&init_net, slot_name)
+#endif
+
 #define SL_IRQSAVE          1	// 0: use spin_lock_bh/spin_unlock_bh pair,
 			       // 1: use spin_lock_irqsave/spin_unlock_irqrestore pair
 

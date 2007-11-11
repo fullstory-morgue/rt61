@@ -1,3 +1,10 @@
+rt61 (1.1.0.dfsg.2+cvs20071111-1) unstable; urgency=low
+
+  * New upstream release:
+    - forward compatibility for 2.6.24.
+
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Sun, 11 Nov 2007 13:55:37 +0100
+
 rt61 (1.1.0.dfsg.2+cvs20071031-2) UNRELEASED; urgency=low
 
   * NOT RELEASED YET

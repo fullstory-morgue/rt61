@@ -36,7 +36,7 @@ upstream:
 	cd .. && cvs -z3 -d:pserver:anonymous@rt2400.cvs.sourceforge.net:/cvsroot/rt2400 \
 		export -d rt61-$(DATE) -D $(DATE) source/rt61/
 	@test -d ../rt61-$(DATE)
-	tar zcf ../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz \
+	tar -czf ../rt61_$(UPVERSION).$(DFSG)+cvs$(DATE).orig.tar.gz \
 		--exclude='*.bin' --exclude='WPA_Supplicant' -C .. rt61-$(DATE)
 	if [ -x /usr/bin/diff ] && [ -x /usr/bin/diffstat ]; then \
 		diff	-Nrup \
