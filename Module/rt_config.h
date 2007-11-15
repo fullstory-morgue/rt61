@@ -35,7 +35,8 @@
 #ifndef __RT_CONFIG_H__
 #define __RT_CONFIG_H__
 
-#ifdef __BIG_ENDIAN		// Propagate compiler environment asap - bb
+// Propagate predefined compiler variables asap - bb.
+#if defined(__BIG_ENDIAN) || defined(__BIG_ENDIAN__) || defined(_BIG_ENDIAN)
 #define BIG_ENDIAN TRUE
 #endif /* __BIG_ENDIAN */
 
