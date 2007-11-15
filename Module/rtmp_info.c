@@ -4564,6 +4564,7 @@ INT RT61_ioctl(IN struct net_device * net_dev,
 		Status = -EOPNOTSUPP;
 		break;
 	case RT_PRIV_IOCTL:
+	case RT_PRIV_IOCTL_WPA_SUPPLICANT:
 		subcmd = wrq->u.data.flags;
 		if (subcmd & OID_GET_SET_TOGGLE)
 			Status = RTMPSetInformation(pAd, rq, subcmd);
