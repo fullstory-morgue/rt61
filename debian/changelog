@@ -1,8 +1,9 @@
-rt61 (1.1.0.dfsg.2+cvs20071116-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20071120-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - fix NULL pointer exception.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Fri, 16 Nov 2007 00:54:05 +0100
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Tue, 20 Nov 2007 01:38:08 +0100
 
 rt61 (1.1.0.dfsg.2+cvs20071116-1) unstable; urgency=low
 

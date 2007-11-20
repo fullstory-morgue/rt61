@@ -120,6 +120,17 @@ static void rt61pci_write_bbp(const struct rt2x00_dev *rt2x00dev,
 	RTMP_BBP_IO_WRITE8_BY_REG_ID(rt2x00dev->pAd, word, data);
 }
 
+static void rt2500usb_read_rf(const struct rt2x00_dev *rt2x00dev,
+			     const unsigned int word, u32 *data)
+{
+	*data = 0;
+}
+
+static void rt2500usb_write_rf(const struct rt2x00_dev *rt2x00dev,
+			      const unsigned int word, u32 data)
+{
+}
+
 static const struct rt2x00debug rt61pci_rt2x00debug = {
 	.owner	= THIS_MODULE,
 	.csr	= {
@@ -139,6 +150,12 @@ static const struct rt2x00debug rt61pci_rt2x00debug = {
 		.write		= rt61pci_write_bbp,
 		.word_size	= sizeof(u8),
 		.word_count	= BBP_SIZE / sizeof(u8),
+	},
+	.rf	= {
+		.read		= rt61pci_read_rf,
+		.write		= rt61pci_write_rf,
+		.word_size	= sizeof(u32),
+		.word_count	= RF_SIZE / sizeof(u32),
 	},
 };
 

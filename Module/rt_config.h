@@ -243,6 +243,7 @@ typedef union _LARGE_INTEGER {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24))
 #define SET_MODULE_OWNER(some_struct) do { } while (0)
 #define dev_get_by_name(slot_name) dev_get_by_name(&init_net, slot_name)
+#define first_net_device() first_net_device(&init_net)
 #endif
 
 #define SL_IRQSAVE          1	// 0: use spin_lock_bh/spin_unlock_bh pair,
