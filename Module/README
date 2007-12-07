@@ -57,8 +57,9 @@ NOTES:
 
     If for some reason you want this interface number 'static' (e.g.
     if you have several wlan devices and their numbers change on
-    reboot) you can change the rt61 alias in /etc/modprobe.conf back
-    to wlan0 (or wlan1, etc).
+    reboot) you can change the rt61 alias in /etc/modprobe.d/ralink
+    (2.6 kernels) or /etc/modules.conf (2.4 kernels) back to wlan0 (or
+    wlan1, etc).
 
     However the proper way to achieve this purpose is to use a udev
     rule based on the wlan MAC address, for example:

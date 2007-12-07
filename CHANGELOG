@@ -23,8 +23,9 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
-    * Fix big endian compiler variable propagation. Thanks to Adam Sjøgren.
-    * Forward compatibility for 2.6.24.
+	* 2.6 kernels now use /etc/modprobe.d/ralink for module alias.
+	* Fix big endian compiler variable propagation. Thanks to Adam Sjøgren.
+	* Forward compatibility for 2.6.24.
 	* Propagate incomplete queue element, multi- context service drop fixes.
 	  Patch by Ben Hutchings.
 	* Fix 2.6 compile problem w/prev patch. Discovery/diagnosis/resolution

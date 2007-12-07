@@ -1,9 +1,10 @@
-rt61 (1.1.0.dfsg.2+cvs20071120-2) UNRELEASED; urgency=low
+rt61 (1.1.0.dfsg.2+cvs20071207-1) unstable; urgency=low
 
-  * NOT RELEASED YET
+  * New upstream release:
+    - 2.6 kernels now use /etc/modprobe.d/ralink for module alias.
   * update to Standards-Version 3.7.3, no changes necessary.
 
- -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Mon, 03 Dec 2007 14:02:35 +0100
+ -- Stefan Lippers-Hollmann <s.l-h@gmx.de>  Fri, 07 Dec 2007 17:43:56 +0100
 
 rt61 (1.1.0.dfsg.2+cvs20071120-1) unstable; urgency=low
 
