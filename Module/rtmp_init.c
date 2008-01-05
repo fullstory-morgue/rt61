@@ -261,7 +261,7 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 			if (pAdapter->TxDescRing[num].AllocVa == NULL) {
 				DBGPRINT(RT_DEBUG_ERROR,
 					 "Failed to allocate a big buffer\n");
-				Status = NDIS_STATUS_RESOURCES;
+				Status = -ENOMEM;
 				break;
 			}
 			// Zero init this memory block
@@ -287,7 +287,7 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 			if (pAdapter->TxBufSpace[num].AllocVa == NULL) {
 				DBGPRINT(RT_DEBUG_ERROR,
 					 "Failed to allocate a big buffer\n");
-				Status = NDIS_STATUS_RESOURCES;
+				Status = -ENOMEM;
 				break;
 			}
 			// Zero init this memory block
@@ -351,7 +351,7 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 		if (pAdapter->MgmtDescRing.AllocVa == NULL) {
 			DBGPRINT(RT_DEBUG_ERROR,
 				 "Failed to allocate a big buffer\n");
-			Status = NDIS_STATUS_RESOURCES;
+			Status = -ENOMEM;
 			break;
 		}
 		// Zero init this memory block
@@ -393,7 +393,7 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 		if (pAdapter->RxDescRing.AllocVa == NULL) {
 			DBGPRINT(RT_DEBUG_ERROR,
 				 "Failed to allocate a big buffer\n");
-			Status = NDIS_STATUS_RESOURCES;
+			Status = -ENOMEM;
 			break;
 		}
 		// Zero init this memory block
@@ -421,8 +421,14 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 			pDmaBuf = &pAdapter->RxRing.Cell[index].DmaBuf;
 			pDmaBuf->AllocSize = RX_DMA_BUFFER_SIZE;
 
-			pSkb =
-			    __dev_alloc_skb(pDmaBuf->AllocSize, MEM_ALLOC_FLAG);
+			pSkb = __dev_alloc_skb(pDmaBuf->AllocSize, MEM_ALLOC_FLAG);
+			if (pSkb == NULL) {
+				Status = -ENOMEM;
+				DBGPRINT(RT_DEBUG_ERROR,
+					 "- %s: Failed to allocate RxRing skb %d\n",
+					 __FUNCTION__, index);
+				break;
+			}
 			RTMP_SET_PACKET_SOURCE(pSkb, PKTSRC_DRIVER);
 			pDmaBuf->pSkb = pSkb;
 			pDmaBuf->AllocVa = pSkb->data;
@@ -435,8 +441,9 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 			// Error handling
 			if (pDmaBuf->AllocVa == NULL) {
 				DBGPRINT(RT_DEBUG_ERROR,
-					 "Failed to allocate RxRing's 1st buffer\n");
-				Status = NDIS_STATUS_RESOURCES;
+					 "- %s: Failed to allocate RxRing buffer %d\n",
+					 __FUNCTION__, index);
+				Status = -ENOMEM;
 				break;
 			}
 			// Zero init this memory block
@@ -457,9 +464,14 @@ NDIS_STATUS RTMPAllocDMAMemory(IN PRTMP_ADAPTER pAdapter)
 		DBGPRINT(RT_DEBUG_TRACE, "Rx Ring: total %d entry allocated\n",
 			 index);
 
+		/* Back out partially allocated resources. */
+		if (Status != NDIS_STATUS_SUCCESS) {
+			RTMPFreeDMAMemory(pAdapter);
+			KPRINT(KERN_CRIT, "DMA alloc failed. Giving up!\n");
+		}
 	} while (FALSE);
 
-	DBGPRINT(RT_DEBUG_TRACE, "<-- RTMPAllocDMAMemory\n");
+	DBGPRINT(RT_DEBUG_TRACE, "<-- RTMPAllocDMAMemory (Status=%d)\n", Status);
 
 	return Status;
 }

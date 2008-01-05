@@ -111,6 +111,9 @@ extern UCHAR WME_INFO_ELEM[];
 extern UCHAR WME_PARM_ELEM[];
 extern UCHAR RALINK_OUI[];
 
+#define KPRINT(Level, fmt, args...) \
+	printk(Level DRIVER_NAME ": " fmt, ## args)
+
 //
 //  MACRO for debugging information
 //
