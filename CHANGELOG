@@ -23,6 +23,7 @@
  Changelog for 802.11g rt61 driver
 
  Version: CVS
+	* Fix bug 1826422 to not oops and not leak on DMA buf allocation fail.
 	* 2.6 kernels now use /etc/modprobe.d/ralink for module alias.
 	* Fix big endian compiler variable propagation. Thanks to Adam Sjøgren.
 	* Forward compatibility for 2.6.24.
